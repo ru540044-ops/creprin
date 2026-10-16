@@ -169,7 +169,7 @@ class Car {
       if (imp > 150) {
         soundAt('crash', this.x, this.y, Math.min(1, imp / 400));
         sparks(this.x - nx * this.wid / 2, this.y - ny * this.wid / 2, 8);
-        if (this.driver === 'player') G.shake = Math.max(G.shake, Math.min(12, imp / 45));
+        if (this.driver === 'player') { G.shake = Math.max(G.shake, Math.min(12, imp / 45)); Mobile.vib(Math.min(80, imp / 6)); }
       }
     }
   }
@@ -194,6 +194,7 @@ function explosion(x, y, src, power = 1) {
   const dc = dist(x, y, cam.x, cam.y);
   G.shake = Math.max(G.shake, 16 * power * clamp(1 - dc / 900, 0, 1));
   soundAt('boom', x, y, power);
+  if (dc < 600) Mobile.vib(Math.round(160 * (1 - dc / 600)) + 20);
   puff(x, y, 34, { color: ['#ffdb4d', '#ff9a1f', '#ff5a1f', '#fff1a8'], smin: 40, smax: 260, lmin: 0.3, lmax: 0.8, zmin: 6, zmax: 14, grow: 20, add: true, drag: 4 });
   puff(x, y, 22, { color: ['rgba(40,40,40,0.6)', 'rgba(70,70,70,0.5)'], smin: 20, smax: 120, lmin: 1, lmax: 2.2, zmin: 8, zmax: 14, grow: 22, drag: 2 });
   puff(x, y, 12, { color: '#2a2a2a', smin: 120, smax: 380, lmin: 0.4, lmax: 0.9, zmin: 2, zmax: 3, drag: 3 });
@@ -239,7 +240,7 @@ function collideCars(a, b) {
         if (imp > 110) {
           soundAt('crash', (a.x + b.x) / 2, (a.y + b.y) / 2, Math.min(1, imp / 380));
           sparks(p.x + nx * p.r, p.y + ny * p.r, 6);
-          if (a.driver === 'player' || b.driver === 'player') G.shake = Math.max(G.shake, Math.min(10, imp / 50));
+          if (a.driver === 'player' || b.driver === 'player') { G.shake = Math.max(G.shake, Math.min(10, imp / 50)); Mobile.vib(Math.min(70, imp / 6)); }
         }
       }
     }
@@ -276,7 +277,7 @@ function damagePed(p, dmg, src, explosive) {
   if (p.kind === 'player') {
     if (G.state !== 'play') return;
     if (p.armor > 0) { const a = Math.min(p.armor, dmg * 0.7); p.armor -= a; dmg -= a; }
-    p.hp -= dmg; G.hurtT = 0.45;
+    p.hp -= dmg; G.hurtT = 0.45; Mobile.vib(dmg > 20 ? 60 : 25);
     if (!p.inCar) blood(p.x, p.y, 4);
     if (p.hp <= 0) killPlayer('撃たれた');
     return;
@@ -840,6 +841,7 @@ function killPlayer(reason) {
   addDecal({ kind: 'blood', x: p.x, y: p.y, r: 14, a: 0 });
   Missions.fail(reason, true);
   Hud.bigMsg('WASTED', reason, '#e0403a', 4.5, true);
+  Mobile.vib([120, 60, 260]);
   Sound.wasted();
 }
 function bustPlayer() {
@@ -849,6 +851,7 @@ function bustPlayer() {
   G.state = 'busted'; G.deadT = 0; p.moving = 0;
   Missions.fail('逮捕された', true);
   Hud.bigMsg('BUSTED', '逮捕された', '#3b8bff', 4.5, true);
+  Mobile.vib([80, 80, 80, 80, 200]);
   Sound.wasted();
 }
 function respawn(kind) {
@@ -879,6 +882,20 @@ function autoAim(p, range) {
   }
   if (G.heli && dist(p.x, p.y, G.heli.x, G.heli.y) < range) return Math.atan2(G.heli.y - p.y, G.heli.x - p.x);
   return best ? Math.atan2(best.y - p.y, best.x - p.x) : null;
+}
+
+function aimAssist(p, ang) {
+  let best = ang, bd = 0.28;
+  const consider = (x, y) => {
+    const d = dist(p.x, p.y, x, y);
+    if (d > 420) return;
+    const da = Math.abs(angDiff(ang, Math.atan2(y - p.y, x - p.x)));
+    if (da < bd && lineOfSight(p.x, p.y, x, y)) { bd = da; best = Math.atan2(y - p.y, x - p.x); }
+  };
+  for (const q of G.peds) if (q !== p && !q.dead && !q.inCar) consider(q.x, q.y);
+  for (const c of G.cars) if (c !== p.inCar && !c.wrecked && c.driver) consider(c.x, c.y);
+  if (G.heli) consider(G.heli.x, G.heli.y);
+  return best;
 }
 
 function controlPlayer(dt) {
@@ -924,13 +941,21 @@ function controlPlayer(dt) {
     if (mouseAim && !tj.on) p.angle = Math.atan2(mw.y - p.y, mw.x - p.x);
   }
 
-  const wantFire = Input.mouse.down || tj.fire;
+  // スマホ：右スティックで照準（軽い照準アシスト付き）
+  const aimM = tj.aiming ? Math.hypot(tj.ax, tj.ay) : 0;
+  let stickAng = null;
+  if (aimM > 0.25) {
+    stickAng = aimAssist(p, Math.atan2(tj.ay, tj.ax));
+    if (!p.inCar) p.angle = stickAng;
+  }
+  const wantFire = Input.mouse.down || tj.fire || tj.tap || aimM > 0.6;
   if (wantFire && p.fireCd <= 0) {
     let w = p.weapon;
     if (p.inCar && WEAPONS[w].melee) { w = WEAPON_ORDER.find((k) => k !== 'fist' && p.ammo[k] > 0); }
     if (w) {
       let ang;
-      if (tj.on && !(Input.mouse.down)) ang = autoAim(p, 330) ?? p.angle;
+      if (stickAng !== null) ang = stickAng;
+      else if (tj.on && !(Input.mouse.down)) ang = autoAim(p, 330) ?? p.angle;
       else ang = Math.atan2(mw.y - p.y, mw.x - p.x);
       if (!p.inCar) p.angle = ang;
       fireWeapon(p, w, ang, p.inCar ? { car: p.inCar, off: 4 } : {});
@@ -1121,6 +1146,7 @@ function frame(now) {
     update(dead ? dt * 0.35 : dt);
     if (dead) { G.deadT += dt; if (G.deadT > 4.2) respawn(G.state); }
   }
+  Mobile.update();
   render();
   endInputFrame();
   requestAnimationFrame(frame);
@@ -1136,7 +1162,10 @@ function startGame() {
   if (G.state !== 'title') return;
   Sound.init();
   document.getElementById('title').classList.add('hidden');
-  if (Input.touch.on) document.getElementById('touch').style.display = 'block';
+  if (Mobile.on) {
+    document.getElementById('touch').style.display = 'block';
+    Mobile.enterFullscreen();
+  }
   const p = G.player, c = Missions.contacts[0];
   p.x = c.x + 40; p.y = c.y + 10;
   cam.x = p.x; cam.y = p.y;
@@ -1146,11 +1175,12 @@ function startGame() {
   manageSpawns(0, true);
   Hud.bigMsg('NEON BAY', 'ようこそ、ネオン・ベイへ', '#ff4fa3', 3.5);
   Hud.help(IS_TOUCH
-    ? '左スティック：移動／運転　FIRE：射撃（自動照準）　CAR：乗り降り　黄色い Ⓜ マーカーでミッション'
+    ? '画面の左半分：移動・運転　右半分をドラッグ：照準して射撃（タップで自動照準）　乗る：車に乗る　黄色い Ⓜ マーカーでミッション'
     : 'WASD：移動／運転　マウス：照準＆射撃　F：車に乗る／降りる　Space：ハンドブレーキ　Q：武器切替　R：ラジオ　M：地図　黄色い Ⓜ マーカーでミッション', 14);
 }
 
 function init() {
+  if (IS_TOUCH) MAX_DPR = 1.5;
   resize();
   buildSprites();
   genWorld(1985);
@@ -1164,7 +1194,7 @@ function init() {
   cam.x = G.player.x; cam.y = G.player.y; cam.zoom = 0.6;
   manageSpawns(0, true);
   bindMouse(cv);
-  bindTouch();
+  Mobile.bind();
   const title = document.getElementById('title');
   title.addEventListener('click', startGame);
   title.addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });

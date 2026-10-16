@@ -45,7 +45,7 @@ const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const Input = {
   keys: {}, pressed: {}, wheel: 0,
   mouse: { x: 0, y: 0, down: false, last: -1e9 },
-  touch: { on: false, jx: 0, jy: 0, fire: false, brake: false },
+  touch: { on: false, jx: 0, jy: 0, ax: 0, ay: 0, aiming: false, tap: false, fire: false, brake: false },
 };
 const kd = (c) => !!Input.keys[c];
 const kp = (c) => !!Input.pressed[c];
@@ -68,50 +68,4 @@ function bindMouse(canvas) {
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
-function bindTouch() {
-  if (!IS_TOUCH) return;
-  Input.touch.on = true;
-  const stick = document.getElementById('stick'), knob = document.getElementById('knob');
-  let sid = null, cx = 0, cy = 0;
-  const move = (t) => {
-    let dx = t.clientX - cx, dy = t.clientY - cy;
-    const m = Math.hypot(dx, dy), R = 52;
-    if (m > R) { dx *= R / m; dy *= R / m; }
-    Input.touch.jx = dx / R; Input.touch.jy = dy / R;
-    knob.style.transform = `translate(${dx}px,${dy}px)`;
-  };
-  stick.addEventListener('touchstart', (e) => {
-    const t = e.changedTouches[0]; sid = t.identifier;
-    const r = stick.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2;
-    move(t); e.preventDefault();
-  }, { passive: false });
-  stick.addEventListener('touchmove', (e) => {
-    for (const t of e.changedTouches) if (t.identifier === sid) move(t);
-    e.preventDefault();
-  }, { passive: false });
-  const end = (e) => {
-    for (const t of e.changedTouches) if (t.identifier === sid) {
-      sid = null; Input.touch.jx = 0; Input.touch.jy = 0; knob.style.transform = '';
-    }
-  };
-  stick.addEventListener('touchend', end);
-  stick.addEventListener('touchcancel', end);
-  document.querySelectorAll('[data-btn]').forEach((b) => {
-    const name = b.dataset.btn;
-    b.addEventListener('touchstart', (e) => {
-      e.preventDefault(); b.classList.add('on');
-      if (name === 'fire') Input.touch.fire = true;
-      else if (name === 'brake') Input.touch.brake = true;
-      else Input.pressed[name] = true;
-    }, { passive: false });
-    const up = () => {
-      b.classList.remove('on');
-      if (name === 'fire') Input.touch.fire = false;
-      if (name === 'brake') Input.touch.brake = false;
-    };
-    b.addEventListener('touchend', up);
-    b.addEventListener('touchcancel', up);
-  });
-}
-
-function endInputFrame() { Input.pressed = {}; Input.wheel = 0; }
+function endInputFrame() { Input.pressed = {}; Input.wheel = 0; Input.touch.tap = false; }

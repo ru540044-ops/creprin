@@ -587,7 +587,8 @@ function star(x, y, r, fill, stroke) {
 
 function drawHUD() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const pl = G.player, small = W < 700, S = small ? 0.78 : 1;
+  const pl = G.player, small = W < 700 || H < 500, S = small ? 0.78 : 1;
+  const touch = Mobile.on, portrait = H > W;
   const R = W - 18, top = 16;
   // 時計とお金
   const hh = Math.floor(G.clock / 60), mm = Math.floor(G.clock % 60);
@@ -618,12 +619,12 @@ function drawHUD() {
   if (pl.weapon !== 'fist') txt(String(pl.ammo[pl.weapon]), wx + 80 * S, wy + 18 * S, 20 * S, '#ffd23f', 'right');
 
   // ミニマップ
-  const mr = small ? 62 : 82, mx = (IS_TOUCH ? 18 : 22) + mr, my = IS_TOUCH ? 18 + mr : H - 22 - mr;
+  const mr = small ? 58 : 82, mx = (touch ? 16 : 22) + mr, my = touch ? 14 + mr : H - 22 - mr;
   drawMinimap(mx, my, mr);
 
   // ミッション
   const obj = Missions.objective;
-  if (obj) richText(obj, W / 2, H - (IS_TOUCH ? 190 : 46), small ? 16 : 22);
+  if (obj) richText(obj, W / 2, touch ? (portrait ? mr * 2 + 64 : H - 20) : H - 46, small ? 15 : 22);
   const tm = Missions.timer;
   if (tm != null) {
     const s = Math.max(0, Math.ceil(tm));
@@ -643,8 +644,8 @@ function drawHUD() {
   }
   Hud.flashes.forEach((f, i) => { ctx.globalAlpha = fadeA(f); jp(f.text, W / 2, H * 0.62 + i * 30, small ? 16 : 20, '#fff7c2', 'center', 5); });
   ctx.globalAlpha = 1;
-  if (Hud.area) { ctx.globalAlpha = fadeA(Hud.area); txt(Hud.area.text, W - 24, H - (IS_TOUCH ? 200 : 60), small ? 26 : 38, '#ffd8f0', 'right', FONT_BIG, 6); ctx.globalAlpha = 1; }
-  if (Hud.veh) { ctx.globalAlpha = fadeA(Hud.veh); txt(Hud.veh.text, W - 24, H - (IS_TOUCH ? 160 : 24), small ? 18 : 26, '#9fe8ff', 'right', FONT_BIG, 5); ctx.globalAlpha = 1; }
+  if (Hud.area) { ctx.globalAlpha = fadeA(Hud.area); txt(Hud.area.text, W - 20, touch ? top + 166 * S : H - 60, small ? 24 : 38, '#ffd8f0', 'right', FONT_BIG, 6); ctx.globalAlpha = 1; }
+  if (Hud.veh) { ctx.globalAlpha = fadeA(Hud.veh); txt(Hud.veh.text, W - 20, touch ? top + 196 * S : H - 24, small ? 17 : 26, '#9fe8ff', 'right', FONT_BIG, 5); ctx.globalAlpha = 1; }
   if (Hud.radio) {
     ctx.globalAlpha = fadeA(Hud.radio);
     txt(Hud.radio.text, W / 2, 110, small ? 26 : 34, '#ff7ad9', 'center', FONT_NUM, 5);
@@ -654,9 +655,10 @@ function drawHUD() {
   if (Hud.helpMsg) {
     ctx.globalAlpha = fadeA(Hud.helpMsg);
     ctx.font = `700 ${small ? 12 : 14}px ${FONT_JP}`;
-    const lines = wrapText(Hud.helpMsg.text, small ? W - 40 : 360);
-    const hx = IS_TOUCH ? W / 2 - (small ? W - 40 : 360) / 2 : 22, hy = IS_TOUCH ? 30 + mr * 2 : 22;
-    ctx.fillStyle = 'rgba(0,0,0,0.65)'; rrect(ctx, hx - 10, hy - 6, (small ? W - 40 : 360) + 20, lines.length * 20 + 14, 8); ctx.fill();
+    const hwid = !touch ? 360 : portrait ? W - 40 : clamp(W - mr * 2 - 110 - 300, 180, 380);
+    const lines = wrapText(Hud.helpMsg.text, hwid);
+    const hx = !touch ? 22 : portrait ? 20 : mr * 2 + 100, hy = !touch ? 22 : portrait ? mr * 2 + 90 : 18;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)'; rrect(ctx, hx - 10, hy - 6, hwid + 20, lines.length * 20 + 14, 8); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
     lines.forEach((l, i) => ctx.fillText(l, hx, hy + 16 + i * 20));
     ctx.globalAlpha = 1;

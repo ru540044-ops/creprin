@@ -1,0 +1,17 @@
+{
+  "name": "NEON BAY",
+  "short_name": "NEON BAY",
+  "description": "ネオンとヤシの木の街を舞台にしたオープンワールド・クライムアクション",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b0d1a",
+  "theme_color": "#140628",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

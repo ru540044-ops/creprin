@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#140628">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEON BAY">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>NEON BAY</title>
 <meta name="description" content="ネオン・ベイ — ブラウザで遊べるトップダウン型オープンワールド・クライムアクション。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,10 +36,12 @@
     <span><b>M</b>マップ</span><span><b>ESC</b>ポーズ</span>
   </div>
   <div class="keys touch">
-    <span><b>STICK</b>移動 ／ 運転</span><span><b>FIRE</b>射撃（自動照準）</span>
-    <span><b>CAR</b>乗り降り</span><span><b>BRAKE</b>ハンドブレーキ</span>
-    <span><b>WPN</b>武器切替</span><span><b>MAP / II</b>地図・ポーズ</span>
+    <span><b>左半分</b>指を置いた所がスティック：移動・運転</span>
+    <span><b>右半分</b>ドラッグで照準・射撃／タップで自動照準</span>
+    <span><b>乗る</b>車の近くで光ったら乗車</span><span><b>FIRE</b>自動照準で連射</span>
+    <span><b>ブレーキ</b>ハンドブレーキ（ドリフト）</span><span><b>武器</b>タップで切替</span>
   </div>
+  <div class="install touch">ホーム画面に追加するとフルスクリーンのアプリとして遊べます（オフライン対応）</div>
   <div class="note">黄色い Ⓜ マーカーに入るとミッション開始。手配度は警察の視界から逃げ切るか、塗装屋で消せる。<br>本作は既存タイトルとは無関係のオリジナル作品です。</div>
 </div>
 
@@ -51,16 +61,19 @@
 </div>
 
 <div id="touch">
-  <div id="stick"><div id="knob"></div></div>
+  <div id="zoneL" class="zone"></div>
+  <div id="zoneR" class="zone"></div>
+  <div id="stickL" class="stick"><div class="knob"></div></div>
+  <div id="stickR" class="stick aim"><div class="knob"></div></div>
   <div class="btns">
-    <button data-btn="KeyQ">WPN</button>
-    <button data-btn="KeyF">CAR</button>
-    <button data-btn="brake">BRAKE</button>
-    <button data-btn="fire" class="fire">FIRE</button>
+    <button data-btn="KeyF" id="bCar" class="b-car">乗る</button>
+    <button data-btn="KeyQ" id="bWpn" class="b-wpn">ピストル</button>
+    <button data-btn="brake" id="bBrake" class="b-brake">ブレーキ</button>
+    <button data-btn="fire" class="b-fire">FIRE</button>
   </div>
   <div class="tbtns">
     <button data-btn="KeyM">MAP</button>
-    <button data-btn="KeyR">RADIO</button>
+    <button data-btn="KeyR" id="bRadio" class="b-radio">RADIO</button>
     <button data-btn="Escape">II</button>
   </div>
 </div>
@@ -71,5 +84,6 @@
 <script src="js/render.js"></script>
 <script src="js/game.js"></script>
 <script src="js/missions.js"></script>
+<script src="js/mobile.js"></script>
 </body>
 </html>

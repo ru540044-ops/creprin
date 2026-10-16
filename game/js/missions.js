@@ -31,7 +31,7 @@ const Missions = {
     G.money += reward; G.completed++; m.contact.level++;
     this.cleanup();
     Hud.bigMsg('ミッション成功！', `+$${reward}`, '#ffd23f', 4);
-    Sound.jingle(true); Sound.cash();
+    Sound.jingle(true); Sound.cash(); Mobile.vib([40, 40, 40, 40, 120]);
     saveGame(); this.cooldown = 3;
   },
   fail(reason, quiet) {

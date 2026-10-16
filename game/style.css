@@ -64,26 +64,52 @@ canvas#game { display: block; position: fixed; inset: 0; cursor: crosshair; }
 }
 #pause button.ghost { background: transparent; border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: none; font-weight: 500; }
 
-/* ===== タッチ操作 ===== */
-#touch { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 5; }
-#stick {
-  position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: max(22px, env(safe-area-inset-bottom));
-  width: 140px; height: 140px; border-radius: 50%; pointer-events: auto;
-  background: rgba(255, 255, 255, 0.07); border: 2px solid rgba(255, 255, 255, 0.25);
+/* ===== スマホ版タッチ操作 ===== */
+html, body { overscroll-behavior: none; position: fixed; inset: 0; }
+.install { margin-top: 14px; font-size: 12px; color: #9fe8ff; opacity: 0.85; }
+.keys.touch { grid-template-columns: 1fr 1fr; max-width: 560px; }
+.keys.touch b { font-family: inherit; font-size: 13px; font-weight: 700; }
+#touch { display: none; position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+#touch .zone { position: absolute; top: 0; bottom: 0; pointer-events: auto; -webkit-tap-highlight-color: transparent; }
+#zoneL { left: 0; width: 50%; }
+#zoneR { right: 0; width: 50%; }
+.stick {
+  position: absolute; width: 124px; height: 124px; margin: -62px 0 0 -62px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.12));
+  border: 2px solid rgba(255, 255, 255, 0.28); opacity: 0.45; transition: opacity 0.15s;
 }
-#knob {
-  position: absolute; left: 44px; top: 44px; width: 52px; height: 52px; border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+#stickL { left: calc(max(20px, env(safe-area-inset-left)) + 80px); top: calc(100% - max(20px, env(safe-area-inset-bottom)) - 80px); }
+#stickR { display: none; border-color: rgba(255, 90, 110, 0.5); }
+.stick.active { opacity: 1; transition: none; }
+#stickR.active { display: block; }
+.stick .knob {
+  position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45); box-shadow: 0 0 14px rgba(255, 255, 255, 0.35);
 }
-.btns {
-  position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom));
-  display: grid; grid-template-columns: repeat(2, 68px); gap: 12px; pointer-events: auto;
+.stick.aim .knob { background: rgba(255, 80, 100, 0.6); box-shadow: 0 0 14px rgba(255, 60, 90, 0.6); }
+
+#touch button {
+  position: absolute; border-radius: 50%; color: #fff; pointer-events: auto; -webkit-tap-highlight-color: transparent;
+  font: 700 13px 'Zen Kaku Gothic New', sans-serif; border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 12, 28, 0.45); backdrop-filter: blur(2px); transition: transform 0.08s, background 0.15s;
 }
-.btns button, .tbtns button {
-  width: 68px; height: 68px; border-radius: 50%; color: #fff; font: 700 13px 'Bebas Neue', Impact, sans-serif; letter-spacing: 0.08em;
-  border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(0, 0, 0, 0.38);
+#touch button.on { transform: scale(0.92); background: rgba(255, 79, 163, 0.65); }
+.btns { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); width: 200px; height: 200px; pointer-events: none; }
+.b-fire { right: 0; bottom: 0; width: 84px; height: 84px; font-family: 'Bebas Neue', Impact, sans-serif !important; font-size: 22px !important; letter-spacing: 0.06em; background: rgba(224, 53, 63, 0.5) !important; }
+.b-car { right: 8px; bottom: 98px; width: 66px; height: 66px; }
+.b-car.ready { border-color: #ffd23f; color: #ffd23f; box-shadow: 0 0 16px rgba(255, 210, 63, 0.7); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 4px rgba(255, 210, 63, 0.3); } }
+.b-wpn { right: 98px; bottom: 8px; width: 66px; height: 66px; font-size: 11px !important; }
+.b-brake { right: 86px; bottom: 86px; width: 60px; height: 60px; font-size: 11px !important; display: none; }
+body.in-car .b-brake { display: block; }
+.tbtns { position: absolute; left: max(16px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 128px); display: flex; gap: 8px; pointer-events: none; }
+.tbtns button { position: static !important; width: 42px; height: 42px; font: 400 13px 'Bebas Neue', Impact, sans-serif !important; letter-spacing: 0.05em; }
+.b-radio { display: none; }
+body.in-car .b-radio { display: block; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .tbtns { flex-direction: column; top: calc(max(10px, env(safe-area-inset-top)) + 4px); left: calc(max(16px, env(safe-area-inset-left)) + 128px); }
+  .btns { transform: scale(0.88); transform-origin: bottom right; }
+  .stick { width: 112px; height: 112px; margin: -56px 0 0 -56px; }
+  .stick .knob { left: 30px; top: 30px; }
 }
-.btns button.fire { background: rgba(224, 53, 63, 0.45); font-size: 16px; }
-.btns button.on, .tbtns button.on { background: rgba(255, 79, 163, 0.65); }
-.tbtns { position: absolute; right: max(12px, env(safe-area-inset-right)); top: 200px; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
-.tbtns button { width: 46px; height: 46px; font-size: 12px; }
+@media (pointer: fine) { .install { display: none; } }
