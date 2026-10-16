@@ -1,0 +1,89 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; overflow: hidden; background: #0b0d1a; color: #fff;
+  font-family: 'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+canvas#game { display: block; position: fixed; inset: 0; cursor: crosshair; }
+.hidden { display: none !important; }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+/* ===== タイトル ===== */
+#title {
+  cursor: pointer; overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(18, 6, 40, 0.82) 0%, rgba(70, 12, 80, 0.45) 38%, rgba(255, 96, 70, 0.28) 62%, rgba(14, 6, 32, 0.9) 100%);
+}
+#title .sun {
+  position: absolute; left: 50%; top: 52%; width: min(70vw, 460px); aspect-ratio: 1; transform: translate(-50%, -50%);
+  border-radius: 50%; z-index: -1; opacity: 0.55;
+  background: linear-gradient(180deg, #ffe066 0%, #ff7b54 45%, #ff2e88 100%);
+  -webkit-mask: repeating-linear-gradient(180deg, #000 0 14px, transparent 14px 20px);
+  mask: repeating-linear-gradient(180deg, #000 0 14px, transparent 14px 20px);
+  filter: drop-shadow(0 0 40px rgba(255, 80, 140, 0.8));
+}
+.logo {
+  font-family: 'Dela Gothic One', sans-serif; font-size: clamp(56px, 13vw, 150px); line-height: 0.95; letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #ffd1f0 30%, #ff4fa3 62%, #7b2cff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 22px rgba(255, 79, 163, 0.65)) drop-shadow(0 6px 0 rgba(0, 0, 0, 0.55));
+}
+.tag {
+  font-family: 'Bebas Neue', Impact, sans-serif; letter-spacing: 0.45em; color: #4fd1ff;
+  font-size: clamp(14px, 2.6vw, 24px); text-shadow: 0 0 12px #4fd1ff; margin-top: 10px;
+}
+.sub { margin-top: 6px; font-weight: 700; font-size: clamp(13px, 2vw, 16px); opacity: 0.85; }
+.start {
+  margin-top: 30px; font-family: 'Dela Gothic One', sans-serif; font-size: clamp(16px, 3vw, 24px);
+  color: #fff7c2; text-shadow: 0 0 14px rgba(255, 210, 63, 0.8); animation: blink 1.2s infinite;
+}
+@keyframes blink { 50% { opacity: 0.25; } }
+.keys {
+  margin-top: 26px; display: grid; grid-template-columns: auto auto; gap: 7px 22px; font-size: 13px;
+  text-align: left; background: rgba(0, 0, 0, 0.5); padding: 14px 20px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15); backdrop-filter: blur(4px);
+}
+.keys b { color: #ffd23f; font-family: 'Bebas Neue', Impact, sans-serif; font-size: 17px; letter-spacing: 0.05em; font-weight: 400; margin-right: 6px; }
+.note { margin-top: 18px; font-size: 11px; opacity: 0.55; max-width: 520px; line-height: 1.6; }
+@media (pointer: coarse) { .keys.desk { display: none; } }
+@media (pointer: fine) { .keys.touch { display: none; } }
+@media (max-height: 520px) { .keys, .note { display: none; } .start { margin-top: 16px; } }
+
+/* ===== ポーズ ===== */
+#pause { background: rgba(5, 8, 22, 0.78); backdrop-filter: blur(3px); }
+#pause h2 { font-family: 'Bebas Neue', Impact, sans-serif; font-size: 72px; letter-spacing: 0.1em; color: #ff7ad9; text-shadow: 0 0 16px rgba(255, 79, 163, 0.7); }
+#pause .row { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; justify-content: center; }
+#pause button {
+  font: 700 16px 'Zen Kaku Gothic New', sans-serif; color: #fff; padding: 12px 26px; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(180deg, #ff4fa3, #b0247a); border: 0; box-shadow: 0 4px 0 #6b0f48;
+}
+#pause button.ghost { background: transparent; border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: none; font-weight: 500; }
+
+/* ===== タッチ操作 ===== */
+#touch { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+#stick {
+  position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: max(22px, env(safe-area-inset-bottom));
+  width: 140px; height: 140px; border-radius: 50%; pointer-events: auto;
+  background: rgba(255, 255, 255, 0.07); border: 2px solid rgba(255, 255, 255, 0.25);
+}
+#knob {
+  position: absolute; left: 44px; top: 44px; width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+}
+.btns {
+  position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: repeat(2, 68px); gap: 12px; pointer-events: auto;
+}
+.btns button, .tbtns button {
+  width: 68px; height: 68px; border-radius: 50%; color: #fff; font: 700 13px 'Bebas Neue', Impact, sans-serif; letter-spacing: 0.08em;
+  border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(0, 0, 0, 0.38);
+}
+.btns button.fire { background: rgba(224, 53, 63, 0.45); font-size: 16px; }
+.btns button.on, .tbtns button.on { background: rgba(255, 79, 163, 0.65); }
+.tbtns { position: absolute; right: max(12px, env(safe-area-inset-right)); top: 200px; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
+.tbtns button { width: 46px; height: 46px; font-size: 12px; }
