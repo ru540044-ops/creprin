@@ -73,11 +73,12 @@ button{font-family:var(--ui)}
 .touch .mm{bottom:auto;top:12px}
 .touch #tl{padding-top:calc(var(--mmh) + 22px)}
 #bl{grid-area:3/1;align-self:end;min-width:0}
-.dpad{display:grid;grid-template-columns:repeat(3,var(--db));grid-template-rows:repeat(3,var(--db));gap:5px;pointer-events:auto;touch-action:none;border-radius:50%;padding:4px;background:radial-gradient(circle,rgba(43,228,255,.1) 0,rgba(43,228,255,0) 70%)}
-.dpad .db{pointer-events:none;font-size:19px;font-weight:700;letter-spacing:0}
+.dpad{display:grid;grid-template-columns:repeat(3,var(--db));grid-template-rows:repeat(2,var(--db));gap:6px;pointer-events:auto;touch-action:none;padding:4px}
+.dpad .db{pointer-events:none;font-size:20px;font-weight:700;letter-spacing:0;border-radius:9px;border:1px solid rgba(255,255,255,.35);border-bottom:5px solid rgba(0,0,0,.55);background:linear-gradient(180deg,rgba(60,56,96,.9),rgba(22,18,46,.9));box-shadow:0 0 10px rgba(43,228,255,.25)}
+.dpad .db.on{background:linear-gradient(180deg,rgba(43,228,255,.6),rgba(43,228,255,.3));border-bottom-width:2px;transform:translateY(3px)}
 .db{pointer-events:auto;padding:0;border-radius:14px;border:2px solid var(--cyan);background:rgba(16,12,38,.72);color:var(--ink);font-size:20px;line-height:1;display:grid;place-items:center;touch-action:none;box-shadow:0 0 12px rgba(43,228,255,.3)}
 .db.on{background:rgba(43,228,255,.38)}
-#dU{grid-area:1/2}#dL{grid-area:2/1}#dD{grid-area:3/2}#dR{grid-area:2/3}
+#dU{grid-area:1/2}#dL{grid-area:2/1}#dD{grid-area:2/2}#dR{grid-area:2/3}
 #br{grid-area:3/2;align-self:end;display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-align:right;min-width:0}
 #area{display:grid;justify-items:end;opacity:0;transform:translateY(8px);transition:opacity .6s,transform .6s}
 #area.show{opacity:1;transform:none}
@@ -279,14 +280,14 @@ h1{margin:0;font:400 clamp(52px,15vw,88px)/.95 var(--display);color:var(--pink);
       <h1>Neon Bay</h1>
       <p class="lede">Nova and Cal: two outlaws, one sunburnt bay. Hit the QWIK 24, run boats into the Glades, go viral on Buzzr, and shake the chopper before sunrise.</p>
       <dl class="keys">
-        <dt>Move</dt><dd>W A S D or arrows, Shift to sprint, Space to jump. Walk off the pier to swim</dd>
+        <dt>Move</dt><dd>W A S D or arrows, Shift to sprint, Space to jump. Click to capture the mouse and look around, Esc to release</dd>
         <dt>Drive</dt><dd>E to take a car, boat or jet ski, Space to brake, R for radio</dd>
         <dt>Duo</dt><dd>C switches between Nova and Cal. Your partner rides along and shoots back. X uses the hero's special: Nova slows time and steadies her aim, Cal slows time and grips the road</dd>
         <dt>Weapons</dt><dd>Click or F to shoot, drive-bys too. Q or hold Tab for the wheel, 1 to 4</dd>
         <dt>Crime</dt><dd>Hold FIRE inside a red QWIK 24 ring to rob it. Break line of sight to lose the cops</dd>
         <dt>Shops</dt><dd>Stop inside an orange ring for Bay Customs: engine, armor, paint, underglow and repairs. Purple rings are THREADS for clothes and hair</dd>
         <dt>Phone</dt><dd>P for Buzzr, M for the map, V cycles the camera including first person</dd>
-        <dt>Touch</dt><dd>The W A S D pad works like the keys: slide your thumb around it, corners press two at once. Drag the right side to look</dd>
+        <dt>Touch</dt><dd>The W A S D keys work like a keyboard: slide your thumb across them, the top corners give W+A and W+D. Drag the right side of the screen to look around, like a mouse</dd>
       </dl>
       <p id="glerr" hidden></p>
       <button id="go" type="button">Start</button>
@@ -1681,7 +1682,7 @@ function updCam(dt){
     else{
       spd=Math.hypot(P.vx,P.vy);
       cam.dragT-=dt;
-      if(spd>20&&cam.dragT<=0&&cam.mode!==3){const d=angDiff(cam.yaw,P.face);if(Math.abs(d)>.7)heading=cam.yaw+d*.5;}
+      /* PC style: the camera only turns when you look around */
     }
   }
   cam.x=tx;cam.y=ty;
@@ -3673,7 +3674,7 @@ app.addEventListener('contextmenu',e=>e.preventDefault());
 app.addEventListener('pointerdown',e=>{
   if(G.mode==='attract'||G.mapOpen||G.shop||e.target.closest('button,#phone,#shop,.dpad'))return;
   if(e.pointerType==='mouse'){
-    if(e.button===0)IN.fire=true;
+    if(e.button===0){IN.fire=true;if(!document.pointerLockElement&&G.mode==='play')try{const q=app.requestPointerLock();if(q&&q.catch)q.catch(()=>{})}catch(err){}}
     else if(e.button===2){camId=e.pointerId;lx=e.clientX;try{app.setPointerCapture(e.pointerId)}catch(err){}}
     return;
   }
@@ -3689,6 +3690,7 @@ app.addEventListener('pointerdown',e=>{
   IN.stick=true;IN.sx=0;IN.sy=0;
   try{app.setPointerCapture(e.pointerId)}catch(err){}
 });
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement===app&&G.mode==='play'&&!G.mapOpen&&!G.shop&&!G.wheel)lookBy(e.movementX*.8)});
 app.addEventListener('pointermove',e=>{
   if(e.pointerId===camId){lookBy(e.clientX-lx);lx=e.clientX;return}
   if(e.pointerId!==stickId)return;
@@ -3714,10 +3716,8 @@ $('map').addEventListener('click',()=>{if(document.body.classList.contains('touc
 (function(){
   const pad=document.querySelector('.dpad'),btn={up:$('dU'),dn:$('dD'),l:$('dL'),r:$('dR')};let pid=null;
   const set=e=>{
-    const rc=pad.getBoundingClientRect(),dx=e.clientX-(rc.left+rc.width/2),dy=e.clientY-(rc.top+rc.height/2);
-    let up=false,dn=false,l=false,rt=false;
-    if(Math.hypot(dx,dy)>rc.width*.11){const k=Math.round(Math.atan2(dy,dx)/(Math.PI/4));
-      rt=k===0||k===1||k===-1;dn=k===1||k===2||k===3;l=k===4||k===-4||k===3||k===-3;up=k===-1||k===-2||k===-3}
+    const rc=pad.getBoundingClientRect(),px=clamp((e.clientX-rc.left)/rc.width*3,0,2.999),py=(e.clientY-rc.top)/rc.height*2,col=px|0,top=py<1;
+    const up=top,l=col===0,rt=col===2,dn=!top&&col===1;
     IN.up=up;IN.dn=dn;IN.l=l;IN.r=rt;for(const k in btn)btn[k].classList.toggle('on',IN[k]);
   };
   const end=e=>{if(e.pointerId!==pid)return;pid=null;IN.up=IN.dn=IN.l=IN.r=false;for(const k in btn)btn[k].classList.remove('on')};
