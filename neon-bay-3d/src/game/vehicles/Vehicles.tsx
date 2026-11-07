@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { vehicles, stream, drive, collisions, Veh, playerCar, remove } from './sim';
-import { buildCarModel, CarModel } from './models';
+import { buildCarModel, CarModel, applyMods } from './models';
+import { explode, tickExplosives } from '../combat/explode';
 import { game, toast } from '../state/store';
 import { input } from '../input';
 import { engine } from '../audio';
@@ -27,7 +28,8 @@ export function driveInput() {
   const brake = k.has('s') || k.has('arrowdown') || input.brake ? 1 : 0;
   let steer = (k.has('d') || k.has('arrowright') || input.right ? 1 : 0) - (k.has('a') || k.has('arrowleft') || input.left ? 1 : 0);
   if (input.joyActive) steer = jx;
-  return { thr, brake, steer, hb: k.has(' ') || input.hb };
+  const lift = (k.has(' ') || input.up ? 1 : 0) - (k.has('shift') || k.has('control') || input.down ? 1 : 0);
+  return { thr, brake, steer, hb: k.has(' ') || input.hb, lift, nitro: k.has('shift') || input.nitro };
 }
 
 /** Tyre smoke and skid marks from sliding / hard-braking / burnouts. */
@@ -40,7 +42,7 @@ function TireFX() {
   useFrame(({ camera }, dt) => {
     let markDirty = false;
     for (const v of vehicles) {
-      const sp = Math.hypot(v.vx, v.vz); if (sp < 2.5 || v.def.kind === 'bike') { S.last.delete(v.id); continue; }
+      const sp = Math.hypot(v.vx, v.vz); if (sp < 2.5 || v.def.kind === 'bike' || v.def.kind === 'heli' || v.air) { S.last.delete(v.id); continue; }
       const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), lx = Math.cos(v.yaw), lz = -Math.sin(v.yaw), hard = v.braking && sp > 12 && !v.reversing;
       const skid = v.slip > 4 || hard || (v.id === game.inCar && v.rpm > 0.85 && sp < 7 && v.gear === 0);
       if (!skid) { S.last.delete(v.id); continue; }
@@ -119,8 +121,11 @@ function VehicleView({ v }: { v: Veh }) {
     if (!m.root.visible) return;
     m.root.position.set(v.x, v.y, v.z); m.root.rotation.y = v.yaw;
     m.tilt.rotation.x = -v.pitch - v.squat; m.tilt.rotation.z = v.def.kind === 'bike' ? v.lean : v.roll;
-    if (m.paint.color.getHexString() !== v.color.slice(1)) m.paint.color.set(v.color);
-    const dmg = 1 - v.hp / v.def.hp; m.paint.roughness = 0.28 + dmg * 0.5; m.paint.metalness = 0.55 - dmg * 0.35;
+    const key = v.color + JSON.stringify(v.mods) + v.exploded;
+    if (m.modKey !== key) { m.modKey = key; m.paint.color.set(v.exploded ? '#141210' : v.color); applyMods(m, v.mods); if (v.exploded && m.neon) m.neon.visible = false; }
+    const dmg = 1 - v.hp / v.def.hp, bm = m.paint.userData.metal ?? 0.55, br = m.paint.userData.rough ?? 0.28; m.paint.roughness = v.exploded ? 0.95 : br + dmg * 0.45; m.paint.metalness = v.exploded ? 0.2 : bm * (1 - dmg * 0.6);
+    if (m.rotors) { m.rotors.main.rotation.y = v.spin; m.rotors.tail.rotation.z = v.spin * 1.7; }
+    if (m.neon && m.neon.visible) (m.neon.material as THREE.MeshBasicMaterial).opacity = 0.75 + Math.sin(performance.now() / 300) * 0.1;
     m.body.position.y = v.dead ? -0.08 : 0; m.body.rotation.z = v.dead ? 0.03 : 0;
     const nightK = game.hour > 18.6 || game.hour < 6.2 ? 1 : 0, mine = v.id === game.inCar;
     m.lights.head.emissiveIntensity = v.dead ? 0 : mine ? 0.6 + nightK * 2.2 : 0.15;
@@ -170,8 +175,12 @@ export default function Vehicles() {
     }
     updatePeds(dt); tickFx(dt); radioTick(!!me && game.started, game.radio);
     for (const v of vehicles) if (v.dead && v.burn > 0) v.burn -= dt;
+    // burning wrecks explode (chain reactions come from explode() setting short fuses on neighbours)
+    for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && !v.exploded) { v.exploded = true; explode(v.x, v.y + 0.8, v.z, v.def.kind === 'truck' || v.def.kind === 'armored' || v.def.kind === 'heli' ? 1.3 : 1, false); }
+    tickExplosives(dt);
+    for (const v of vehicles) if (v.nitroOn) { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw); flash(v.x - fx * (v.def.len / 2 + 0.3), v.y + 0.38, v.z - fz * (v.def.len / 2 + 0.3), 0.7 + Math.random() * 0.4); }
     // burnt-out owned cars are towed back to the garage (repaired) once you walk away
-    for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && v.owned >= 0 && v.id !== game.inCar && Math.hypot(v.x - fx, v.z - fz) > 45) { remove(v); toast(v.def.name + 'はガレージで修理された', 2.4); }
+    for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && v.exploded && v.owned >= 0 && v.id !== game.inCar && Math.hypot(v.x - fx, v.z - fz) > 45) { remove(v); toast(v.def.name + 'はガレージで修理された', 2.4); }
     if (me) { const c = driveInput(); engine(game.started, me.rpm, me.gear, c.thr, me.slip, me.def.kind); game.speed = Math.hypot(me.vx, me.vz); }
     else engine(false, 0, 0, 0, 0, '');
     // headlight cone for the player's car at night

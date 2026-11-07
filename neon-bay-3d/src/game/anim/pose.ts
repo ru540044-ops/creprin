@@ -226,6 +226,11 @@ export function seatFor(kind: string) {
     case 'super': return { side: 0.2, fwd: -0.3, y: -0.3, recline: 0.5 };
     case 'sport': return { side: 0.2, fwd: -0.25, y: -0.2, recline: 0.38 };
     case 'suv': return { side: 0.21, fwd: 0.1, y: 0.22, recline: 0.12 };
+    case 'heli': return { side: 0.12, fwd: 1.25, y: 0.95, recline: 0.12 };
+    case 'hyper': return { side: 0.2, fwd: -0.3, y: -0.34, recline: 0.55 };
+    case 'muscle': return { side: 0.21, fwd: -0.25, y: -0.12, recline: 0.28 };
+    case 'hatch': return { side: 0.22, fwd: -0.05, y: 0.0, recline: 0.15 };
+    case 'pickup': return { side: 0.21, fwd: 0.25, y: 0.22, recline: 0.12 };
     case 'truck': case 'armored': return { side: 0.2, fwd: (kind === 'truck' ? 2.55 : 2.25), y: 0.85, recline: 0.05 };
     default: return { side: 0.21, fwd: -0.15, y: -0.06, recline: 0.22 };
   }

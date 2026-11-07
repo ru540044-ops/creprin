@@ -3,7 +3,7 @@ import { game, toast, save, clearSave, ownedCars, Quality } from '../state/store
 import { VDEFS, DEALER, VKind } from '../vehicles/defs';
 import { PROF } from '../vehicles/models';
 import { vehicles, deliverNear, sellOwned, repairAll } from '../vehicles/sim';
-import { GARAGE, doors, EXPORT_DOCK, TRIALS } from '../world/cityGen';
+import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT } from '../world/cityGen';
 import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
 import { progress } from '../state/store';
 import AdminApp from './AdminApp';
@@ -15,15 +15,16 @@ type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin';
 
 /** Side view drawn from the same profile the 3D model is extruded from. */
 export function CarSVG({ kind, color }: { kind: VKind; color: string }) {
-  const d = VDEFS[kind], P = PROF[kind === 'police' ? 'sedan' : kind], wb = d.wheelbase / 2, r = d.wheelR;
+  const d = VDEFS[kind], P = PROF[kind === 'police' || kind === 'taxi' ? 'sedan' : kind], wb = d.wheelbase / 2, r = d.wheelR;
   const pts = (a: number[][]) => a.map((p) => `${p[0].toFixed(2)},${(-p[1]).toFixed(2)}`).join(' ');
   const wheel = (x: number) => <g key={x}><circle cx={x} cy={-r} r={r} fill="#111" /><circle cx={x} cy={-r} r={r * 0.6} fill="#c9ccd3" /></g>;
   let body;
   if (P) body = <><polygon points={pts(P.glass)} fill="#5a6f8f" /><polygon points={pts(P.lower)} fill={color} /></>;
   else if (kind === 'truck') body = <><rect x={-3.6} y={-3.25} width={5.15} height={2.6} fill="#f1efe9" /><rect x={1.65} y={-2.9} width={1.9} height={2.3} fill={color} /><rect x={2.6} y={-2.75} width={0.9} height={0.75} fill="#18202d" /><rect x={-3.6} y={-0.78} width={7.2} height={0.35} fill="#222" /></>;
+  else if (kind === 'heli') body = <><ellipse cx={0.4} cy={-1.45} rx={2.1} ry={1.05} fill={color} /><ellipse cx={1.4} cy={-1.6} rx={1.0} ry={0.7} fill="#5a6f8f" /><rect x={-5.6} y={-1.95} width={4.4} height={0.45} fill={color} /><rect x={-5.9} y={-2.9} width={0.6} height={1.2} fill={color} /><rect x={-4.6} y={-3.05} width={10.4} height={0.08} fill="#222" /><rect x={-1.4} y={-0.2} width={3.4} height={0.1} fill="#222" /></>;
   else body = <><polygon points="-0.6,-0.95 0.45,-0.85 0.75,-0.6 0.3,-0.45 -0.55,-0.5" fill={color} /><rect x={0.5} y={-1.08} width={0.08} height={0.6} fill="#c9ccd3" transform="rotate(-18 0.54 -0.8)" /><rect x={-0.55} y={-1.02} width={0.55} height={0.1} fill="#222" /></>;
-  const half = kind === 'truck' ? 3.9 : kind === 'bike' ? 1.25 : 2.6, top = kind === 'truck' ? 3.4 : kind === 'bike' ? 1.3 : 1.95;
-  return <svg viewBox={`${-half} ${-top} ${half * 2} ${top + 0.05}`} className="carsvg" aria-hidden="true">{body}{kind === 'truck' ? [d.len / 2 - 1.0, -d.len / 2 + 1.3, -d.len / 2 + 2.3].map(wheel) : [wb, -wb].map(wheel)}</svg>;
+  const half = kind === 'heli' ? 6.2 : kind === 'truck' ? 3.9 : kind === 'bike' ? 1.25 : 2.7, top = kind === 'heli' ? 3.2 : kind === 'truck' ? 3.4 : kind === 'bike' ? 1.3 : kind === 'pickup' || kind === 'suv' ? 1.95 : 1.95;
+  return <svg viewBox={`${-half} ${-top} ${half * 2} ${top + 0.05}`} className="carsvg" aria-hidden="true">{body}{kind === 'heli' ? null : kind === 'truck' ? [d.len / 2 - 1.0, -d.len / 2 + 1.3, -d.len / 2 + 2.3].map(wheel) : [wb, -wb].map(wheel)}</svg>;
 }
 
 /** Two-tap confirm (window.confirm is blocked inside sandboxed frames). */
@@ -139,6 +140,23 @@ function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
         {TRIALS.map((T) => { const b = progress.trialBest[T.id]; return (
           <div className="trow" key={T.id}><span>{T.name}<br /><small>目標 {fmt(T.par)} · 自己ベスト {b !== undefined ? fmt(b) : '—'} · ${T.reward.toLocaleString('en-US')}</small></span><div className="jobBtns"><button type="button" disabled={!!trial.id} onClick={() => go(T.start.x, T.start.z, T.name + 'のスタートを目的地に設定')}>目的地</button></div></div>
         ); })}
+      </div>
+      <div className="jobCard">
+        <b>タクシー</b>
+        <p>黄色いタクシー（Bay Cab）に乗って「🚕 客を探す」。待っている客を拾い、目的地まで運ぶ。早く着くとチップ。空港のタクシー乗り場にも停まっている。</p>
+        <span className="pay">1人 $200〜$600＋チップ</span>
+        <div className="jobBtns"><button type="button" onClick={() => go(AIRPORT.x0 + 367, 110, 'タクシー乗り場を目的地に設定')}>タクシー乗り場</button></div>
+      </div>
+      <div className="jobCard">
+        <b>スタントジャンプ</b>
+        <p>街に7か所ある黄色と黒のジャンプ台へ全速力で。空中はスローモーション、着地で賞金（初成功は3倍）。</p>
+        <span className="pay">$300＋飛距離×$14（初回×3）· 成功 {Object.keys(progress.stunts).length}/{RAMPS.length}</span>
+        <div className="jobBtns">{RAMPS.map((r) => <button type="button" key={r.id} onClick={() => go(r.x - Math.sin(r.yaw) * 60, r.z - Math.cos(r.yaw) * 60, r.name + 'の手前を目的地に設定')}>{progress.stunts[r.id] ? '✓ ' : ''}{r.name}</button>)}</div>
+      </div>
+      <div className="jobCard">
+        <b>BAY CUSTOMS（改造）</b>
+        <p>車で乗り付けると、塗装・仕上げ・ネオン・ホイール・エンジン・装甲・ニトロ・スモークガラスを改造できる。</p>
+        <div className="jobBtns"><button type="button" onClick={() => go(CUSTOMS.spawn.x, CUSTOMS.spawn.z, 'BAY CUSTOMSを目的地に設定')}>BAY CUSTOMSへ</button></div>
       </div>
       <p className="appNote">手配度が付くとパトカーが追ってくる。地図の点滅する円（捜索範囲）の外に出て見つからずにいれば解除。止まってパトカーに囲まれると逮捕（罰金 $1,000）、体力が0になると病院へ（$1,500）。</p>
     </div>

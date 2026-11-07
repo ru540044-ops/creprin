@@ -2,7 +2,7 @@ import { game, toast, save, progress } from '../state/store';
 import { vehicles, spawn, remove, playerCar, hooks, Veh } from '../vehicles/sim';
 import { VDEFS, VKind } from '../vehicles/defs';
 import { newAI, steer, clearLine, nodeIdx } from '../ai/driver';
-import { roadC, N, POLICE_HQ, HOSPITAL, EXPORT_DOCK, TRIALS, Trial, HALF, groundAt } from '../world/cityGen';
+import { CUSTOMS, roadC, N, POLICE_HQ, HOSPITAL, EXPORT_DOCK, TRIALS, Trial, HALF, groundAt } from '../world/cityGen';
 import { INTERIORS } from '../world/Interiors';
 import { releaseDrive } from '../input';
 import { sfx, siren } from '../audio';
@@ -10,6 +10,7 @@ import { cruise, panic } from '../ai/traffic';
 import { flash } from '../combat/fx';
 import { clamp } from '../world/rng';
 import { admin } from '../admin';
+import { updateStunts, updateTaxi, taxi, stunt } from './stunts';
 
 /* =====================================================================
    Wanted level + police
@@ -256,6 +257,7 @@ export function jobNear(): Near | null {
     if (exportJob.kind && me.def.kind === exportJob.kind) return { kind: 'job', id: 'export', label: `${me.def.name}を引き渡す（$${exportValue(me).toLocaleString('en-US')}）`, btn: '引き渡す' };
     return { kind: 'job', id: 'exportno', label: exportJob.kind ? `依頼の車は ${VDEFS[exportJob.kind].name}` : '次の依頼を準備中', btn: '輸出' };
   }
+  if (me.def.kind !== 'heli' && Math.hypot(me.x - CUSTOMS.spawn.x, me.z - CUSTOMS.spawn.z) < 8 && Math.hypot(me.vx, me.vz) < 4) return { kind: 'job', id: 'customs', label: 'BAY CUSTOMS で改造する', btn: '改造' };
   if (!trial.id && game.wanted === 0 && Math.hypot(me.vx, me.vz) < 7) for (const T of TRIALS) if (Math.hypot(me.x - T.start.x, me.z - T.start.z) < 8) return { kind: 'job', id: 'trial:' + T.id, label: `${T.name} を開始（目標 ${fmt(T.par)}）`, btn: '開始' };
   return null;
 }
@@ -266,7 +268,7 @@ export function jobAction(id: string) {
   if (id === 'rob') {
     rob.door = game.lastDoor; rob.phase = 'fill'; rob.t = 0; rob.dur = 6; rob.cash = (game.where === 'gas' ? 600 : 800) + Math.round(Math.random() * 14) * 100;
     sfx('crash', 0.25); toast('「金を出せ！」 店員がレジを開けた', 2.2); setWanted(1, '店員が通報した');
-  } else if (id === 'gunshop') { game.ui = 'arms'; sfx('ui'); } else if (id === 'robcd') toast('このレジはさっき強盗された。時間をおこう', 2);
+  } else if (id === 'gunshop') { game.ui = 'arms'; sfx('ui'); } else if (id === 'customs') { game.ui = 'customs'; sfx('ui'); } else if (id === 'robcd') toast('このレジはさっき強盗された。時間をおこう', 2);
   else if (id === 'bag') { game.money += rob.cash; robbedAt[rob.door] = game.clock; sfx('buy'); toast('+$' + rob.cash.toLocaleString('en-US') + '　店を出て警察から逃げろ！', 2.8); rob.phase = ''; setWanted(2, '強盗成功'); save(); }
   else if (id === 'pry') { if (armored.pry <= 0) { armored.pry = 0.001; toast('ドアをこじ開けている…離れるな', 1.8); } }
   else if (id === 'export' && me) {
@@ -301,13 +303,15 @@ export function updateCrime(dt: number) {
   if (law.over) { law.over.t -= dt; siren(0); if (law.over.t <= 0) { const o = law.over; law.over = null; respawn(o.kind, o.fine); } return; }
   if (game.health <= 0) { over('wasted'); return; }
   law.hurtT += dt; if (law.hurtT > 6 && game.health < 100) game.health = Math.min(100, game.health + dt * 4);
-  updatePolice(dt); updateRob(dt); updateArmored(dt); updateTrial(dt);
+  updatePolice(dt); updateRob(dt); updateArmored(dt); updateTrial(dt); updateStunts(dt); updateTaxi(dt);
   if (!exportJob.kind) { exportJob.cool -= dt; if (exportJob.cool <= 0) { newExport(); toast(`輸出の新しい依頼：${VDEFS[exportJob.kind!].name}（スマホの「仕事」）`, 2.6); } }
   exportJob.reroll = Math.max(0, exportJob.reroll - dt);
 }
 
 /** One-line status for the HUD mission card. */
 export function jobStatus(): { title: string; text: string; prog?: number } | null {
+  if (taxi.on) return { title: 'タクシー', text: taxi.phase === 'pick' ? '待っている客を迎えに行け（目的地マーク）' : `目的地へ急げ ${Math.floor(taxi.t)}秒 / 目標 ${Math.round(taxi.par)}秒（停車で到着）`, prog: taxi.phase === 'ride' ? Math.min(1, taxi.t / taxi.par) : undefined };
+  if (stunt.ramp) return { title: 'スタントジャンプ', text: '着地を決めろ！' };
   if (rob.phase === 'fill') return { title: 'コンビニ強盗', text: '店員がレジの金を袋に詰めている…レジから離れるな', prog: rob.t / rob.dur };
   if (rob.phase === 'bag') return { title: 'コンビニ強盗', text: `カウンターの袋を拾え（$${rob.cash.toLocaleString('en-US')}）` };
   const T = trialDef(); if (T) return { title: T.name, text: `${fmt(trial.t)} / 目標 ${fmt(T.par)}　CP ${trial.i}/${T.cps.length}` };

@@ -180,7 +180,7 @@ export const GARAGE = (() => {
 /* ---------- parked cars along the curbs, in lots and at gas stations ---------- */
 export const parkSlots: { x: number; z: number; yaw: number; kind: string; ci: number }[] = [];
 {
-  const r = mulberry(31337), kinds = ['sedan', 'sedan', 'sedan', 'suv', 'suv', 'sport', 'truck', 'bike', 'sedan', 'super'];
+  const r = mulberry(31337), kinds = ['sedan', 'sedan', 'hatch', 'suv', 'pickup', 'sport', 'truck', 'bike', 'muscle', 'super', 'sedan', 'hatch', 'hyper'];
   for (let k = 0; k <= N; k++) for (let sgm = 0; sgm < N; sgm++) {
     const c = roadC(k), a = -HALF + sgm * PITCH + ROAD + 12;
     for (let n = 0; n < 2; n++) {
@@ -216,6 +216,16 @@ export const POLICE_HQ = landmark('pd', 'BAY PD', '#2b6bff', -380, -220);
 export const HOSPITAL = landmark('hosp', 'BAY GENERAL', '#ff4b5c', 330, 120);
 export const LANDMARKS = [POLICE_HQ, HOSPITAL];
 export const EXPORT_DOCK = { x: PORT.x0 + 26, z: PORT.z0 + 34 };
+export const CUSTOMS = landmark('customs', 'BAY CUSTOMS', '#ff9a3a', 300, 420);
+/** Helipads: one on the airport apron, one on a downtown tower roof. */
+export const HELIPADS: { x: number; z: number; y: number; name: string }[] = [{ x: AIRPORT.x0 + 610, z: 150, y: 0, name: '空港ヘリパッド' }];
+{
+  let best: Building | null = null, bd = 1e9;
+  for (const b of buildings) { if (b.type !== 'glass' && b.type !== 'office') continue; if (b.x1 - b.x0 < 26 || b.z1 - b.z0 < 26 || b.h > 140) continue; const d = Math.hypot((b.x0 + b.x1) / 2 - 60, (b.z0 + b.z1) / 2 + 60); if (d < bd) { bd = d; best = b; } }
+  if (best) HELIPADS.push({ x: (best.x0 + best.x1) / 2, z: (best.z0 + best.z1) / 2, y: best.y0 + best.h, name: 'ダウンタウン屋上ヘリパッド' });
+  for (const h of HELIPADS) parkSlots.push({ x: h.x, z: h.z, yaw: Math.PI, kind: 'heli', ci: 0 });
+  for (let n = 0; n < 3; n++) parkSlots.push({ x: AIRPORT.x0 + 360 + n * 7, z: 110, yaw: Math.PI, kind: 'taxi', ci: 0 });
+}
 
 /** Time trials: checkpoints on road intersections (n = node index) or explicit points. */
 export interface Trial { id: string; name: string; start: { x: number; z: number; yaw: number }; cps: { x: number; z: number }[]; par: number; reward: number }
@@ -312,9 +322,38 @@ export function groundAt(x: number, z: number): number {
   if (lx >= 0 && lz >= 0 && lx <= CITY && lz <= CITY) {
     const i = Math.floor((lx - ROAD) / PITCH), j = Math.floor((lz - ROAD) / PITCH);
     if (i >= 0 && j >= 0 && i < N && j < N && lx - ROAD - i * PITCH < BLOCK && lz - ROAD - j * PITCH < BLOCK) return 0.15;
-    return 0;
+    return rampAt(x, z);
   }
-  return heightAt(x, z);
+  return Math.max(heightAt(x, z), rampAt(x, z));
+}
+/** Height of the walkable surface under (x,z) at or below height y: ground, ramps, or a building roof you are standing on. */
+export function floorAt(x: number, z: number, y: number): number {
+  let g = groundAt(x, z);
+  for (const idx of nearSolids(x, z)) { const s = solids[idx]; if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1 && s.y1 <= y + 0.6 && s.y1 > g) g = s.y1; }
+  return g;
+}
+
+/* ---------- stunt ramps (part of the ground: cars launch off the top edge) ---------- */
+export interface Ramp { id: string; name: string; x: number; z: number; yaw: number; len: number; w: number; h: number }
+export const RAMPS: Ramp[] = [];
+{
+  const mid = (a: number) => (roadC(a) + roadC(a + 1)) / 2;
+  const add = (id: string, name: string, cx: number, cz: number, yaw: number, len: number, w: number, h: number) => RAMPS.push({ id, name, x: cx - Math.sin(yaw) * len / 2, z: cz - Math.cos(yaw) * len / 2, yaw, len, w, h });
+  add('palm', 'パームホロウ・ジャンプ', roadC(2) - 3.3, mid(5), 0, 10, 4.6, 2.4);
+  add('neon', 'ネオンマイル・ジャンプ', mid(9), roadC(9) + 3.3, Math.PI / 2, 10, 4.6, 2.5);
+  add('foundry', 'ファウンドリー・ジャンプ', roadC(1) + 3.3, mid(11), Math.PI, 11, 4.6, 2.8);
+  add('coral', 'コーラル・ジャンプ', mid(11), roadC(4) - 3.3, -Math.PI / 2, 10, 4.6, 2.6);
+  add('down', 'ダウンタウン・ダイブ', roadC(5) - 3.3, mid(7), 0, 12, 4.6, 3.0);
+  add('hwy', 'ハイウェイ・ロケット', HWY_C + 5, 160, Math.PI, 16, 6, 3.6);
+  add('runway', 'ランウェイ・メガジャンプ', AIRPORT.x0 + 420, -165, Math.PI / 2, 24, 8, 5.5);
+}
+export function rampAt(x: number, z: number): number {
+  for (const r of RAMPS) {
+    const dx = x - r.x, dz = z - r.z; if (dx * dx + dz * dz > (r.len + 6) * (r.len + 6)) continue;
+    const s = Math.sin(r.yaw), c = Math.cos(r.yaw), lf = dx * s + dz * c, ls = dx * c - dz * s;
+    if (lf >= 0 && lf <= r.len && Math.abs(ls) <= r.w / 2) return (r.h * lf) / r.len;
+  }
+  return 0;
 }
 
 export function districtAt(x: number, z: number): string {

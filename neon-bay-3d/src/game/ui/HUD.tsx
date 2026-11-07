@@ -2,6 +2,8 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { game, toast, save, Quality } from '../state/store';
 import Phone from './Phone';
 import GunShop from './GunShop';
+import Customs from './Customs';
+import { taxi, startTaxi, stopTaxi } from '../crime/stunts';
 import { admin } from '../admin';
 import { peds } from '../ai/peds';
 import { WEAPONS, combat } from '../combat/weapons';
@@ -135,10 +137,11 @@ function Speedo() {
   return (
     <div className="speedo" aria-label={'速度 ' + kmh + ' km/h'}>
       <div className="spd"><b>{kmh}</b><span>km/h</span></div>
-      <div className="gear">{gear}</div>
+      <div className="gear">{me.def.kind === 'heli' ? Math.round(me.y) + 'm' : gear}</div>
       <div className="vname">{me.def.name}</div>
       <i className="vhp"><b style={{ width: hp * 100 + '%', background: hp > 0.5 ? 'var(--mint)' : hp > 0.25 ? 'var(--amber)' : '#ff4b4b' }} /></i>
       <div className="rpm"><b style={{ width: Math.round(me.rpm * 100) + '%' }} /></div>
+      {me.mods.nitro && <div className="nos"><b style={{ width: Math.round(me.nitro * 100) + '%' }} /></div>}
     </div>
   );
 }
@@ -176,11 +179,13 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
         <div className="tr">
           <Minimap onOpen={() => setMap(true)} />
           <div className="money">${game.money.toLocaleString('en-US')}</div>
-          {!driving && game.arms.cur !== 'fist' && <div className="weap">{WEAPONS[game.arms.cur as 'pistol'].name} <b>{combat.reload > 0 ? 'リロード中' : game.arms.mag[game.arms.cur as 'pistol']}</b> / {game.arms.ammo[game.arms.cur as 'pistol']}</div>}
+          {!driving && game.arms.cur === 'grenade' && <div className="weap">グレネード <b>×{game.arms.ammo.grenade}</b></div>}
+          {!driving && game.arms.cur !== 'fist' && game.arms.cur !== 'grenade' && <div className="weap">{WEAPONS[game.arms.cur as 'pistol'].name} <b>{combat.reload > 0 ? 'リロード中' : game.arms.mag[game.arms.cur as 'pistol']}</b> / {game.arms.ammo[game.arms.cur as 'pistol']}</div>}
           <div className={'stars' + (game.wanted > 0 && !law.seen ? ' search' : '')} aria-label={'手配度 ' + game.wanted}>{[0, 1, 2, 3, 4].map((i) => <b key={i} className={i < game.wanted ? 'on' : ''}>★</b>)}</div>
           <div className="small">{String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} · {game.fps} FPS</div>
           <div className="chips">
             <button type="button" className="chip phoneChip" onClick={() => setPhone(true)} aria-label="スマホを開く">📱 スマホ</button>
+            {driving && me && me.def.kind === 'taxi' && <button type="button" className="chip phoneChip" onClick={() => { if (taxi.on) stopTaxi(); else startTaxi(); }}>🚕 {taxi.on ? '業務終了' : '客を探す'}</button>}
             {driving && <button type="button" className="chip phoneChip" onClick={() => { input.radio = true; }}>📻 {game.radio ? STATIONS[game.radio - 1].name : 'ラジオ'}</button>}
           </div>
         </div>
@@ -202,9 +207,17 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           <div className="pedals">
             <HoldBtn label={near && near.kind === 'job' ? near.btn || '決定' : '降車'} cls="act" onDown={() => { input.action = true; }} />
             <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
-            <HoldBtn label="アクセル" cls="gas" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
-            <HoldBtn label="サイド" cls="hb" active={input.hb} onDown={() => { input.hb = true; }} onUp={() => { input.hb = false; }} />
-            <HoldBtn label="ブレーキ" cls="brk" active={input.brake} onDown={() => { input.brake = true; }} onUp={() => { input.brake = false; }} />
+            {me && me.def.kind === 'heli' ? (<>
+              <HoldBtn label="上昇" cls="gas" active={input.up} onDown={() => { input.up = true; }} onUp={() => { input.up = false; }} />
+              <HoldBtn label="前進" cls="hb" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
+              <HoldBtn label="下降" cls="brk" active={input.down} onDown={() => { input.down = true; }} onUp={() => { input.down = false; }} />
+              <HoldBtn label="後退" cls="rev" active={input.brake} onDown={() => { input.brake = true; }} onUp={() => { input.brake = false; }} />
+            </>) : (<>
+              <HoldBtn label="アクセル" cls="gas" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
+              <HoldBtn label="サイド" cls="hb" active={input.hb} onDown={() => { input.hb = true; }} onUp={() => { input.hb = false; }} />
+              <HoldBtn label="ブレーキ" cls="brk" active={input.brake} onDown={() => { input.brake = true; }} onUp={() => { input.brake = false; }} />
+              {me && me.mods.nitro && <HoldBtn label="ニトロ" cls="nosb" active={input.nitro} onDown={() => { input.nitro = true; }} onUp={() => { input.nitro = false; }} />}
+            </>)}
           </div>
         </>
       ) : game.isTouch ? (
@@ -222,10 +235,11 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           </div>
         </>
       ) : (
-        <div className="keys">{driving ? 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイド · E 降りる · V 視点 · R ラジオ · P スマホ' : 'WASD 移動 · Shift ダッシュ · Space ジャンプ · E 入る/乗る · X 武器 · 右クリック/Q 狙う · 左クリック/F 撃つ · P スマホ'}</div>
+        <div className="keys">{driving ? (me && me.def.kind === 'heli' ? 'Space 上昇 · Shift 下降 · W/S 前進/後退 · A D 旋回 · E 降りる(着陸後) · V 視点' : 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイド · Shift ニトロ · E 降りる · V 視点 · R ラジオ · P スマホ') : 'WASD 移動 · Shift ダッシュ · Space ジャンプ · E 入る/乗る · X 武器 · 右クリック/Q 狙う · 左クリック/F 撃つ · P スマホ'}</div>
       )}
       {!driving && (input.aim || input.aimHold) && game.arms.cur !== 'fist' && game.where === 'out' && <div className={'xhair' + (combat.lock ? ' lock' : '')} />}
       {game.ui === 'arms' && <GunShop onClose={() => { game.ui = ''; }} />}
+      {game.ui === 'customs' && <Customs onClose={() => { game.ui = ''; }} />}
       {map && <FullMap onClose={() => setMap(false)} />}
       {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} setQuality={setQuality} />}
     </>

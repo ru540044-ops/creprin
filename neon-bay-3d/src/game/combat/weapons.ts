@@ -8,11 +8,13 @@ import { setWanted, copSees, armored } from '../crime/crime';
 import { flash, tracer, impact } from './fx';
 import { sfx } from '../audio';
 import { admin } from '../admin';
+import { throwGrenade } from './explode';
 
-export type WeaponId = 'fist' | 'pistol' | 'smg';
+export type WeaponId = 'fist' | 'pistol' | 'smg' | 'grenade';
 export const WEAPONS: Record<WeaponId, { name: string; dmg: number; rate: number; range: number; carDmg: number; acc: number; pack: number; price: number; ammoPrice: number }> = {
   fist: { name: '素手', dmg: 22, rate: 0.45, range: 1.7, carDmg: 0, acc: 1, pack: 0, price: 0, ammoPrice: 0 },
   pistol: { name: 'ピストル', dmg: 34, rate: 0.3, range: 60, carDmg: 6, acc: 0.85, pack: 36, price: 1200, ammoPrice: 150 },
+  grenade: { name: 'グレネード', dmg: 0, rate: 0.9, range: 0, carDmg: 0, acc: 1, pack: 5, price: 0, ammoPrice: 600 },
   smg: { name: 'SMG', dmg: 17, rate: 0.085, range: 50, carDmg: 3, acc: 0.62, pack: 120, price: 4500, ammoPrice: 400 },
 };
 export const ARMOR_PRICE = 800;
@@ -35,7 +37,7 @@ export function tickWeapons(dt: number) {
 export const armed = () => game.arms.cur !== 'fist';
 export function cycleWeapon() {
   combat.reload = 0;
-  const order: WeaponId[] = ['fist', 'pistol', 'smg'], have = order.filter((w) => w === 'fist' || game.arms.owned[w as 'pistol' | 'smg']);
+  const order: WeaponId[] = ['fist', 'pistol', 'smg', 'grenade'], have = order.filter((w) => w === 'fist' || (w === 'grenade' ? game.arms.ammo.grenade > 0 : game.arms.owned[w as 'pistol' | 'smg']));
   const i = have.indexOf(game.arms.cur as WeaponId); game.arms.cur = have[(i + 1) % have.length]; sfx('ui');
   toast(WEAPONS[game.arms.cur as WeaponId].name, 0.9);
 }
@@ -61,7 +63,7 @@ function damageVehicle(v: Veh, dmg: number) {
   if (v.role === 'traffic') panic(v);
   if (v.role === 'armored' && v === armored.v && (armored.state === 'drive' || armored.state === 'alert')) { armored.dmg += dmg * 0.22; if (armored.state === 'drive') { armored.state = 'alert'; setWanted(Math.max(1, game.wanted), '現金輸送車を襲撃'); } }
   if (v.role === 'police') setWanted(Math.max(3, game.wanted), '警察を撃った');
-  if (v.hp <= 0 && !v.dead) { v.hp = 0; v.dead = true; v.burn = 8; sfx('crash', 0.9); if (v.role === 'police') setWanted(Math.min(5, game.wanted + 1), 'パトカーを破壊'); }
+  if (v.hp <= 0 && !v.dead) { v.hp = 0; v.dead = true; v.burn = 4.5; sfx('crash', 0.9); if (v.role === 'police') setWanted(Math.min(5, game.wanted + 1), 'パトカーを破壊'); }
 }
 
 /** Fire the current weapon from (ox,oy,oz) along (dx,dy,dz). Returns true if a shot/punch happened. */
@@ -69,6 +71,12 @@ export function fire(ox: number, oy: number, oz: number, dx: number, dy: number,
   if (combat.cool > 0) return false;
   const id = game.arms.cur as WeaponId, W = WEAPONS[id];
   combat.cool = W.rate;
+  if (id === 'grenade') { // lob a grenade along the aim direction
+    if (game.arms.ammo.grenade <= 0) { game.arms.cur = 'fist'; return false; }
+    if (!(admin.is && admin.infAmmo)) game.arms.ammo.grenade--; combat.punchT = 0.3; throwGrenade(ox, oy, oz, dx, dy, dz);
+    if (game.arms.ammo.grenade <= 0) setTimeout(() => { if (game.arms.cur === 'grenade' && game.arms.ammo.grenade <= 0) game.arms.cur = 'fist'; }, 400);
+    return true;
+  }
   if (id === 'fist') { // punch whatever is right in front
     combat.punchT = 0.3; sfx('door', 0.5);
     let hit: Ped | null = null, bd = W.range;
@@ -109,9 +117,9 @@ export function fire(ox: number, oy: number, oz: number, dx: number, dy: number,
   return true;
 }
 
-export function buy(item: 'pistol' | 'smg' | 'pistolAmmo' | 'smgAmmo' | 'armor'): string | null {
+export function buy(item: 'pistol' | 'smg' | 'pistolAmmo' | 'smgAmmo' | 'armor' | 'grenades'): string | null {
   const A = game.arms;
-  const price = item === 'pistol' ? WEAPONS.pistol.price : item === 'smg' ? WEAPONS.smg.price : item === 'pistolAmmo' ? WEAPONS.pistol.ammoPrice : item === 'smgAmmo' ? WEAPONS.smg.ammoPrice : ARMOR_PRICE;
+  const price = item === 'grenades' ? WEAPONS.grenade.ammoPrice : item === 'pistol' ? WEAPONS.pistol.price : item === 'smg' ? WEAPONS.smg.price : item === 'pistolAmmo' ? WEAPONS.pistol.ammoPrice : item === 'smgAmmo' ? WEAPONS.smg.ammoPrice : ARMOR_PRICE;
   if (game.money < price) return '資金不足';
   if ((item === 'pistolAmmo' && !A.owned.pistol) || (item === 'smgAmmo' && !A.owned.smg)) return '先に本体を買おう';
   if ((item === 'pistol' && A.owned.pistol) || (item === 'smg' && A.owned.smg)) return '購入済み';
@@ -122,6 +130,7 @@ export function buy(item: 'pistol' | 'smg' | 'pistolAmmo' | 'smgAmmo' | 'armor')
   if (item === 'pistolAmmo') A.ammo.pistol += WEAPONS.pistol.pack;
   if (item === 'smgAmmo') A.ammo.smg += WEAPONS.smg.pack;
   if (item === 'armor') A.armor = 100;
+  if (item === 'grenades') { A.ammo.grenade += WEAPONS.grenade.pack; if (A.cur === 'fist') A.cur = 'grenade'; }
   for (const g of ['pistol', 'smg'] as const) if (A.owned[g] && A.mag[g] < MAG[g]) { const n = Math.min(MAG[g] - A.mag[g], A.ammo[g]); A.mag[g] += n; A.ammo[g] -= n; }
   sfx('buy'); save(); return null;
 }

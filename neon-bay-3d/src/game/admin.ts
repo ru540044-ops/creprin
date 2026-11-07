@@ -3,10 +3,11 @@ import { vehicles, spawn, remove, playerCar, owned } from './vehicles/sim';
 import { VDEFS, VKind, DEALER } from './vehicles/defs';
 import { peds, scare } from './ai/peds';
 import { law, armored, exportJob, newExport, resetRobberies } from './crime/crime';
-import { groundAt, doors, GARAGE, AIRPORT, PORT, BEACH_X, POLICE_HQ, HOSPITAL, EXPORT_DOCK, isWater } from './world/cityGen';
+import { groundAt, floorAt, doors, GARAGE, AIRPORT, PORT, BEACH_X, POLICE_HQ, HOSPITAL, EXPORT_DOCK, CUSTOMS, HELIPADS, RAMPS, isWater } from './world/cityGen';
 import { WEAPONS, MAG } from './combat/weapons';
 import { releaseDrive } from './input';
 import { sfx } from './audio';
+import { setWeather as setWeatherKind, WeatherKind, WEATHER_NAMES } from './world/Weather';
 
 /**
  * Admin (owner-only) powers. Whether the viewer is the admin comes from the claude.ai viewer itself
@@ -35,7 +36,8 @@ export async function checkAdmin() {
 function resetPowers() { Object.assign(admin, { god: false, noWanted: false, infAmmo: false, carGod: false, carBoost: false, fastRun: false, superJump: false, freezeTime: false, timeScale: 1, density: 1, debug: false }); }
 export function saveAdmin() { if (!admin.is) return; try { const { is, checked, ...rest } = admin; void is; void checked; localStorage.setItem(KEY, JSON.stringify(rest)); } catch { /* ignore */ } }
 /** Scaled frame time for the simulation (slow motion / fast forward). */
-export const tdt = (dt: number) => dt * (admin.is ? admin.timeScale : 1);
+export const timeFx = { slow: 1 }; // stunt-jump slow motion
+export const tdt = (dt: number) => dt * (admin.is ? admin.timeScale : 1) * timeFx.slow;
 
 /** Every admin action goes through here: refuses when the viewer is not the admin. */
 function guard(): boolean { if (!admin.is) { toast('管理者のみ使用できます', 1.6); return false; } sfx('ui'); return true; }
@@ -82,13 +84,16 @@ export const WARPS: { name: string; at: () => { x: number; z: number } }[] = [
   { name: '港', at: () => ({ x: PORT.x0 + 80, z: PORT.z0 + 20 }) },
   { name: 'ビーチ', at: () => ({ x: BEACH_X + 30, z: 0 }) },
   { name: 'ダウンタウン', at: () => ({ x: 0, z: -50 }) },
+  { name: 'BAY CUSTOMS', at: () => CUSTOMS.spawn },
+  { name: '屋上ヘリパッド', at: () => { const h = HELIPADS[HELIPADS.length - 1]; return { x: h.x + 9, z: h.z }; } },
+  { name: 'ランウェイ・ジャンプ', at: () => { const r = RAMPS[RAMPS.length - 1]; return { x: r.x - Math.sin(r.yaw) * 120, z: r.z - Math.cos(r.yaw) * 120 }; } },
 ];
 export function warp(to: { x: number; z: number }) {
   if (!guard()) return;
   const me = playerCar(), p = game.player;
   game.where = 'out'; game.waypoint = null;
   if (me) { me.x = to.x; me.z = to.z; me.y = groundAt(to.x, to.z); me.vx = me.vz = 0; }
-  p.x = to.x; p.z = to.z; p.y = groundAt(to.x, to.z) + 0.05; p.vy = 0; toast('ワープ', 1);
+  const y = floorAt(to.x, to.z, 1e4); p.x = to.x; p.z = to.z; p.y = y + 0.05; p.vy = 0; if (me) me.y = me.def.kind === 'heli' ? y : groundAt(to.x, to.z); toast('ワープ', 1);
 }
 export function warpWaypoint() { if (!game.waypoint) { toast('目的地が設定されていません', 1.4); return; } warp(game.waypoint); }
 
@@ -102,4 +107,5 @@ export function panicAll() { if (!guard()) return; scare(game.player.x, game.pla
 export function armoredNow() { if (!guard()) return; if (armored.v) { toast('すでに輸送車が出ている', 1.4); return; } armored.nextT = 0; clearWanted(); toast('現金輸送車を呼んだ（街の中・数秒後）', 1.8); }
 export function resetJobs() { if (!guard()) return; resetRobberies(); newExport(); exportJob.cool = 0; toast('強盗のクールダウンと輸出依頼をリセット', 1.6); }
 export const ADMIN_KINDS: VKind[] = [...DEALER, 'police', 'armored'];
+export function weather(k: WeatherKind) { if (!guard()) return; setWeatherKind(k); toast('天気: ' + WEATHER_NAMES[k], 1.2); }
 export { WEAPONS, owned };

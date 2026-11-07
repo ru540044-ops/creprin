@@ -159,3 +159,14 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .adBadge{position:fixed;left:50%;top:calc(6px + var(--sat));transform:translateX(-50%);z-index:4;pointer-events:none;background:linear-gradient(90deg,#ff2a40,#7a00ff);color:#fff;font-size:10px;font-weight:900;letter-spacing:.12em;border-radius:999px;padding:3px 10px}
 .adDebug{position:fixed;left:max(14px,var(--sal));bottom:calc(150px + var(--sab));z-index:4;pointer-events:none;font:11px/1.4 ui-monospace,monospace;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:8px}
 @media (max-height:500px){.adBadge{left:48%;top:calc(4px + var(--sat))}}
+
+.tb.nosb{border-color:#2be4ff;border-radius:16px;background:rgba(10,60,90,.6)}.tb.nosb.on{background:rgba(43,228,255,.5)}
+.tb.rev{border-color:var(--dim);border-radius:16px}
+.nos{grid-column:1/3;display:block;height:4px;border-radius:2px;background:rgba(43,228,255,.15);overflow:hidden;margin-top:3px}.nos b{display:block;height:100%;background:#2be4ff}
+.pedals{grid-template-rows:repeat(2,62px) auto}
+.customs{box-shadow:0 0 0 2px #ff9a3a,0 20px 50px rgba(0,0,0,.6);background:linear-gradient(180deg,#221a12,#100c08)}
+.customs .shopHead b{color:#ff9a3a}
+.cuPrev{display:grid;justify-items:center;gap:2px;background:rgba(255,255,255,.04);border-radius:12px;padding:8px}.cuPrev .carsvg{height:70px}.cuPrev b{font-size:15px}.cuPrev span{font-size:11px;color:var(--dim)}
+.swatches.big button{width:32px;height:32px}.swatches .off{width:auto !important;border-radius:999px !important;padding:0 10px;color:var(--ink);background:rgba(255,255,255,.1);font-size:11px;font-weight:700}
+.cuHue{display:flex;gap:8px;align-items:center}.cuHue input{flex:1;accent-color:#ff9a3a}.cuHue button{border:0;border-radius:10px;padding:9px 10px;color:#fff;font-weight:900;font-size:12px;text-shadow:0 1px 2px #000}
+.cuRows{display:grid;gap:8px}

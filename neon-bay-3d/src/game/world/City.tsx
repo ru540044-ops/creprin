@@ -35,8 +35,8 @@ function useMaterials() {
       misc: std({ vertexColors: true, roughness: 0.7, metalness: 0.15 }),
       metal: std({ vertexColors: true, roughness: 0.35, metalness: 0.7 }),
       glow: glowMat, lampHead, pool,
-      asphalt: std({ map: T.asphalt, roughness: 0.92, color: '#ffffff' }),
-      sidewalk: std({ map: T.sidewalk, roughness: 0.9 }),
+      asphalt: wetReg(std({ map: T.asphalt, roughness: 0.92, color: '#ffffff' })),
+      sidewalk: wetReg(std({ map: T.sidewalk, roughness: 0.9 })),
       grass: std({ map: T.grass, roughness: 1 }),
       sand: std({ map: T.sand, roughness: 1 }),
       concrete: std({ map: T.concrete, roughness: 0.85 }),
@@ -137,6 +137,10 @@ function usePropGeos() {
     return { lampPole, lampHead, signalPole, signalBulb, trunk, canopy, palmTrunk, palmTop, pine, bench, bin, hydrant, container, umbrella, billboardFrame, billboardPanel, pool };
   }, []);
 }
+
+/** Road and sidewalk materials darken and turn glossy when wet (weather). */
+export const wetMats: { m: THREE.MeshStandardMaterial; r: number }[] = [];
+const wetReg = <T extends THREE.Material>(m: T): T => { wetMats.push({ m: m as unknown as THREE.MeshStandardMaterial, r: (m as unknown as THREE.MeshStandardMaterial).roughness }); return m; };
 
 /** Wind: foliage vertices sway with height, each tree with its own phase (vertex shader). */
 export const wind = { value: 0 };

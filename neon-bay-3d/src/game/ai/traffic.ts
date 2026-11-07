@@ -8,7 +8,7 @@ import { clamp } from '../world/rng';
 import { admin } from '../admin';
 
 /** Civilian traffic: cars wander the street grid in the right-hand lane, stop at red lights and keep their distance. */
-const KINDS: VKind[] = ['sedan', 'sedan', 'sedan', 'sedan', 'suv', 'suv', 'suv', 'truck', 'truck', 'sport', 'sport', 'bike', 'super'];
+const KINDS: VKind[] = ['sedan', 'sedan', 'sedan', 'suv', 'suv', 'truck', 'sport', 'bike', 'super', 'taxi', 'taxi', 'hatch', 'hatch', 'pickup', 'pickup', 'muscle'];
 const LANE = 3.3;
 export const trafficCap = () => Math.round((game.quality === 'low' ? 7 : game.quality === 'medium' ? 11 : 15) * (admin.is ? admin.density : 1));
 let spawnT = 0, patrolT = 20;
@@ -22,7 +22,7 @@ function aheadLimit(v: Veh): number {
     const lf = dx * fx + dz * fz, ls = dx * fz - dz * fx;
     if (lf > 0 && lf < 18 && Math.abs(ls) < wid) L = Math.min(L, Math.max(0, (lf - len) * 1.1));
   };
-  for (const o of vehicles) if (o !== v) test(o.x, o.z, 2.2, v.def.len / 2 + o.def.len / 2 + 1.5);
+  for (const o of vehicles) if (o !== v && Math.abs(o.y - v.y) < 3) test(o.x, o.z, 2.2, v.def.len / 2 + o.def.len / 2 + 1.5);
   if (!playerCar() && game.where === 'out') test(game.player.x, game.player.z, 1.6, v.def.len / 2 + 2.2);
   for (const p of pedsAhead) test(p.x, p.z, 1.6, v.def.len / 2 + 2.2);
   return L;

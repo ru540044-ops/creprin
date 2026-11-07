@@ -58,6 +58,8 @@ export default function AdminApp({ close }: { close: () => void }) {
       <div className="adGrid">{T('freezeTime', '時間停止', '時刻を固定')}</div>
       <div className="adRow">{[0.25, 0.5, 1, 2].map((s) => <button type="button" key={s} className={a.timeScale === s ? 'sel' : ''} onClick={run(() => AD.setScale(s))}>{s === 1 ? '通常速度' : s < 1 ? `スロー ×${s}` : `早送り ×${s}`}</button>)}</div>
 
+      <h4 className="adH">天気</h4>
+      <div className="adRow">{(['clear', 'cloudy', 'rain', 'storm'] as const).map((k) => <button type="button" key={k} className={game.weather.kind === k ? 'sel' : ''} onClick={run(() => AD.weather(k))}>{({ clear: '☀ 晴れ', cloudy: '☁ くもり', rain: '☂ 雨', storm: '⚡ 嵐' })[k]}</button>)}</div>
       <h4 className="adH">街</h4>
       <div className="adRow">{[[0, '人も車もなし'], [1, '通常'], [2, '混雑 ×2']].map(([d, l]) => <button type="button" key={d} className={a.density === d ? 'sel' : ''} onClick={run(() => AD.setDensity(d as number))}>{l}</button>)}</div>
       <div className="adRow">

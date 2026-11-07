@@ -7,6 +7,7 @@ import { game } from '../state/store';
 import * as A from '../anim/pose';
 import { fx } from '../combat/fx';
 import { combat } from '../combat/weapons';
+import { booms, grenades } from '../combat/explode';
 import { getTextures } from '../world/textures';
 
 const SHIRT = ['#e84a5f', '#2a9d8f', '#264653', '#f4a261', '#e9c46a', '#6c5ce7', '#dfe6e9', '#2d3436', '#00b894', '#fd79a8', '#0984e3', '#b2bec3'].map((c) => new THREE.Color(c));
@@ -125,6 +126,10 @@ export function FXView() {
   const hits = useMemo(() => { const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glow, transparent: true, depthWrite: false, toneMapped: false }), 32); m.frustumCulled = false; for (let i = 0; i < 32; i++) m.setColorAt(i, new THREE.Color(1, 1, 1)); return m; }, [glow]);
   const cash = useMemo(() => { const m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.14, 0.22), new THREE.MeshStandardMaterial({ color: '#3dffb0', emissive: new THREE.Color('#1a8f5a'), emissiveIntensity: 0.8 }), 24); m.frustumCulled = false; return m; }, []);
   const lines = useMemo(() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(32 * 6), 3)); const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#fff3c0', transparent: true, opacity: 0.85, toneMapped: false })); l.frustumCulled = false; return l; }, []);
+  const fire = useMemo(() => { const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 36); m.frustumCulled = false; for (let i = 0; i < 36; i++) m.setColorAt(i, new THREE.Color(1, 1, 1)); return m; }, [glow]);
+  const smokeB = useMemo(() => { const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glow, color: '#2a2724', transparent: true, depthWrite: false, opacity: 0.8 }), 24); m.frustumCulled = false; return m; }, [glow]);
+  const nades = useMemo(() => { const m = new THREE.InstancedMesh(new THREE.SphereGeometry(0.09, 8, 6).scale(1, 1.25, 1), new THREE.MeshStandardMaterial({ color: '#3a4a2a', roughness: 0.6 }), 10); m.frustumCulled = false; return m; }, []);
+  const fcol = useMemo(() => [new THREE.Color(3, 1.6, 0.4), new THREE.Color(2.4, 0.7, 0.15), new THREE.Color(3, 2.6, 1.4)], []);
   const lock = useRef<THREE.Mesh>(null!);
   const red = useMemo(() => new THREE.Color(2, 0.25, 0.2), []), spark = useMemo(() => new THREE.Color(2, 1.6, 0.6), []);
   useFrame(({ camera, clock }) => {
@@ -138,11 +143,23 @@ export function FXView() {
     a.needsUpdate = true;
     for (let i = 0; i < 24; i++) { const c = pickups[i]; if (c) { Q.setFromAxisAngle(UP, clock.elapsedTime * 2 + i); V.set(c.x, c.y + 0.35 + Math.sin(clock.elapsedTime * 3 + i) * 0.08, c.z); S.setScalar(1); M.compose(V, Q, S); cash.setMatrixAt(i, M); } else cash.setMatrixAt(i, ZERO); }
     cash.instanceMatrix.needsUpdate = true;
+    // explosions: three fire puffs + two smoke puffs per blast
+    let fi = 0, si = 0;
+    for (const b of booms) {
+      const age = 1.4 - b.t, k = Math.min(1, age / 0.25);
+      for (let j = 0; j < 3 && fi < 36; j++, fi++) { const a = j * 2.1 + b.x; V.set(b.x + Math.cos(a) * 1.2 * k, b.y + 0.6 + j * 0.7 * k + age * 1.5, b.z + Math.sin(a) * 1.2 * k); S.setScalar(b.t > 0.9 ? (3 + j) * b.s * (0.5 + k) : 0.0001); M.compose(V, q, S); fire.setMatrixAt(fi, M); fire.setColorAt(fi, fcol[j]); }
+      for (let j = 0; j < 2 && si < 24; j++, si++) { V.set(b.x + (j - 0.5) * 2, b.y + 2 + age * 3.5 + j, b.z); S.setScalar((4 + age * 5) * b.s); M.compose(V, q, S); smokeB.setMatrixAt(si, M); }
+    }
+    for (; fi < 36; fi++) fire.setMatrixAt(fi, ZERO); for (; si < 24; si++) smokeB.setMatrixAt(si, ZERO);
+    fire.instanceMatrix.needsUpdate = true; if (fire.instanceColor) fire.instanceColor.needsUpdate = true; smokeB.instanceMatrix.needsUpdate = true;
+    for (let i = 0; i < 10; i++) { const g = grenades[i]; if (g) { Q.setFromAxisAngle(UP, g.spin); V.set(g.x, g.y, g.z); S.setScalar(1); M.compose(V, Q, S); nades.setMatrixAt(i, M); } else nades.setMatrixAt(i, ZERO); }
+    nades.instanceMatrix.needsUpdate = true;
     const L = combat.lock, m = lock.current;
     if (m) { m.visible = !!L; if (L) { const p = 'ped' in L ? { x: L.ped.x, y: L.ped.y + 2.2, z: L.ped.z } : { x: L.veh.x, y: L.veh.y + L.veh.def.hgt + 0.7, z: L.veh.z }; m.position.set(p.x, p.y, p.z); m.quaternion.copy(q); } }
   });
   return (
     <>
+      <primitive object={smokeB} /><primitive object={fire} /><primitive object={nades} />
       <primitive object={flashes} /><primitive object={hits} /><primitive object={cash} /><primitive object={lines} />
       <mesh ref={lock} visible={false}><ringGeometry args={[0.22, 0.3, 24]} /><meshBasicMaterial color="#ff3a4a" toneMapped={false} depthTest={false} transparent /></mesh>
     </>

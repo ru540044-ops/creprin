@@ -20,6 +20,7 @@ export default function GunShop({ onClose }: { onClose: () => void }) {
         {item('smg', WEAPONS.smg.name, `フルオート · 1発17ダメージ · 弾${WEAPONS.smg.pack}発付き`, WEAPONS.smg.price, A.owned.smg)}
         {item('pistolAmmo', 'ピストル弾 ×' + WEAPONS.pistol.pack, '所持 ' + A.ammo.pistol + '発', WEAPONS.pistol.ammoPrice)}
         {item('smgAmmo', 'SMG弾 ×' + WEAPONS.smg.pack, '所持 ' + A.ammo.smg + '発', WEAPONS.smg.ammoPrice)}
+        {item('grenades', 'グレネード ×5', '投げて2秒後に爆発・所持 ' + A.ammo.grenade + '個', WEAPONS.grenade.ammoPrice)}
         {item('armor', '防弾ベスト', '被ダメージを先に吸収 · 現在 ' + Math.round(A.armor) + '%', ARMOR_PRICE, A.armor >= 100)}
         <p className="appNote">銃を持つとコンビニ強盗・カツアゲができる。人前や警察の近くで撃つと手配される。</p>
         <button type="button" className="pHome" onClick={onClose}>閉じる</button>

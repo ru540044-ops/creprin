@@ -1,5 +1,8 @@
 /** Vehicle catalogue. Units: meters, m/s, m/s^2, kg. */
-export type VKind = 'sedan' | 'sport' | 'super' | 'suv' | 'truck' | 'bike' | 'police' | 'armored';
+export type VKind = 'sedan' | 'sport' | 'super' | 'suv' | 'truck' | 'bike' | 'police' | 'armored' | 'hyper' | 'muscle' | 'hatch' | 'pickup' | 'taxi' | 'heli';
+/** Bay Customs upgrades carried by a car. */
+export interface Mods { engine: number; armor: number; nitro: boolean; neon: string; finish: 'gloss' | 'matte' | 'chrome' | 'pearl'; tint: boolean; wheel: string }
+export const stockMods = (): Mods => ({ engine: 0, armor: 0, nitro: false, neon: '', finish: 'gloss', tint: false, wheel: '' });
 export interface VDef {
   kind: VKind; name: string; price: number; len: number; wid: number; hgt: number; wheelbase: number; wheelR: number;
   mass: number; accel: number; top: number; brake: number; grip: number; steer: number; hp: number; colors: string[]; blurb: string;
@@ -13,5 +16,11 @@ export const VDEFS: Record<VKind, VDef> = {
   bike: { kind: 'bike', name: 'Viper 600', price: 8000, len: 2.1, wid: 0.75, hgt: 1.15, wheelbase: 1.42, wheelR: 0.32, mass: 220, accel: 9.5, top: 72, brake: 11, grip: 1.15, steer: 0.62, hp: 60, colors: ['#e8141c', '#141414', '#2be4ff', '#ffd23a'], blurb: '速くて小回りがきく。転ぶと痛い。' },
   police: { kind: 'police', name: 'Bay PD Interceptor', price: 0, len: 4.8, wid: 1.9, hgt: 1.5, wheelbase: 2.8, wheelR: 0.35, mass: 1700, accel: 7.6, top: 60, brake: 10.5, grip: 1.15, steer: 0.56, hp: 150, colors: ['#15171c'], blurb: '警察車両。' },
   armored: { kind: 'armored', name: '現金輸送車', price: 0, len: 6.6, wid: 2.4, hgt: 2.9, wheelbase: 4.0, wheelR: 0.48, mass: 7200, accel: 2.8, top: 30, brake: 6, grip: 0.85, steer: 0.45, hp: 400, colors: ['#3e4650'], blurb: '現金を運ぶ装甲トラック。' },
+  hyper: { kind: 'hyper', name: 'Zentora X', price: 120000, len: 4.7, wid: 2.05, hgt: 1.08, wheelbase: 2.75, wheelR: 0.36, mass: 1450, accel: 13, top: 104, brake: 13, grip: 1.55, steer: 0.55, hp: 85, colors: ['#ff2a6a', '#00e1ff', '#f4f4ff', '#141414', '#ffd23a', '#7a00ff'], blurb: '最高速370km/h超えのハイパーカー。' },
+  muscle: { kind: 'muscle', name: 'Brawler 69', price: 22000, len: 4.95, wid: 1.95, hgt: 1.32, wheelbase: 2.9, wheelR: 0.37, mass: 1650, accel: 8.6, top: 70, brake: 9, grip: 0.98, steer: 0.5, hp: 120, colors: ['#e8141c', '#141414', '#ff8a00', '#2f5f9a', '#3d6b4a'], blurb: 'V8の暴れ馬。リアがよく滑る。' },
+  hatch: { kind: 'hatch', name: 'Pico', price: 3500, len: 3.8, wid: 1.72, hgt: 1.5, wheelbase: 2.45, wheelR: 0.3, mass: 1050, accel: 5.6, top: 46, brake: 9.5, grip: 1.05, steer: 0.62, hp: 85, colors: ['#9dff3a', '#ff6a9a', '#2be4ff', '#f4f4ff', '#ffd23a'], blurb: '小さくて小回り抜群。' },
+  pickup: { kind: 'pickup', name: 'Ridgeback', price: 12000, len: 5.3, wid: 2.0, hgt: 1.85, wheelbase: 3.2, wheelR: 0.42, mass: 2300, accel: 5.2, top: 52, brake: 8, grip: 0.95, steer: 0.5, hp: 150, colors: ['#8a1f2b', '#2b2b30', '#c8b48a', '#e8e8f0', '#3d6b4a'], blurb: 'タフなピックアップトラック。' },
+  taxi: { kind: 'taxi', name: 'Bay Cab', price: 5000, len: 4.7, wid: 1.85, hgt: 1.45, wheelbase: 2.75, wheelR: 0.34, mass: 1500, accel: 5.4, top: 52, brake: 9, grip: 1.0, steer: 0.55, hp: 110, colors: ['#ffcc00'], blurb: 'タクシー。乗るとタクシーの仕事ができる。' },
+  heli: { kind: 'heli', name: 'Skylark H2', price: 150000, len: 10, wid: 2.3, hgt: 3.0, wheelbase: 3, wheelR: 0.1, mass: 2600, accel: 22, top: 55, brake: 0, grip: 0, steer: 1.4, hp: 160, colors: ['#141414', '#f4f4ff', '#e8141c', '#2be4ff', '#ffd23a'], blurb: 'ヘリコプター。街の上をどこへでも飛べる。' },
 };
-export const DEALER: VKind[] = ['super', 'sport', 'bike', 'suv', 'sedan', 'truck'];
+export const DEALER: VKind[] = ['heli', 'hyper', 'super', 'sport', 'muscle', 'bike', 'suv', 'pickup', 'sedan', 'hatch', 'taxi', 'truck'];

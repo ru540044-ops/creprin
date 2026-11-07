@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Sky, Stars } from '@react-three/drei';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { game } from '../state/store';
-import { nightMats } from './City';
+import { nightMats, wetMats } from './City';
 import { smooth } from './rng';
 
 /** Sun, sky, fog and day/night cycle. One in-game day = game.dayLen real seconds. */
@@ -28,19 +28,22 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
     const elev = Math.sin(ang), az = Math.cos(ang);
     sunPos.set(az * 0.75, elev, 0.45).normalize();
     const day = smooth(-0.08, 0.25, elev), dusk = 1 - Math.abs(smooth(-0.15, 0.45, elev) * 2 - 1), night = 1 - smooth(-0.18, 0.05, elev);
-    if (sky.current) { const u = sky.current.material.uniforms; u.sunPosition.value.copy(sunPos).multiplyScalar(4000); u.rayleigh.value = 1.2 + dusk * 1.5; u.turbidity.value = 5 + dusk * 4; }
+    if (sky.current) { const u = sky.current.material.uniforms; u.sunPosition.value.copy(sunPos).multiplyScalar(4000); u.rayleigh.value = 1.2 + dusk * 1.5 + game.weather.cloud * 2.5; u.turbidity.value = 5 + dusk * 4 + game.weather.cloud * 14; }
     // key light: sun by day, cool moon at night
     const p = game.player, L = sun.current;
     const dir = elev > -0.05 ? sunPos : moonDir.set(-az * 0.6, 0.7, -0.4).normalize();
     L.position.set(p.x + dir.x * 220, (game.where === 'out' ? 0 : -50) + dir.y * 220, p.z + dir.z * 220); L.target.position.set(p.x, game.where === 'out' ? 0 : -50, p.z); L.target.updateMatrixWorld();
-    L.intensity = day * 2.6 + night * 0.25;
+    const W = game.weather, cl = W.cloud;
+    L.intensity = (day * 2.6 + night * 0.25) * (1 - 0.7 * cl) + W.flash * 3;
     L.color.copy(cols.day).lerp(cols.dusk, dusk * 0.8).lerp(cols.night, night);
-    hemi.current.intensity = 0.25 + day * 0.75 + night * 0.12;
+    hemi.current.intensity = (0.25 + day * 0.75 + night * 0.12) * (1 - 0.25 * cl) + W.flash * 2.5;
     hemi.current.color.setRGB(0.62 + day * 0.2, 0.7 + day * 0.15, 0.85 + day * 0.1).lerp(cols.night, night * 0.6);
     hemi.current.groundColor.setRGB(0.32, 0.28, 0.25).multiplyScalar(0.4 + day * 0.6);
     fog.color.copy(cols.fogDay).lerp(cols.fogDusk, dusk * 0.7).lerp(cols.fogNight, night);
-    fog.near = 120 + day * 120; fog.far = 900 + day * 700;
-    gl.toneMappingExposure = 0.85 + day * 0.25 + night * 0.35;
+    fog.color.lerp(cols.night.clone().setRGB(0.45, 0.48, 0.53).multiplyScalar(0.25 + day * 0.75), cl * 0.75);
+    fog.near = (120 + day * 120) * (1 - 0.65 * W.rain); fog.far = (900 + day * 700) * (1 - 0.62 * W.rain);
+    gl.toneMappingExposure = (0.85 + day * 0.25 + night * 0.35) * (1 - 0.12 * cl);
+    for (const w of wetMats) { w.m.roughness = w.r * (1 - 0.62 * W.wet); w.m.color.setScalar(1 - 0.3 * W.wet); }
     (scene as any).environmentIntensity = 0.12 + day * 0.55;
     if (stars.current) (stars.current.material as THREE.PointsMaterial).opacity = night;
     const lit = smooth(0.15, -0.1, elev);

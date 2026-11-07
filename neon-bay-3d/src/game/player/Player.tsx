@@ -7,7 +7,7 @@ import { vehicles, playerCar, Veh } from '../vehicles/sim';
 import { sfx } from '../audio';
 import { jobNear, jobAction, onEnterCar, law } from '../crime/crime';
 import { hooks } from '../vehicles/sim';
-import { collide, groundAt, doors, pointBlocked, districtAt, isWater } from '../world/cityGen';
+import { collide, groundAt, floorAt, doors, pointBlocked, districtAt, isWater } from '../world/cityGen';
 import { INTERIORS, FLOOR, interiorCollide } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
@@ -56,20 +56,22 @@ export default function Player() {
   const exitCar = (me: Veh) => {
     const p = game.player, sp = Math.hypot(me.vx, me.vz);
     if (sp > 9) { toast('スピードを落とすと降りられる', 1.4); return; }
+    if (me.def.kind === 'heli' && me.air) { toast('ヘリは着陸してから降りよう', 1.6); return; }
     const lx = Math.cos(me.yaw), lz = -Math.sin(me.yaw), fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), off = me.def.wid / 2 + 0.6;
     const spots = [[lx * off, lz * off], [-lx * off, -lz * off], [-fx * (me.def.len / 2 + 0.8), -fz * (me.def.len / 2 + 0.8)], [fx * (me.def.len / 2 + 0.8), fz * (me.def.len / 2 + 0.8)]];
     let ok: number[] | null = null;
     for (const [dx, dz] of spots) {
       const q = { x: me.x + dx, z: me.z + dz }, q0x = q.x, q0z = q.z;
       if (isWater(q.x, q.z)) continue;
-      if (collide(q, R, groundAt(q.x, q.z), H) && Math.hypot(q.x - q0x, q.z - q0z) > 0.05) continue;
+      if (collide(q, R, floorAt(q.x, q.z, me.y + 1), H) && Math.hypot(q.x - q0x, q.z - q0z) > 0.05) continue;
+      if (Math.abs(floorAt(q.x, q.z, me.y + 1) - me.y) > 1.5) continue; // no stepping off a roof edge
       if (vehicles.some((v) => v !== me && Math.hypot(v.x - q.x, v.z - q.z) < v.def.len / 2 + 0.4)) continue;
       ok = [q.x, q.z]; break;
     }
     if (!ok) { toast('ここでは降りられない', 1.4); return; }
     game.cam.yaw = st.carYaw + Math.PI + st.look; game.cam.pitch = 0.28;
     game.inCar = 0; releaseDrive(); sfx('door'); st.exitK = 0; st.exitCar = me;
-    p.x = ok[0]; p.z = ok[1]; p.y = groundAt(p.x, p.z); p.vy = 0; p.yaw = me.yaw; st.vx = st.vz = 0; camPos.set(p.x + Math.sin(game.cam.yaw) * 4, p.y + 2.5, p.z + Math.cos(game.cam.yaw) * 4);
+    p.x = ok[0]; p.z = ok[1]; p.y = floorAt(p.x, p.z, me.y + 1); p.vy = 0; p.yaw = me.yaw; st.vx = st.vz = 0; camPos.set(p.x + Math.sin(game.cam.yaw) * 4, p.y + 2.5, p.z + Math.cos(game.cam.yaw) * 4);
     save();
   };
 
@@ -131,7 +133,8 @@ export default function Player() {
         collide(p, R, p.y, H);
         if (isWater(p.x, p.z)) { p.x = ox; p.z = oz; } // no swimming yet: the shoreline blocks you
         hitCD -= dt; pushOutOfCars(p); if (knock.x || knock.z) { st.vx += knock.x; st.vz += knock.z; p.vy = Math.max(p.vy, 3); p.grounded = false; if (knock.down) { st.downT = 1.5; st.upT = 0; st.downDir = 1; } knock.x = knock.z = 0; knock.down = false; }
-        const g = groundAt(p.x, p.z);
+        const g = floorAt(p.x, p.z, p.y);
+        if (game.blast) { st.vx += game.blast.x; st.vz += game.blast.z; p.vy = Math.max(p.vy, 5); p.grounded = false; if (Math.hypot(game.blast.x, game.blast.z) > 3) { st.downT = 1.8; st.upT = 0; st.downDir = 1; } game.blast = null; }
         if (p.y <= g + 0.02 || (p.grounded && p.y - g < 0.45 && p.vy <= 0)) { if (!p.grounded && p.vy < -3) { st.landT = 0.3; st.landK = clamp((-p.vy - 3) / 12, 0.25, 1); } p.y = g; p.vy = 0; p.grounded = true; } else p.grounded = false;
       }
       p.speed = Math.hypot(st.vx, st.vz);
@@ -281,7 +284,7 @@ export default function Player() {
       const t = performance.now() / 12000; camera.position.set(P.x + Math.sin(t) * 60, 45, P.z + Math.cos(t) * 60); camera.lookAt(P.x, 10, P.z); return;
     }
     const cam = camera as THREE.PerspectiveCamera;
-    const wantFov = me ? 60 + Math.min(16, game.speed * 0.22) : 62 - st.aimK * 12;
+    const wantFov = me ? 60 + Math.min(16, game.speed * 0.22) + (me.nitroOn ? 12 : 0) : 62 - st.aimK * 12;
     if (Math.abs(st.fov - wantFov) > 0.05) { st.fov += (wantFov - st.fov) * Math.min(1, dt * (st.aimK > 0.05 ? 10 : 3)); cam.fov = st.fov; cam.updateProjectionMatrix(); }
     game.shake = Math.max(0, game.shake - dt * 2.2);
     if (me) {

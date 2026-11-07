@@ -94,7 +94,7 @@ export function nearestPed(x: number, z: number, r: number, alive = true): Ped |
 }
 
 function carHits(p: Ped, v: Veh) {
-  const sp = Math.hypot(v.vx, v.vz); if (sp < 2.5) return false;
+  const sp = Math.hypot(v.vx, v.vz); if (sp < 2.5 || v.y > p.y + 1.7 || v.def.kind === 'heli') return false;
   const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 6 || Math.abs(dz) > 6) return false;
   const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), lf = dx * fx + dz * fz, ls = dx * fz - dz * fx;
   if (Math.abs(lf) > v.def.len / 2 + 0.35 || Math.abs(ls) > v.def.wid / 2 + 0.35) return false;

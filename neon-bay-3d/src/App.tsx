@@ -9,6 +9,7 @@ import HUD from './game/ui/HUD';
 import Vehicles from './game/vehicles/Vehicles';
 import CrimeView from './game/crime/CrimeView';
 import Birds from './game/world/Birds';
+import Weather from './game/world/Weather';
 import { wind } from './game/world/City';
 import { PedsView, FXView } from './game/ai/PedsView';
 import { peds } from './game/ai/peds';
@@ -19,13 +20,16 @@ import { vehicles, playerCar, owned, spawn, remove, drive, collisions } from './
 import { initAudio } from './game/audio';
 import { checkAdmin, tdt } from './game/admin';
 import * as adminMod from './game/admin';
+import * as explodeMod from './game/combat/explode';
+import * as stuntsMod from './game/crime/stunts';
+import { RAMPS, HELIPADS, CUSTOMS } from './game/world/cityGen';
 import { game, load, save, clearSave, Quality } from './game/state/store';
 import { bindKeyboard, input } from './game/input';
 import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ } from './game/world/cityGen';
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -69,6 +73,7 @@ function Scene({ quality }: { quality: Quality }) {
       <PedsView />
       <FXView />
       <Birds />
+      <Weather />
       <Waypoint />
       <Ticker />
     </>
@@ -105,7 +110,7 @@ export default function App() {
       {started ? <HUD quality={quality} setQuality={setQuality} /> : (
         <div className="overlay title">
           <div className="tcard">
-            <p className="eyebrow">オープンワールド · 第3.5段階</p>
+            <p className="eyebrow">オープンワールド · 第4段階</p>
             <h1>Neon Bay</h1>
             <p className="lede">3Dの街を歩いて、車に乗って走れます。道ばたの車に近づいて「乗る」。スマホの Bay Motors でスーパーカーを買うと、セーフハウス近くのガレージに届きます。</p>
             <ul className="how">
@@ -114,6 +119,7 @@ export default function App() {
               <li><b>操作</b>{game.isTouch ? 'ジャンプ・ダッシュ・しゃがむ・アクション・視点ボタン' : 'Space ジャンプ · Shift ダッシュ · C しゃがむ · E 入る/乗る · V 視点'}</li>
               <li><b>運転</b>{game.isTouch ? '左 ◀ ▶ でハンドル、右にアクセル・ブレーキ(バック)・サイド・降車' : 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイド · E 降りる'}</li>
               <li><b>武器</b>{game.isTouch ? '武器ボタンで切替、狙うでエイム、撃つで射撃（素手ならパンチ）' : 'X 切替 · 右クリック/Q 狙う · 左クリック/F 撃つ'}。銃は BAY ARMS で購入</li>
+              <li><b>新要素</b>ヘリ・ハイパーカー・タクシー、BAY CUSTOMSで改造とニトロ、スタントジャンプ、グレネードと爆発、天気（雨・嵐）</li>
               <li><b>スマホ</b>{game.isTouch ? '右上の「スマホ」' : 'P キー'}：車の購入・ガレージ・マップ・設定</li>
               <li><b>マップ</b>ミニマップをタップで全体マップ、タップで目的地設定</li>
               <li><b>セーブ</b>5秒ごとに自動保存</li>

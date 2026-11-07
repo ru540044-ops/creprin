@@ -13,6 +13,7 @@ export const input = {
   aim: false, aimHold: false, // aim toggle (touch / Q) and right-mouse hold
   fire: false, // held
   wcycle: false, radio: false, // edges
+  up: false, down: false, nitro: false, // helicopter collective, nitro (held)
 };
 
 export function moveVector(): [number, number] {
@@ -48,4 +49,4 @@ export function bindKeyboard() {
 }
 
 /** Drop every held driving button (used when the touch controls swap between foot and car). */
-export function releaseDrive() { input.fire = false; input.aimHold = false; input.gas = input.brake = input.left = input.right = input.hb = false; input.joyActive = false; input.joyX = input.joyY = 0; }
+export function releaseDrive() { input.up = input.down = input.nitro = false; input.fire = false; input.aimHold = false; input.gas = input.brake = input.left = input.right = input.hb = false; input.joyActive = false; input.joyX = input.joyY = 0; }
