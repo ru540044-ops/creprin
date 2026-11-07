@@ -1,0 +1,262 @@
+import { mulberry, fbm, smooth, clamp } from './rng';
+
+/* World units are meters. x = east, z = south, y = up. */
+export const ROAD = 14, BLOCK = 86, PITCH = ROAD + BLOCK, N = 14;
+export const CITY = N * PITCH + ROAD; // 1414 m
+export const HALF = CITY / 2; // city spans -HALF..HALF on x and z
+export const HWY_W = 26, HWY_C = HALF + 33; // ring highway centerline offset
+export const WATER_Y = -0.8;
+
+export const roadC = (k: number) => -HALF + k * PITCH + ROAD / 2; // center of road line k (0..N)
+export const blockX0 = (i: number) => -HALF + i * PITCH + ROAD;
+
+export type Zone = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'park' | 'parking' | 'gas';
+export type BType = 'glass' | 'office' | 'brick' | 'house' | 'warehouse' | 'shop' | 'terminal' | 'hangar';
+
+export interface Building { x0: number; z0: number; x1: number; z1: number; y0: number; h: number; type: BType; tint: [number, number, number]; gable?: boolean; roofTint?: [number, number, number]; }
+export interface Solid { x0: number; z0: number; x1: number; z1: number; y0: number; y1: number; }
+export interface Door { id: string; x: number; z: number; ang: number; label: string; interior: string; color: string; }
+export interface BlockInfo { i: number; j: number; x0: number; z0: number; x1: number; z1: number; zone: Zone; }
+
+export const blocks: BlockInfo[] = [];
+export const buildings: Building[] = [];
+export const solids: Solid[] = [];
+export const doors: Door[] = [];
+export const props = {
+  lamps: [] as { x: number; z: number; a: number }[],
+  signals: [] as { x: number; z: number; a: number; axis: 0 | 1; i: number; j: number }[],
+  trees: [] as { x: number; z: number; s: number; y: number }[],
+  palms: [] as { x: number; z: number; s: number; y: number }[],
+  pines: [] as { x: number; z: number; s: number; y: number }[],
+  benches: [] as { x: number; z: number; a: number }[],
+  bins: [] as { x: number; z: number }[],
+  hydrants: [] as { x: number; z: number }[],
+  containers: [] as { x: number; z: number; y: number; a: number; c: [number, number, number] }[],
+  billboards: [] as { x: number; z: number; y: number; a: number; w: number; c: number }[],
+  umbrellas: [] as { x: number; z: number; c: [number, number, number] }[],
+};
+
+/* ---------- zones ---------- */
+const SPECIAL: Record<string, Zone> = { '9,3': 'park', '10,3': 'park', '9,4': 'park', '10,4': 'park', '3,4': 'park', '10,11': 'park', '2,2': 'parking', '11,8': 'parking', '5,11': 'parking', '0,6': 'gas', '13,9': 'gas' };
+function zoneOf(i: number, j: number): Zone {
+  const s = SPECIAL[i + ',' + j]; if (s) return s;
+  if (i <= 3 && j >= 10) return 'industrial';
+  const c = (N - 1) / 2, d = Math.max(Math.abs(i - c), Math.abs(j - c));
+  if (d < 2.6) return 'downtown';
+  if (d < 4.6) return 'commercial';
+  return 'residential';
+}
+
+/* ---------- terrain ---------- */
+// Land: a big rectangle (city + airport + hills) plus the port pier; everything else is sea.
+export const LAND = { x0: -1500, x1: HALF + 160, z0: -1700, z1: HALF + 70 };
+export const PORT = { x0: 160, x1: HALF + 200, z0: HALF + 70, z1: HALF + 330 };
+export const AIRPORT = { x0: -1460, x1: -HALF - 70, z0: -420, z1: 420 };
+export const BEACH_X = HALF + 70; // sand from here to LAND.x1
+export function heightAt(x: number, z: number): number {
+  const inPort = x > PORT.x0 && x < PORT.x1 && z > PORT.z0 && z < PORT.z1;
+  if (inPort) return 1.2;
+  if (x < LAND.x0 || x > LAND.x1 || z < LAND.z0 || z > LAND.z1) return WATER_Y - 3;
+  let h = 0;
+  if (x > BEACH_X) h = -((x - BEACH_X) / (LAND.x1 - BEACH_X)) * 2.2; // beach slope into the sea
+  if (z < -HALF - 75) {
+    const d = -HALF - 75 - z;
+    h += smooth(0, 260, d) * (40 + fbm(x * 0.004, z * 0.004) * 170) + smooth(200, 700, d) * 90;
+    const e = Math.min(x - LAND.x0, LAND.x1 - x, z - LAND.z0);
+    h *= smooth(0, 220, e);
+  }
+  return h;
+}
+export const isWater = (x: number, z: number) => heightAt(x, z) < WATER_Y + 0.25;
+
+/* ---------- city ---------- */
+const rng = mulberry(20261107);
+const pick = <T,>(a: T[], r: () => number) => a[Math.floor(r() * a.length)];
+const GLASS_T: [number, number, number][] = [[0.75, 0.85, 0.95], [0.7, 0.78, 0.9], [0.85, 0.9, 0.95], [0.6, 0.72, 0.85]];
+const OFFICE_T: [number, number, number][] = [[0.92, 0.88, 0.8], [0.85, 0.85, 0.88], [0.95, 0.92, 0.86], [0.8, 0.78, 0.75]];
+const BRICK_T: [number, number, number][] = [[0.75, 0.45, 0.38], [0.65, 0.42, 0.35], [0.82, 0.6, 0.5], [0.6, 0.55, 0.52]];
+const HOUSE_T: [number, number, number][] = [[0.98, 0.92, 0.82], [0.9, 0.82, 0.72], [0.82, 0.9, 0.92], [0.98, 0.86, 0.7], [0.88, 0.94, 0.86], [0.96, 0.84, 0.86]];
+const ROOF_T: [number, number, number][] = [[0.55, 0.25, 0.2], [0.35, 0.35, 0.4], [0.45, 0.32, 0.25], [0.3, 0.38, 0.36]];
+const SHOP_T: [number, number, number][] = [[0.95, 0.9, 0.82], [0.88, 0.8, 0.9], [0.8, 0.9, 0.95], [0.98, 0.85, 0.75]];
+
+function addB(b: Building) { buildings.push(b); solids.push({ x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, y0: b.y0, y1: b.y0 + b.h + (b.gable ? 4 : 0) }); }
+
+const SHOP_LABELS: [string, string, string][] = [['store', 'QWIK 24', '#3dffb0'], ['diner', 'BAY DINER', '#ff6a9a'], ['clothes', 'THREADS', '#c07aff']];
+let shopDoorsLeft = 3;
+
+for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+  const x0 = blockX0(i), z0 = blockX0(j), x1 = x0 + BLOCK, z1 = z0 + BLOCK, zone = zoneOf(i, j);
+  blocks.push({ i, j, x0, z0, x1, z1, zone });
+  const r = mulberry(i * 7919 + j * 104729 + 7), S = 0.15, m = 5; // sidewalk margin
+  const ix0 = x0 + m, iz0 = z0 + m, ix1 = x1 - m, iz1 = z1 - m;
+  if (zone === 'downtown') {
+    const alongX = r() < 0.5, mid = alongX ? (ix0 + ix1) / 2 : (iz0 + iz1) / 2, a = 3;
+    const halves = alongX ? [[ix0, iz0, mid - a, iz1], [mid + a, iz0, ix1, iz1]] : [[ix0, iz0, ix1, mid - a], [ix0, mid + a, ix1, iz1]];
+    const c = (N - 1) / 2, dc = Math.hypot(i - c, j - c) / c;
+    for (const [a0, b0, a1, b1] of halves) {
+      const glass = r() < 0.65, h = (60 + r() * 150) * (1.25 - dc * 0.7);
+      addB({ x0: a0, z0: b0, x1: a1, z1: b1, y0: S, h: Math.max(40, h), type: glass ? 'glass' : 'office', tint: pick(glass ? GLASS_T : OFFICE_T, r) });
+    }
+  } else if (zone === 'commercial') {
+    // perimeter buildings around a service alley ring
+    const d2 = 30, gap = 4;
+    const lots: [number, number, number, number][] = [[ix0, iz0, ix1, iz0 + d2], [ix0, iz1 - d2, ix1, iz1], [ix0, iz0 + d2 + gap, ix0 + d2, iz1 - d2 - gap], [ix1 - d2, iz0 + d2 + gap, ix1, iz1 - d2 - gap]];
+    for (const [a0, b0, a1, b1] of lots) {
+      const long = Math.max(a1 - a0, b1 - b0), n = long > 50 ? 2 : 1;
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n, hor = a1 - a0 > b1 - b0;
+        const bx0 = hor ? a0 + (a1 - a0) * t0 + (k ? 1.5 : 0) : a0, bx1 = hor ? a0 + (a1 - a0) * t1 - (k < n - 1 ? 1.5 : 0) : a1;
+        const bz0 = hor ? b0 : b0 + (b1 - b0) * t0 + (k ? 1.5 : 0), bz1 = hor ? b1 : b0 + (b1 - b0) * t1 - (k < n - 1 ? 1.5 : 0);
+        const t = r(), type: BType = t < 0.45 ? 'shop' : t < 0.75 ? 'office' : 'brick';
+        const h = type === 'shop' ? 8 + r() * 14 : 18 + r() * 30;
+        addB({ x0: bx0, z0: bz0, x1: bx1, z1: bz1, y0: S, h, type, tint: pick(type === 'shop' ? SHOP_T : type === 'office' ? OFFICE_T : BRICK_T, r) });
+        if (type === 'shop' && shopDoorsLeft > 0 && hor && r() < 0.6) {
+          const L = SHOP_LABELS[3 - shopDoorsLeft]; shopDoorsLeft--;
+          const front = b0 === iz0 ? bz0 : bz1, dir = b0 === iz0 ? -1 : 1;
+          doors.push({ id: L[0], x: (bx0 + bx1) / 2, z: front + dir * 0.8, ang: dir < 0 ? Math.PI : 0, label: L[1], interior: L[0], color: L[2] });
+        }
+      }
+    }
+    for (let k = 0; k < 3; k++) props.bins.push({ x: ix0 + d2 + 2 + r() * (ix1 - ix0 - 2 * d2 - 4), z: iz0 + d2 + 2 });
+  } else if (zone === 'residential') {
+    if (r() < 0.25) {
+      const h = 14 + r() * 18;
+      addB({ x0: ix0 + 4, z0: iz0 + 4, x1: ix1 - 4, z1: iz0 + 34, y0: S, h, type: 'brick', tint: pick(BRICK_T, r) });
+      addB({ x0: ix0 + 4, z0: iz1 - 34, x1: ix1 - 4, z1: iz1 - 4, y0: S, h: h * 0.8, type: 'brick', tint: pick(BRICK_T, r) });
+    } else {
+      const cw = (ix1 - ix0) / 3, ch = (iz1 - iz0) / 2;
+      for (let rr = 0; rr < 2; rr++) for (let cc = 0; cc < 3; cc++) {
+        const w = 13 + r() * 5, d = 12 + r() * 6, cx = ix0 + cw * (cc + 0.5), cz = iz0 + ch * (rr + 0.5) + (rr ? 4 : -4);
+        addB({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y0: S, h: 5.5 + r() * 3.5, type: 'house', tint: pick(HOUSE_T, r), gable: true, roofTint: pick(ROOF_T, r) });
+        if (r() < 0.7) props.trees.push({ x: cx + (r() - 0.5) * 6, z: cz + (rr ? d / 2 + 6 : -d / 2 - 6), s: 0.8 + r() * 0.5, y: S });
+      }
+    }
+  } else if (zone === 'industrial') {
+    const big = r() < 0.5;
+    if (big) addB({ x0: ix0 + 2, z0: iz0 + 6, x1: ix1 - 2, z1: iz0 + 52, y0: S, h: 12 + r() * 6, type: 'warehouse', tint: [0.7 + r() * 0.2, 0.72, 0.75] });
+    else {
+      addB({ x0: ix0 + 2, z0: iz0 + 4, x1: (ix0 + ix1) / 2 - 3, z1: iz1 - 20, y0: S, h: 10 + r() * 8, type: 'warehouse', tint: [0.75, 0.7 + r() * 0.2, 0.62] });
+      addB({ x0: (ix0 + ix1) / 2 + 3, z0: iz0 + 4, x1: ix1 - 2, z1: iz1 - 20, y0: S, h: 10 + r() * 8, type: 'warehouse', tint: [0.62, 0.68, 0.78] });
+    }
+    for (let k = 0; k < 6; k++) props.containers.push({ x: ix0 + 6 + k * 12, z: iz1 - 8, y: S, a: 0, c: pick([[0.75, 0.2, 0.15], [0.15, 0.35, 0.65], [0.85, 0.6, 0.15], [0.25, 0.55, 0.3]], r) });
+  } else if (zone === 'park') {
+    for (let k = 0; k < 22; k++) { const x = ix0 + 4 + r() * (ix1 - ix0 - 8), z = iz0 + 4 + r() * (iz1 - iz0 - 8); if (Math.abs(x - (x0 + x1) / 2) < 3 || Math.abs(z - (z0 + z1) / 2) < 3) continue; props.trees.push({ x, z, s: 0.9 + r() * 0.8, y: 0.3 }); }
+    for (let k = 0; k < 4; k++) props.benches.push({ x: (x0 + x1) / 2 + (k % 2 ? 4 : -4), z: z0 + 20 + k * 14, a: k % 2 ? -Math.PI / 2 : Math.PI / 2 });
+  } else if (zone === 'parking') {
+    addB({ x0: ix1 - 16, z0: iz0 + 2, x1: ix1 - 2, z1: iz0 + 12, y0: S, h: 4, type: 'office', tint: [0.8, 0.8, 0.82] });
+  } else if (zone === 'gas') {
+    const sx0 = ix0 + 10, sz0 = iz0 + 50;
+    addB({ x0: sx0, z0: sz0, x1: sx0 + 26, z1: sz0 + 16, y0: S, h: 5, type: 'shop', tint: [0.95, 0.95, 0.95] });
+    doors.push({ id: 'gas' + i, x: sx0 + 13, z: sz0 - 0.8, ang: Math.PI, label: 'FUEL & SNACKS', interior: 'gas', color: '#ffc03a' });
+  }
+}
+
+// safehouse door: the first apartment block near the center-south
+{
+  let best: Building | null = null, bd = 1e9;
+  for (const b of buildings) if (b.type === 'brick') { const d = Math.hypot((b.x0 + b.x1) / 2 - 120, (b.z0 + b.z1) / 2 - 250); if (d < bd) { bd = d; best = b; } }
+  if (best) doors.push({ id: 'home', x: (best.x0 + best.x1) / 2, z: best.z0 - 0.8, ang: Math.PI, label: 'SAFEHOUSE', interior: 'home', color: '#2be4ff' });
+}
+
+/* ---------- street furniture ---------- */
+for (let k = 0; k <= N; k++) {
+  const c = roadC(k);
+  for (let t = -HALF + 20; t < HALF - 10; t += 32) {
+    const rel = ((t + HALF) % PITCH + PITCH) % PITCH; if (rel < ROAD + 6 || rel > PITCH - 6) continue;
+    props.lamps.push({ x: c - ROAD / 2 - 1.2, z: t, a: 0 }); props.lamps.push({ x: c + ROAD / 2 + 1.2, z: t + 16, a: Math.PI });
+    props.lamps.push({ x: t, z: c - ROAD / 2 - 1.2, a: Math.PI / 2 }); props.lamps.push({ x: t + 16, z: c + ROAD / 2 + 1.2, a: -Math.PI / 2 });
+  }
+}
+for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+  const x = roadC(i), z = roadC(j), o = ROAD / 2 + 1.4;
+  if ((i + j) % 2 === 0) {
+    props.signals.push({ x: x + o, z: z + o, a: 0, axis: 0, i, j }); props.signals.push({ x: x - o, z: z - o, a: Math.PI, axis: 0, i, j });
+    props.signals.push({ x: x + o, z: z - o, a: -Math.PI / 2, axis: 1, i, j }); props.signals.push({ x: x - o, z: z + o, a: Math.PI / 2, axis: 1, i, j });
+  }
+  if ((i * 3 + j) % 5 === 0) props.hydrants.push({ x: x + o + 1, z: z - o - 3 });
+}
+
+/* ---------- beach, port, airport, hills ---------- */
+{
+  const r = mulberry(99);
+  for (let z = -HALF; z < HALF; z += 26) { props.palms.push({ x: BEACH_X + 8 + r() * 10, z: z + r() * 10, s: 0.9 + r() * 0.4, y: heightAt(BEACH_X + 10, z) }); if (r() < 0.6) props.umbrellas.push({ x: BEACH_X + 40 + r() * 20, z: z + r() * 14, c: pick([[1, 0.3, 0.4], [0.2, 0.7, 1], [1, 0.8, 0.2], [1, 1, 1]], r) }); }
+  // port: container stacks + warehouses
+  for (let row = 0; row < 6; row++) for (let col = 0; col < 14; col++) {
+    if (r() < 0.25) continue;
+    const x = PORT.x0 + 60 + col * 14, z = PORT.z0 + 40 + row * 9, stack = 1 + Math.floor(r() * 3);
+    for (let s = 0; s < stack; s++) props.containers.push({ x, z, y: 1.2 + s * 2.6, a: 0, c: pick([[0.75, 0.2, 0.15], [0.15, 0.35, 0.65], [0.85, 0.6, 0.15], [0.25, 0.55, 0.3], [0.6, 0.6, 0.62]], r) });
+    solids.push({ x0: x - 6.1, z0: z - 1.3, x1: x + 6.1, z1: z + 1.3, y0: 1.2, y1: 1.2 + stack * 2.6 });
+  }
+  addB({ x0: PORT.x0 + 30, z0: PORT.z1 - 90, x1: PORT.x0 + 150, z1: PORT.z1 - 40, y0: 1.2, h: 16, type: 'warehouse', tint: [0.6, 0.66, 0.72] });
+  addB({ x0: PORT.x0 + 180, z0: PORT.z1 - 90, x1: PORT.x0 + 300, z1: PORT.z1 - 40, y0: 1.2, h: 16, type: 'warehouse', tint: [0.72, 0.62, 0.55] });
+  // airport
+  addB({ x0: AIRPORT.x0 + 260, z0: 180, x1: AIRPORT.x0 + 520, z1: 240, y0: 0, h: 18, type: 'terminal', tint: [0.8, 0.88, 0.95] });
+  for (let k = 0; k < 3; k++) addB({ x0: AIRPORT.x0 + 40 + k * 70, z0: 260, x1: AIRPORT.x0 + 95 + k * 70, z1: 320, y0: 0, h: 16, type: 'hangar', tint: [0.72, 0.74, 0.78] });
+  addB({ x0: AIRPORT.x0 + 580, z0: 190, x1: AIRPORT.x0 + 592, z1: 202, y0: 0, h: 38, type: 'office', tint: [0.85, 0.85, 0.88] });
+  // hills: pines
+  for (let k = 0; k < 900; k++) {
+    const x = LAND.x0 + 60 + r() * (LAND.x1 - LAND.x0 - 120), z = LAND.z0 + 60 + r() * (-HALF - 120 - LAND.z0 - 60), h = heightAt(x, z);
+    if (h < 3) continue; props.pines.push({ x, z, s: 0.7 + r() * 0.8, y: h });
+  }
+  // billboards on mid-rise roofs
+  for (const b of buildings) if ((b.type === 'office' || b.type === 'brick') && b.h < 50 && r() < 0.12) props.billboards.push({ x: (b.x0 + b.x1) / 2, z: b.z0 + 2, y: b.y0 + b.h, a: 0, w: Math.min(18, b.x1 - b.x0 - 4), c: Math.floor(r() * 4) });
+}
+
+/* ---------- collision grid ---------- */
+const CELL = 40, grid = new Map<string, number[]>();
+solids.forEach((s, idx) => {
+  for (let cx = Math.floor(s.x0 / CELL); cx <= Math.floor(s.x1 / CELL); cx++) for (let cz = Math.floor(s.z0 / CELL); cz <= Math.floor(s.z1 / CELL); cz++) {
+    const k = cx + ',' + cz; let a = grid.get(k); if (!a) grid.set(k, (a = [])); a.push(idx);
+  }
+});
+export function nearSolids(x: number, z: number): number[] {
+  const a = grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL)); return a || [];
+}
+/** Push a vertical capsule (radius r, from y to y+h) out of solids. Returns true if it hit something. */
+export function collide(p: { x: number; z: number }, r: number, y: number, h: number): boolean {
+  let hit = false;
+  const seen = new Set<number>();
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    for (const idx of nearSolids(p.x + dx * r * 2, p.z + dz * r * 2)) {
+      if (seen.has(idx)) continue; seen.add(idx);
+      const s = solids[idx]; if (y > s.y1 - 0.05 || y + h < s.y0) continue;
+      const cx = clamp(p.x, s.x0, s.x1), cz = clamp(p.z, s.z0, s.z1);
+      let ex = p.x - cx, ez = p.z - cz; const d2 = ex * ex + ez * ez;
+      if (d2 >= r * r) continue;
+      if (d2 < 1e-8) { // center inside: push to nearest face
+        const l = p.x - s.x0, rt = s.x1 - p.x, t = p.z - s.z0, bt = s.z1 - p.z, m = Math.min(l, rt, t, bt);
+        if (m === l) p.x = s.x0 - r; else if (m === rt) p.x = s.x1 + r; else if (m === t) p.z = s.z0 - r; else p.z = s.z1 + r;
+      } else { const d = Math.sqrt(d2); p.x = cx + (ex / d) * r; p.z = cz + (ez / d) * r; }
+      hit = true;
+    }
+  }
+  return hit;
+}
+/** Is point (x,y,z) inside any solid? Used by the camera. */
+export function pointBlocked(x: number, y: number, z: number): boolean {
+  for (const idx of nearSolids(x, z)) { const s = solids[idx]; if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1 && y > s.y0 && y < s.y1) return true; }
+  return false;
+}
+
+/** Ground height including raised sidewalks. */
+export function groundAt(x: number, z: number): number {
+  const lx = x + HALF, lz = z + HALF;
+  if (lx >= 0 && lz >= 0 && lx <= CITY && lz <= CITY) {
+    const i = Math.floor((lx - ROAD) / PITCH), j = Math.floor((lz - ROAD) / PITCH);
+    if (i >= 0 && j >= 0 && i < N && j < N && lx - ROAD - i * PITCH < BLOCK && lz - ROAD - j * PITCH < BLOCK) return 0.15;
+    return 0;
+  }
+  return heightAt(x, z);
+}
+
+export function districtAt(x: number, z: number): string {
+  if (x > PORT.x0 && z > HALF + 60) return 'ポート・ネオン';
+  if (x < -HALF - 60) return z < -HALF ? 'パリセード・ヒルズ' : 'ベイ国際空港';
+  if (z < -HALF - 60) return 'パリセード・ヒルズ';
+  if (x > HALF + 40) return 'サウスビーチ';
+  const lx = x + HALF, lz = z + HALF, i = clamp(Math.floor(lx / PITCH), 0, N - 1), j = clamp(Math.floor(lz / PITCH), 0, N - 1);
+  const zn = zoneOf(i, j);
+  return ({ downtown: 'ダウンタウン', commercial: 'ネオンマイル', residential: i < N / 2 ? 'パームホロウ' : 'コーラルハイツ', industrial: 'ファウンドリー', park: 'ベイパーク', parking: 'パーキング', gas: 'ハイウェイサイド' } as Record<Zone, string>)[zn];
+}
+
+export const SPAWN = (() => { const d = doors.find((q) => q.id === 'home') || doors[0]; return { x: d.x, z: d.z - 4 }; })();
