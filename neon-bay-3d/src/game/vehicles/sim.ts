@@ -9,7 +9,7 @@ export interface Veh {
   id: number; def: VDef; color: string; x: number; z: number; y: number; yaw: number; vx: number; vz: number; yr: number;
   steer: number; hp: number; slot: number; owned: number; touched: boolean; drift: boolean; gear: number; rpm: number;
   braking: boolean; reversing: boolean; spin: number; pitch: number; roll: number; slip: number; dead: boolean; burn: number; lean: number;
-  role: '' | 'police' | 'armored' | 'traffic'; ai: AI | null;
+  role: '' | 'police' | 'armored' | 'traffic' | 'racer'; ai: AI | null;
   door: number; squat: number; blink: number; blinkT: number; gearPrev: number; fvPrev: number; // animation state
   mods: Mods; air: boolean; vy: number; gyPrev: number; climb: number; airT: number; rotor: number; nitro: number; nitroOn: boolean; exploded: boolean; // AI-driven cars carry their driver state
 }
@@ -194,7 +194,7 @@ export function collisions(dt: number): number {
       const d = Math.sqrt(d2), nx = dx / d, nz = dz / d, pen = R - d, ma = a.def.mass, mb = b.def.mass, ia = 1 / ma, ib = 1 / mb, s = ia + ib;
       a.x -= nx * pen * (ia / s); a.z -= nz * pen * (ia / s); b.x += nx * pen * (ib / s); b.z += nz * pen * (ib / s);
       const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
-      if (rv < 0) { const J = (-1.3 * rv) / s; a.vx -= J * ia * nx; a.vz -= J * ia * nz; b.vx += J * ib * nx; b.vz += J * ib * nz; const imp = -rv; hurt(a, imp * (mb / (ma + mb)) * 2 * (b.role === 'armored' ? 0.45 : 1)); hurt(b, imp * (ma / (ma + mb)) * 2 * (a.role === 'armored' ? 0.45 : 1)); a.touched = b.touched = true; if (a.id === game.inCar || b.id === game.inCar) playerHit = Math.max(playerHit, imp); hooks.carHit(a, b, imp); }
+      if (rv < 0) { const J = (-1.3 * rv) / s; a.vx -= J * ia * nx; a.vz -= J * ia * nz; b.vx += J * ib * nx; b.vz += J * ib * nz; const imp = -rv; const soft = a.role === 'racer' || b.role === 'racer' ? 0.3 : 1; hurt(a, imp * (mb / (ma + mb)) * 2 * (b.role === 'armored' ? 0.45 : 1) * soft); hurt(b, imp * (ma / (ma + mb)) * 2 * (a.role === 'armored' ? 0.45 : 1) * soft); a.touched = b.touched = true; if (a.id === game.inCar || b.id === game.inCar) playerHit = Math.max(playerHit, imp); hooks.carHit(a, b, imp); }
     }
   }
   return playerHit;

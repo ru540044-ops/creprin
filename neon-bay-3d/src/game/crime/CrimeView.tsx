@@ -5,6 +5,7 @@ import { labelTexture } from '../world/textures';
 import { LANDMARKS, EXPORT_DOCK, TRIALS, Landmark, RAMPS, Ramp, HELIPADS, CUSTOMS } from '../world/cityGen';
 import { game } from '../state/store';
 import { trial, trialDef } from './crime';
+import { RACES } from './race';
 
 function Sign({ x, z, y = 5, ang = 0, text, color, w = 5.2 }: { x: number; z: number; y?: number; ang?: number; text: string; color: string; w?: number }) {
   const t = useMemo(() => labelTexture(text, color), [text, color]);
@@ -80,6 +81,7 @@ export default function CrimeView() {
       {TRIALS.map((T) => <group key={T.id}><Ring x={T.start.x} z={T.start.z} r={7} color="#c07aff" /><Sign x={T.start.x + 8} z={T.start.z} y={4} ang={Math.PI / 2} text={'TIME TRIAL'} color="#c07aff" /></group>)}
       <Checkpoint />
       {RAMPS.map((r) => <RampView key={r.id} r={r} />)}
+      {RACES.map((R) => <group key={'race' + R.id}><Ring x={R.x} z={R.z} r={7} color="#ff2a40" /><Sign x={R.x - Math.cos(R.yaw) * 8} z={R.z + Math.sin(R.yaw) * 8} y={4} ang={R.yaw + Math.PI / 2} text={'STREET RACE'} color="#ff2a40" /></group>)}
       {HELIPADS.map((h) => <Helipad key={h.name} x={h.x} y={h.y} z={h.z} />)}
       <LandmarkView L={CUSTOMS} />
       <Ring x={CUSTOMS.spawn.x} z={CUSTOMS.spawn.z} r={6} color="#ff9a3a" />

@@ -4,6 +4,7 @@ import Phone from './Phone';
 import GunShop from './GunShop';
 import Customs from './Customs';
 import { taxi, startTaxi, stopTaxi } from '../crime/stunts';
+import { race } from '../crime/race';
 import { admin } from '../admin';
 import { peds } from '../ai/peds';
 import { WEAPONS, combat } from '../combat/weapons';
@@ -193,6 +194,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
       {game.hurtT > 0 && <div className="hurt" style={{ opacity: Math.min(1, game.hurtT * 1.6) }} />}
       {admin.is && (() => { const n = (['god', 'noWanted', 'infAmmo', 'carGod', 'carBoost', 'fastRun', 'superJump', 'freezeTime'] as const).filter((k) => admin[k]).length + (admin.timeScale !== 1 ? 1 : 0); return <div className="adBadge">ADMIN{n ? ' ●' + n : ''}</div>; })()}
       {admin.is && admin.debug && <div className="adDebug">x {game.player.x.toFixed(1)} z {game.player.z.toFixed(1)} · {game.where}<br />歩行者 {peds.length} · 車 {vehicles.length} · 手配 {game.wanted} · {game.fps} FPS · {game.hour.toFixed(2)}時</div>}
+      {race.id && !race.done && (race.count > 0 || race.t < 0.9) && <div className="countdown" key={race.count > 0 ? Math.ceil(race.count - 0.5) : 'go'}>{race.count > 0.5 ? Math.ceil(race.count - 0.5) : 'GO!'}</div>}
       {law.over && <div className={'over ' + law.over.kind}><b>{law.over.kind === 'busted' ? 'BUSTED' : 'WASTED'}</b><span>{law.over.kind === 'busted' ? '逮捕' : '死亡'}　-${law.over.fine.toLocaleString('en-US')}</span></div>}
       {showDistrict && <div className="district">{district.name}</div>}
       {game.toastT > 0 && <div className="toast">{game.toast}</div>}

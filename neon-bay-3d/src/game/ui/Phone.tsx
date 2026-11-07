@@ -5,6 +5,7 @@ import { PROF } from '../vehicles/models';
 import { vehicles, deliverNear, sellOwned, repairAll } from '../vehicles/sim';
 import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT } from '../world/cityGen';
 import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
+import { RACES, PRIZES } from '../crime/race';
 import { progress } from '../state/store';
 import AdminApp from './AdminApp';
 import { admin } from '../admin';
@@ -140,6 +141,12 @@ function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
         {TRIALS.map((T) => { const b = progress.trialBest[T.id]; return (
           <div className="trow" key={T.id}><span>{T.name}<br /><small>目標 {fmt(T.par)} · 自己ベスト {b !== undefined ? fmt(b) : '—'} · ${T.reward.toLocaleString('en-US')}</small></span><div className="jobBtns"><button type="button" disabled={!!trial.id} onClick={() => go(T.start.x, T.start.z, T.name + 'のスタートを目的地に設定')}>目的地</button></div></div>
         ); })}
+      </div>
+      <div className="jobCard">
+        <b>ストリートレース</b>
+        <p>赤いリングに車で入って「レース」。ライバル3台とカウントダウンからスタートし、チェックポイントを順に通過して先にゴールしろ。</p>
+        <span className="pay">1位 ${PRIZES[0].toLocaleString('en-US')} · 2位 ${PRIZES[1].toLocaleString('en-US')} · 3位 ${PRIZES[2].toLocaleString('en-US')}</span>
+        <div className="jobBtns">{RACES.map((R) => <button type="button" key={R.id} onClick={() => go(R.x, R.z, R.name + 'のスタートを目的地に設定')}>{R.name}</button>)}</div>
       </div>
       <div className="jobCard">
         <b>タクシー</b>

@@ -18,6 +18,7 @@ import { tickWeapons } from '../combat/weapons';
 import { flash } from '../combat/fx';
 import { sfx } from '../audio';
 import { tdt } from '../admin';
+import { race } from '../crime/race';
 
 const models = new Map<number, CarModel>();
 
@@ -157,7 +158,7 @@ export default function Vehicles() {
     const sub = 2, h = dt / sub;
     for (let s = 0; s < sub; s++) {
       for (const v of vehicles) {
-        if (v === me) drive(v, game.started && !law.over && !game.carAnim ? driveInput() : null, h);
+        if (v === me) drive(v, game.started && !law.over && !game.carAnim && !(race.id && race.count > 0) ? driveInput() : null, h);
         else if (v.ai) drive(v, v.ai.ctl, h);
         else if (Math.abs(v.vx) + Math.abs(v.vz) > 0.02) drive(v, null, h);
       }

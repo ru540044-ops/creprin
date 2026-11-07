@@ -1,3 +1,4 @@
+import { RACES } from '../crime/race';
 import { GARAGE, LANDMARKS, EXPORT_DOCK, TRIALS, CUSTOMS, HELIPADS, RAMPS, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD } from '../world/cityGen';
 
 /** World bounds of the map image and its scale. */
@@ -34,5 +35,5 @@ export function mapImage() {
 }
 
 export const POI = () => [...doors.map((d) => ({ x: d.x, z: d.z, c: d.color, t: d.label })), { x: GARAGE.x, z: GARAGE.z + 20, c: '#3dffb0', t: 'GARAGE' },
-  ...LANDMARKS.map((L) => ({ x: L.x, z: L.z, c: L.color, t: L.label })), { x: EXPORT_DOCK.x, z: EXPORT_DOCK.z, c: '#ff9a3a', t: 'EXPORT DOCK' }, ...TRIALS.map((T) => ({ x: T.start.x, z: T.start.z, c: '#c07aff', t: 'TIME TRIAL' })), { x: CUSTOMS.x, z: CUSTOMS.z, c: '#ff9a3a', t: 'BAY CUSTOMS' }, ...HELIPADS.map((h) => ({ x: h.x, z: h.z, c: '#ffffff', t: 'HELIPAD' })), ...RAMPS.map((r) => ({ x: r.x, z: r.z, c: '#ffcc00', t: 'STUNT JUMP' }))];
+  ...LANDMARKS.map((L) => ({ x: L.x, z: L.z, c: L.color, t: L.label })), { x: EXPORT_DOCK.x, z: EXPORT_DOCK.z, c: '#ff9a3a', t: 'EXPORT DOCK' }, ...TRIALS.map((T) => ({ x: T.start.x, z: T.start.z, c: '#c07aff', t: 'TIME TRIAL' })), { x: CUSTOMS.x, z: CUSTOMS.z, c: '#ff9a3a', t: 'BAY CUSTOMS' }, ...HELIPADS.map((h) => ({ x: h.x, z: h.z, c: '#ffffff', t: 'HELIPAD' })), ...RAMPS.map((r) => ({ x: r.x, z: r.z, c: '#ffcc00', t: 'STUNT JUMP' })), ...RACES.map((R) => ({ x: R.x, z: R.z, c: '#ff2a40', t: 'STREET RACE' }))];
 export { N };

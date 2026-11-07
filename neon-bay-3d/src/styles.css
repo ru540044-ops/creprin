@@ -170,3 +170,6 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .swatches.big button{width:32px;height:32px}.swatches .off{width:auto !important;border-radius:999px !important;padding:0 10px;color:var(--ink);background:rgba(255,255,255,.1);font-size:11px;font-weight:700}
 .cuHue{display:flex;gap:8px;align-items:center}.cuHue input{flex:1;accent-color:#ff9a3a}.cuHue button{border:0;border-radius:10px;padding:9px 10px;color:#fff;font-weight:900;font-size:12px;text-shadow:0 1px 2px #000}
 .cuRows{display:grid;gap:8px}
+
+.countdown{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:5;pointer-events:none;font-size:clamp(64px,20vw,140px);font-weight:900;font-style:italic;color:#ffd23a;text-shadow:0 5px 0 #000,0 0 30px rgba(255,210,58,.7);animation:pop .5s ease-out}
+@keyframes pop{from{transform:translate(-50%,-50%) scale(1.8);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
