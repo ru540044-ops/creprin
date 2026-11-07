@@ -605,15 +605,19 @@ function koPed(p,fx,fy,byPlayer,spd,dead){
   p.st=2;p.ko=dead?1e9:rnd(3.5,5);
   const a=Math.atan2(p.y-fy,p.x-fx),s=Math.min(240,(spd||120)*.8);
   p.vx=Math.cos(a)*s;p.vy=Math.sin(a)*s;
+  const hs=spd||0;p.z=0;p.rot=0;p.vz=hs>150?Math.min(260,hs*.55):hs>80?70:0;p.rv=(Math.random()<.5?-1:1)*rnd(6,12)*(hs>150?1:.35);
   for(let i=0;i<4;i++)emit('star',p.x,p.y,rnd(-20,20),rnd(-40,-10),1.3,3,'#ffd27a');
   if(byPlayer){drops.push({x:p.x+rnd(-8,8),y:p.y+rnd(-8,8),v:10+((Math.random()*7)|0)*10,t:25});addHeat(.28,p.x,p.y);sfx(220,.12,'square',.05,.5)}
 }
 function updPed(p,dt){
   p.ph+=dt*8;
   if(p.st===2){
-    p.ko-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;const f=Math.pow(.03,dt);p.vx*=f;p.vy*=f;
+    p.ko-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;
+    if(p.z>0||p.vz>0){p.vz-=640*dt;p.z+=p.vz*dt;p.rot+=p.rv*dt;if(p.z<=0){p.z=0;if(p.vz<-110){p.vz*=-.3;p.rv*=.5;sfx(120,.08,'triangle',.04,.6)}else{p.vz=0;p.rv=0;p.rot=Math.round(p.rot/Math.PI)*Math.PI}}}
+    else{const f=Math.pow(.03,dt);p.vx*=f;p.vy*=f}
+    p.opt.z=p.z;p.opt.rot=p.rot;
     bldCollide(p,5);landClamp(p,5);
-    if(p.ko<=0){p.st=0;newTarget(p)}
+    if(p.ko<=0){p.st=0;p.opt.z=0;p.opt.rot=0;newTarget(p)}
     return;
   }
   if(p.film>0&&p.st===0){
@@ -800,7 +804,7 @@ function deployCops(c){
   sfx(300,.15,'square',.04,.7);
 }
 function killOff(o,fx,fy,s,byP){
-  if(o.st===9)return;o.st=9;o.dt=14;const g=Math.atan2(o.y-fy,o.x-fx),v=Math.min(240,(s||150)*.7);o.vx=Math.cos(g)*v;o.vy=Math.sin(g)*v;
+  if(o.st===9)return;o.st=9;o.dt=14;const g=Math.atan2(o.y-fy,o.x-fx),v=Math.min(240,(s||150)*.7);o.vx=Math.cos(g)*v;o.vy=Math.sin(g)*v;o.z=0;o.vz=(s||0)>150?Math.min(240,s*.5):40;o.rot=0;o.rv=(Math.random()<.5?-1:1)*rnd(4,10);
   for(let i=0;i<4;i++)emit('star',o.x,o.y,rnd(-20,20),rnd(-40,-10),1.2,3,'#ffd27a');
   if(byP){G.heat=Math.min(5.99,Math.max(G.heat,2)+.5);G.evade=0;G.heatT=2;G.stats.cops++;G.sp=Math.min(100,G.sp+10)}
 }
@@ -809,7 +813,10 @@ function updOffs(dt){
   const rf=P.car||P,stars=Math.floor(G.heat);
   for(let i=offs.length-1;i>=0;i--){
     const o=offs[i];
-    if(o.st===9){o.dt-=dt;o.x+=o.vx*dt;o.y+=o.vy*dt;const f=Math.pow(.05,dt);o.vx*=f;o.vy*=f;if(o.dt<=0&&offView(o.x,o.y,40))offs.splice(i,1);continue}
+    if(o.st===9){o.dt-=dt;o.x+=o.vx*dt;o.y+=o.vy*dt;
+      if(o.z>0||o.vz>0){o.vz-=640*dt;o.z+=o.vz*dt;o.rot+=o.rv*dt;if(o.z<=0){o.z=0;if(o.vz<-110){o.vz*=-.3;o.rv*=.5}else{o.vz=0;o.rv=0;o.rot=Math.round(o.rot/Math.PI)*Math.PI}}}
+      else{const f=Math.pow(.05,dt);o.vx*=f;o.vy*=f}
+      o.opt.z=o.z;o.opt.rot=o.rot;if(o.dt<=0&&offView(o.x,o.y,40))offs.splice(i,1);continue}
     const gone=!cars.includes(o.car)||o.car.hp<=0;let tx=o.x,ty=o.y,sp=0;
     const ret=stars===0||gone||Math.hypot(o.car.x-rf.x,o.car.y-rf.y)>650;
     if(ret){
@@ -1529,7 +1536,13 @@ void main(){
     vec3 V=normalize(uCam-vW);
     float ndl=max(dot(n,uSunDir),0.),sh=shadowAt(ndl);
     vec3 L=mix(uAmbG,uAmbT,.5+.5*n.y)+uSunCol*ndl*sh;
-    col=base*L*(.9+.2*hash(floor(vW.xz*.7)));
+    vec2 q=vW.xz;
+    float ag=vn(q*1.9)*.55+vn(q*.21)*.45,pat=smoothstep(.6,.64,vn(q*.011+3.1)),crk=smoothstep(.008,0.,abs(vn(q*.06)-.5))*smoothstep(.55,.75,vn(q*.013+7.));
+    vec2 rr=mod(q-50.+200.,400.)-200.;
+    float tv=min(abs(abs(rr.x)-16.),abs(abs(rr.x)-34.)),th=min(abs(abs(rr.y)-16.),abs(abs(rr.y)-34.));
+    float trk=max(smoothstep(4.,0.,tv)*step(55.,abs(rr.y))*step(abs(rr.x),50.),smoothstep(4.,0.,th)*step(55.,abs(rr.x))*step(abs(rr.y),50.));
+    float oil=smoothstep(.72,.8,vn(q*.09+11.))*max(step(abs(abs(rr.x)-25.),6.)*step(abs(rr.x),50.),step(abs(abs(rr.y)-25.),6.)*step(abs(rr.y),50.));
+    col=base*L*(.8+.32*ag)*(1.-pat*.14)*(1.-crk*.22)*(1.-trk*.13)*(1.-oil*.3)*(.94+.12*hash(floor(vW.xz*.7)));
     float pud=smoothstep(.38,.72,vn(vW.xz*.018)*.65+vn(vW.xz*.07)*.35);
     float wet=uWet*(.4+.6*pud);
     vec3 R=reflect(-V,n);
@@ -1552,13 +1565,21 @@ void main(){
       if(m>7.5)col=base*L*.45+env*(.16+.6*fr)+uSunCol*spec*1.8;
       else col=mix(col,env,clamp(fr*.8,0.,.8))+env*.05+uSunCol*spec*1.1;
     }
+    if(m>8.5){vec2 c2=fract(vW.xz/20.);float jt=1.-step(.035,c2.x)*step(.035,c2.y);col*=(.88+.17*vn(vW.xz*.35))*(1.-jt*.28)*(1.-.16*smoothstep(.62,.8,vn(vW.xz*.045)))*(1.-.1*uWet);}
+    else if(m<.5&&n.y>.9)col*=.88+.22*vn(vW.xz*.035)+.06*vn(vW.xz*.4);
+    if(n.y<.5&&m<1.5)col*=.72+.28*smoothstep(1.,9.,vW.y);
     if(m>.5&&m<1.5){
       col*=.74+.26*smoothstep(2.,80.,vW.y);
+      col*=.84+.2*vn(vec2(vUV.x*.12,vUV.y*.018))+.08*vn(vUV.xy*.7);
+      {float fy=fract(vUV.y/19.),fx=fract(vUV.x/13.);col*=(1.-step(fy,.1)*.2)*(1.+step(fx,.1)*.06);}
       vec2 g=vec2(vUV.x/13.,vUV.y/19.);vec2 id=floor(g);vec2 f=fract(g);
       float pane=step(.2,f.x)*step(f.x,.8)*step(.25,f.y)*step(f.y,.8);
       pane*=1.-smoothstep(600.,1300.,dist)*.8;
       float on=step(.5,hash(id))*uNight;
-      vec3 glass=vec3(.10,.13,.24)*(.35+uDay*.9)+uSkyH*.18*uDay;
+      vec3 V=normalize(uCam-vW),Rf=reflect(-V,n);float fr=.04+.96*pow(1.-max(dot(n,V),0.),5.);
+      vec3 env=mix(uSkyH,uSkyZ,clamp(Rf.y*1.2,0.,1.));
+      vec3 glass=vec3(.07,.09,.15)*(.35+uDay*.6)+env*(.22+.6*fr)*(1.-uNight*.65)+uSunCol*pow(max(dot(Rf,uSunDir),0.),140.)*sh*2.2;
+      glass=mix(glass,vec3(.6,.57,.52)*(.25+uDay*.45),step(.62,hash(id+7.3))*step(.55,f.y)*(1.-uNight)*.45);
       vec3 lc=mix(vec3(1.,.78,.42),vec3(.45,.85,1.),step(.82,hash(id+3.1)));
       vec3 wc=mix(glass,lc*1.15,on);
       float gf=1.-step(1.,id.y);
@@ -1568,8 +1589,11 @@ void main(){
     }
   }
   col*=1.+uFlash*.8;
-  float fg=1.-exp(-pow(dist*uFogD,2.));
-  col=mix(col,uFog,clamp(fg,0.,1.));
+  vec3 vd=(vW-uCam)/max(dist,1.);
+  float sa=pow(max(dot(vd,uSunDir),0.),7.);
+  vec3 fc=uFog+uSunCol*sa*.5*(1.-uNight);
+  float fg=(1.-exp(-pow(dist*uFogD,2.)))*(.6+.4*exp(-max(vW.y,0.)*.006))+(1.-exp(-dist*.00025))*.22*(1.-uNight*.5);
+  col=mix(col,fc,clamp(fg,0.,1.));
   col=1.-exp(-col*1.45);
   gl_FragColor=vec4(col,1.);
 }`;
@@ -1782,6 +1806,7 @@ void main(){
   vec2 q=vUv-.5;
   c=mix(c,(vec3(L)*.75+c*.35)*uSpecC,uSpec*.55);
   c*=1.-dot(q,q)*(.8+uGray*.6+uSpec*1.4);
+  c=clamp(c,0.,1.);c=mix(c,c*c*(3.-2.*c),.22);
   c+=(hh(vUv*vec2(1731.,977.)+uTime)-.5)*.03;
   gl_FragColor=vec4(c,1.);
 }`;
@@ -2040,7 +2065,7 @@ function buildWorld(){
       for(const b of K.blds)addBld(b,K,R);
       continue;
     }
-    B.box(K.x,-1,K.y,K.x+300,2.4,K.y+300,walk,0,walkT,0);
+    B.box(K.x,-1,K.y,K.x+300,2.4,K.y+300,walk,0,[.62,.6,.66],9);
     if(K.park){
       B.box(K.x+14,2.4,K.y+14,K.x+286,2.9,K.y+286,[.1,.36,.28],0,[.12,.44,.33],0);
       B.flat(K.x+14,K.y+146,K.x+286,K.y+154,3,[.6,.52,.5],0);B.flat(K.x+146,K.y+14,K.x+154,K.y+286,3,[.6,.52,.5],0);
@@ -2245,7 +2270,7 @@ function drawPedModel(p,col,skin,ko,walk,face,gun,o){
   const sw=o.swim,gh=o.y!==undefined?o.y:groundH(p.x,p.y),amp=o.amp===undefined?1:o.amp,bob=ko||sw?0:Math.abs(Math.sin(walk))*.6*amp,yaw=-face,y0=(ko?4.2:bob)+gh+(sw?-9:0)+(o.z||0);
   const pants=o.pants||DPANTS,hair=o.hair||DHAIR;
   if(ko){
-    setModel(p.x,y0,p.y,yaw,Math.PI/2,1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);drawMesh(PEDM.armsKO);
+    setModel(p.x,y0,p.y,yaw,Math.PI/2+(o.rot||0),1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);drawMesh(PEDM.armsKO);
     tint(hair);drawMesh(PEDM.hair);tint(pants);drawMesh(PEDM.legsKO);return;
   }
   setModel(p.x,y0,p.y,yaw,0,1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);
@@ -2362,7 +2387,7 @@ function addDynSprites(E,L){
     }
     gq('soft',c.x,c.y,.9,cs,sn,-hl*1.12,hl*1.12,hw*1.3,hw*1.3,0,0,0,.5);
     if(c.ai==='parked'||c.hp<=0)continue;
-    if(L>.02){
+    if(L>.02&&(c.hp>c.maxhp*.35||Math.sin(G.t*23+c.id)>.6)){
       gq('beam',c.x+cs*hl,c.y+sn*hl,.95,cs,sn,0,200,13,52,1,.93,.72,.5*L);
       for(const s of[-1,1]){
         const ox=-sn*s*(hw-3),oz=cs*s*(hw-3);
