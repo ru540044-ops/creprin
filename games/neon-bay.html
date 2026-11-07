@@ -326,6 +326,15 @@ const STORES=[];
     STORES.push({x,y,K,cd:0,i:STORES.length});
   }
 })();
+const RAMPS=[];
+for(const [i,j] of[[2,13],[9,4],[14,16],[5,6],[12,2]]){
+  if(RAMPS.length>=3)break;
+  const K=blocks[j*NB+i];if(K.plaza||K.glade||STORES.some(s=>s.K===K))continue;
+  K.blds=[];K.park=false;K.trees=[];K.stunt=true;
+  RAMPS.push({x0:K.x+30,x1:K.x+100,z:K.y+150,w:36,h:14,done:false,K});
+}
+const BANK=(()=>{const K=blocks[CEN*NB+CEN];return{x:K.x+150,y:K.y+6,cd:0,bank:true}})();
+const ROBS=STORES.concat([BANK]);
 const blockAt=(x,y)=>{
   const lx=x-100,ly=y-100,i=Math.floor(lx/PITCH),j=Math.floor(ly/PITCH);
   if(i<0||j<0||i>=NB||j>=NB)return null;
@@ -411,8 +420,8 @@ const JOBS=[],PNSL=[],SHOPL=[];
 })();
 let mission=null,attractCar=null;
 const HEROES=[
-  {n:'Nova',col:'#ff3f93',skin:'#c98f66',hair:[.09,.05,.06],pony:true,pants:[.16,.22,.42],sp:'Focus'},
-  {n:'Cal',col:'#2be4ff',skin:'#f1c9a5',hair:[.36,.22,.12],cap:true,capc:[.08,.22,.3],pants:[.5,.44,.33],sp:'Overdrive'}
+  {n:'Nova',col:'#ff3f93',skin:'#c98f66',hair:[.09,.05,.06],pony:true,hs:1,pants:[.16,.22,.42],sp:'Focus'},
+  {n:'Cal',col:'#2be4ff',skin:'#f1c9a5',hair:[.36,.22,.12],hs:0,cap:true,capc:[.08,.22,.3],pants:[.5,.44,.33],sp:'Overdrive'}
 ];
 const BUD={x:P.x+20,y:P.y+20,vx:0,vy:0,face:0,walk:0,inCar:true,fireCd:1,hp:100,armor:0,swim:false,stk:0,lx:0,ly:0};
 const WPN=[
@@ -422,7 +431,7 @@ const WPN=[
   {id:'shotgun',n:'Shotgun',cd:.85,sp:.2,dmg:15,rng:300,pel:6,snd:380}
 ];
 Object.assign(G,{w:1,am:[0,48,90,12],fol:1204,hero:0,rob:0,heatT:0,lkp:null,seen:true,gray:0,story:0,storyCd:0,wheel:false,wheelT:0,wsel:1,phone:false,lineT:0,chatT:70,sayQ:[],sayT:0,stats:{rob:0,cops:0,km:0}});
-const VNAMES={suv:'Tidewater',pickup:'Ranchline',bus:'Bay Transit',super:'Volta XR',sedan:'Corsa Lune',sport:'Stingline GT',van:'Haulmark',taxi:'Bay Cab',cop:'Interceptor',speed:'Sea Razor',jetski:'Wavecat'};
+const VNAMES={swat:'Tactical SUV',suv:'Tidewater',pickup:'Ranchline',bus:'Bay Transit',super:'Volta XR',sedan:'Corsa Lune',sport:'Stingline GT',van:'Haulmark',taxi:'Bay Cab',cop:'Interceptor',speed:'Sea Razor',jetski:'Wavecat'};
 const SAFE={x:rc(10)+200,y:rc(11)};
 const WB={x0:-1600,y0:-1600,x1:PIER_END+2000,y1:LAND_H+1600};
 const DOCKS=[
@@ -476,6 +485,7 @@ const KINDS={
   van:{l:54,w:24,max:240,acc:260,turn:2.0,hp:140,m:1.5,cols:['#d9d4ee','#6b6f93','#58c28f']},
   taxi:{l:44,w:21,max:320,acc:360,turn:2.5,hp:100,m:1,cols:['#ffc23a']},
   cop:{l:46,w:22,max:450,acc:470,turn:2.8,hp:110,m:1.15,cols:['#1b1a30']},
+  swat:{l:50,w:23,max:380,acc:400,turn:2.3,hp:180,m:1.7,cols:['#15161c']},
   suv:{l:48,w:23,max:330,acc:340,turn:2.3,hp:130,m:1.3,cols:['#1d1f26','#e8e8f0','#5a6b7a','#7a2a2a','#2f4f3a','#c8b48a']},
   pickup:{l:50,w:22,max:310,acc:330,turn:2.2,hp:130,m:1.35,cols:['#c94f2a','#30507a','#e0d6c0','#3a3a3a','#6b7f3a']},
   bus:{l:88,w:26,max:210,acc:160,turn:1.4,hp:220,m:3,cols:['#f2f2f2','#2bb4e0','#ff9f2a']},
@@ -520,6 +530,7 @@ function spawnParked(x,y){
   return c;
 }
 function driveCar(c,thr,steer,brake,dt){
+  if(c.air){c.x+=c.vx*dt;c.y+=c.vy*dt;c.spd=Math.hypot(c.vx,c.vy);return}
   const bt=c.boat;
   let fx=Math.cos(c.a),fy=Math.sin(c.a),fv=c.vx*fx+c.vy*fy;
   c.yr=steer*c.turn*Math.min(1,(Math.abs(fv)+(bt?30:0))/90)*(fv<-5?-1:1);
@@ -593,7 +604,7 @@ const PANTS=[[.15,.17,.3],[.25,.22,.18],[.72,.68,.58],[.1,.1,.12],[.35,.42,.55],
 const HAIRS=[[.1,.08,.12],[.3,.18,.1],[.62,.45,.22],[.06,.06,.07],[.55,.55,.58],[.5,.16,.12]];
 function mkPed(x,y){
   const p={x,y,a:rnd(0,TAU),sp:rnd(28,46),col:pick(PEDCOLS),skin:pick(SKINS),tx:x,ty:y,st:0,ko:0,fl:0,ph:Math.random()*10,bump:0,vx:0,vy:0,film:0};
-  p.opt={hair:pick(HAIRS),pants:pick(PANTS),amp:1,phone:false,cap:Math.random()<.18,capc:pick(HAIRS)};
+  p.opt={hair:pick(HAIRS),pants:pick(PANTS),amp:1,phone:false,cap:Math.random()<.18,capc:pick(HAIRS),hs:pick([0,0,1,1,2])};
   peds.push(p);return p;
 }
 function newTarget(p){
@@ -712,6 +723,7 @@ function updTraffic(c,dt){
   if(near<90)tv=near<50?0:c.speedT*(near-50)/40;
   c.v+=clamp(tv-c.v,-(tv<c.v?560:200)*dt,(tv<c.v?560:200)*dt);
   c.blocked=(tv===0&&c.v<5)?c.blocked+dt:0;
+  c.hornCd-=dt;if(c.blocked>1.4&&c.hornCd<=0){c.hornCd=rnd(4,9);const d=Math.hypot(c.x-cam.px,c.y-cam.pz);if(d<520&&G.mode==='play'){const g=.045*(1-d/520);sfx(330,.22,'square',g,1);sfx(415,.22,'square',g*.8,1)}}
   c.x+=dx*c.v*dt;c.y+=dy*c.v*dt;c.vx=dx*c.v;c.vy=dy*c.v;c.spd=c.v;
   if(c.hp<=0)freeCar(c);
 }
@@ -730,7 +742,7 @@ function spawnCop(){
   for(let t=0;t<12;t++){
     const a=rnd(0,TAU),d=rnd(650,1000),x=clamp(fx+Math.cos(a)*d,60,GRID-60),y=clamp(fy+Math.sin(a)*d,60,GRID-60);
     if(!offView(x,y,140))continue;
-    const c=mkCar('cop',0,0,0,'cop');
+    const c=mkCar(Math.floor(G.heat)>=4&&Math.random()<.5?'swat':'cop',0,0,0,'cop');
     if(Math.random()<.5){const r=clamp(Math.round((y-50)/PITCH),0,NR-1);c.x=x;c.y=rc(r);c.a=fx<x?Math.PI:0}
     else{const r=clamp(Math.round((x-50)/PITCH),0,NR-1);c.x=rc(r);c.y=y;c.a=fy<y?-Math.PI/2:Math.PI/2}
     c.vx=Math.cos(c.a)*160;c.vy=Math.sin(c.a)*160;return c;
@@ -797,10 +809,12 @@ function police(dt){
   if(G.bust>2.4)gameOver('BUSTED');
   copGun(dt);updHeli(dt);updOffs(dt);
 }
+const OFFC=[.12,.16,.32];
 function deployCops(c){
   if(c.dep)return;c.dep=true;
-  for(const s of[-1,1]){const a=c.a+s*Math.PI/2,x=c.x+Math.cos(a)*26,y=c.y+Math.sin(a)*26;if(bldAt(x,y)||!onLand(x,y))continue;
-    offs.push({x,y,face:c.a,walk:0,vx:0,vy:0,st:0,hp:40,car:c,cd:rnd(.9,1.8),dt:0,amp:0,skin:pick(SKINS),wa:rnd(0,TAU),opt:{cap:true,capc:[.06,.08,.18],pants:[.07,.08,.13],hair:pick(HAIRS),amp:0}})}
+  const sw=c.kind==='swat';
+  for(const [s,f] of sw?[[-1,-10],[1,-10],[-1,12],[1,12]]:[[-1,0],[1,0]]){const a=c.a+s*Math.PI/2,x=c.x+Math.cos(a)*26+Math.cos(c.a)*f,y=c.y+Math.sin(a)*26+Math.sin(c.a)*f;if(bldAt(x,y)||!onLand(x,y))continue;
+    offs.push({x,y,face:c.a,walk:0,vx:0,vy:0,st:0,hp:sw?70:40,col:sw?[.07,.07,.09]:OFFC,gun:sw?2:1,car:c,cd:rnd(.9,1.8),dt:0,amp:0,skin:pick(SKINS),wa:rnd(0,TAU),opt:{cap:true,capc:[.06,.08,.18],pants:[.07,.08,.13],hair:pick(HAIRS),amp:0}})}
   sfx(300,.15,'square',.04,.7);
 }
 function killOff(o,fx,fy,s,byP){
@@ -808,7 +822,6 @@ function killOff(o,fx,fy,s,byP){
   for(let i=0;i<4;i++)emit('star',o.x,o.y,rnd(-20,20),rnd(-40,-10),1.2,3,'#ffd27a');
   if(byP){G.heat=Math.min(5.99,Math.max(G.heat,2)+.5);G.evade=0;G.heatT=2;G.stats.cops++;G.sp=Math.min(100,G.sp+10)}
 }
-const OFFC=[.12,.16,.32];
 function updOffs(dt){
   const rf=P.car||P,stars=Math.floor(G.heat);
   for(let i=offs.length-1;i>=0;i--){
@@ -832,7 +845,7 @@ function updOffs(dt){
         if(o.cd<=0&&(stars>=2||G.w!==0||P.car)){
           o.cd=rnd(.8,1.5);o.gunT=.08;const hit=Math.random()<(P.car?.25:.3)*(G.spOn?.5:1);
           TR.push({x0:o.x+Math.cos(o.face)*10,y0:o.y+Math.sin(o.face)*10,h0:14,h1:12,x1:rf.x+(hit?0:rnd(-26,26)),y1:rf.y+(hit?0:rnd(-26,26)),t:.12,max:.12,c:[1,.85,.45]});sfx(560,.07,'square',.035,.4);
-          if(hit){if(P.car){hurtCar(P.car,4);sparks(P.car.x,P.car.y,3)}else if(!P.swim)hurtPlayer(8,o.x,o.y)}
+          if(hit){if(P.car){hurtCar(P.car,4);sparks(P.car.x,P.car.y,3)}else if(!P.swim)hurtPlayer(o.gun===2?11:8,o.x,o.y)}
         }
       }
     }
@@ -931,7 +944,15 @@ const STORY=[
   {title:'Paint It Hot',who:'N',reward:3000,steps:[
     {t:'steal',at:()=>({x:rc(4)+200,y:rc(15)+38}),txt:'Steal the gold Stingline GT by the canal',lines:[['Cal','A gold Stingline, parked by the canal. The buyer wants it clean.']]},
     {t:'deliver',at:()=>PNSL[0],r:46,txt:'Bring it to the respray in one piece',lines:[['Nova','They made us. Get it to the respray!']]}
-  ],end:[['Cal','Not a scratch. Okay, one scratch.'],['Nova','Our scratch.']]}
+  ],end:[['Cal','Not a scratch. Okay, one scratch.'],['Nova','Our scratch.']]},
+  {title:'The Big One',who:'C',reward:5000,steps:[
+    {t:'go',at:()=>BANK,r:44,txt:'Walk into Bay National on the plaza',lines:[['Cal','Bay National. Biggest vault in the Bay.'],['Nova','And the slowest guards. On foot from here.']]},
+    {t:'rob',txt:'Hold FIRE in the gold ring to crack the vault',lines:[['Nova','Six seconds. Keep them on the floor.']]},
+    {t:'go',at:()=>({x:LAND_W+80,y:PIER_Y}),r:52,txt:'Get to the boats at Sunset Pier',lines:[['Cal','Four stars! SWAT is coming. Pier, now!']]},
+    {t:'boat',txt:'Take a boat',lines:[['Nova','Grab the fast one.']]},
+    {t:'go',at:()=>({x:-170,y:6880}),r:80,boat:true,txt:'Run the boat to the Glades landing',lines:[['Cal','Swing wide past the coast. They cannot follow us into the swamp.']]},
+    {t:'lose',txt:'Lose the cops',lines:[['Nova','Lose the chopper and we are rich.']]}
+  ],end:[['Nova','We did it. We actually did it.'],['Cal','Rich, wanted and covered in mud. Very us.']]}
 ];
 function storeNear(p){let best=STORES[0],bd=1e9;for(const s of STORES){const d=Math.hypot(s.x-p.x,s.y-p.y);if(d>500&&d<bd){bd=d;best=s}}return best}
 function sayLines(lines){if(!G.sayQ.length)G.sayT=0;G.sayQ.push(...lines)}
@@ -1082,8 +1103,25 @@ function doAction(){
 }
 
 /* ---------- vehicles in the world ---------- */
+function rampTick(c,dt){
+  if(c.boat)return;
+  if(c.air){
+    c.vz-=430*dt;c.z+=c.vz*dt;
+    if(c.z<=0){const imp=-c.vz;c.z=0;c.air=false;c.vz=0;
+      if(imp>170){hurtCar(c,(imp-170)*.06);sparks(c.x,c.y,10)}
+      if(c===P.car){G.shake=Math.min(14,imp*.04);sfx(90,.3,'sawtooth',.12,.5);
+        if(G.stunt){const tt=G.t-G.stunt.t0,Rp=G.stunt.r;G.stunt=null;
+          if(tt>.7&&c.hp>0){if(!Rp.done){Rp.done=true;G.cash+=500;flashPass('Stunt jump\n+$500');post('race',true)}else toast('Stunt jump  '+tt.toFixed(1)+' s in the air',2200)}else toast('Stunt jump failed',1600)}}}
+    return;
+  }
+  for(const Rp of RAMPS){const u=c.x-Rp.x0;if(Math.abs(c.y-Rp.z)<Rp.w/2&&u>0&&u<Rp.x1-Rp.x0){c.z=Rp.h*u/(Rp.x1-Rp.x0);c.onR=Rp;return}}
+  if(c.onR){const Rp=c.onR;c.onR=null;
+    if(c.x>=Rp.x1&&c.vx>120){c.air=true;c.vz=Math.min(235,c.vx*.46);c.z=Rp.h;if(c===P.car){G.stunt={r:Rp,t0:G.t};sfx(200,.4,'sawtooth',.08,2)}}
+    else c.z=0;}
+}
 function physWalls(c){
   const r=17;
+  if(c.air&&c.z>14){if(landClamp(c,r))wallHit(c,r);return}
   if(bldCollide(c,r))wallHit(c,r);
   if(landClamp(c,r))wallHit(c,r);
 }
@@ -1149,11 +1187,11 @@ function updCars(dt){
     else if(c.ai==='cop'){updCop(c,dt);physWalls(c)}
     else if(c.ai==='free'){
       driveCar(c,0,0,false,dt);c.idle=c.spd<8?c.idle+dt:0;
-      if(c.idle>1.5&&c.burn<=0){c.ai='parked';c.vx=c.vy=0;c.spd=0}
-      c.boat?boatWalls(c):physWalls(c);
+      if(c.idle>1.5&&c.burn<=0&&!c.air){c.ai='parked';c.vx=c.vy=0;c.spd=0}
+      c.boat?boatWalls(c):physWalls(c);rampTick(c,dt);
     }else if(c.ai==='player'){
       if(c!==P.car||G.mode!=='play')driveCar(c,0,0,G.mode==='attract',dt);
-      c.boat?boatWalls(c):physWalls(c);
+      c.boat?boatWalls(c):physWalls(c);rampTick(c,dt);
       if(c===P.car&&c.boat&&c.spd>340&&Math.abs(c.y-PIER_Y)<500&&c.x<PIER_END+400)post('boat');
     }
     if(c.burn>0){
@@ -1995,6 +2033,12 @@ function addBld(b,K,R){
     h=90+b.z*2.2;fc=FAC[(b.col+((t*8)|0))%FAC.length];
     B.box(b.x,2.4,b.y,b.x+b.w,h,b.y+b.h,fc,1,mulc(fc,.5),0,uo);top=h;
     for(let n=0;n<2;n++){const ax=b.x+10+R()*(b.w-40),az=b.y+10+R()*(b.h-34);B.box(ax,top,az,ax+18,top+9,az+12,[.3,.3,.38],0,[.4,.4,.5],0)}
+    const rr=R();
+    if(rr<.24&&b.w>70){const x0=b.x+8,x1=b.x+b.w-8,zz=b.y+10,pal=[[[1,.3,.55],[.15,.1,.3]],[[.2,.85,1],[.05,.12,.3]],[[1,.75,.2],[.35,.1,.05]],[[.6,1,.4],[.05,.2,.12]]][(R()*4)|0];
+      for(const px of[x0+6,x1-6])B.box(px-1,top,zz-1,px+1,top+10,zz+1,[.25,.25,.28],0);
+      B.box(x0,top+10,zz,x1,top+40,zz+2,[.12,.12,.14],0);
+      B.box(x0+2,top+12,zz-.4,x1-2,top+38,zz,pal[1][0]<.2?pal[1]:pal[1],2);B.box(x0+6,top+24,zz-.7,x1-6,top+34,zz-.4,pal[0],2);B.box(x0+6,top+16,zz-.7,x0+(x1-x0)*.55,top+20,zz-.4,[.95,.95,.95],2);}
+    else if(rr<.48){const tx=b.x+b.w*.7,tz=b.y+b.h*.6;for(const o of[[-5,-5],[5,-5],[-5,5],[5,5]])B.box(tx+o[0]-.6,top,tz+o[1]-.6,tx+o[0]+.6,top+8,tz+o[1]+.6,[.3,.25,.2],0);B.cyl(tx,top+8,tz,8,8,14,9,[.48,.35,.26],0,[.3,.24,.2]);B.cyl(tx,top+22,tz,8.4,.5,4,9,[.4,.3,.22],0)}
   }
   if(b.neon){
     const nc=hex(b.neon);
@@ -2118,6 +2162,34 @@ function buildWorld(){
   PB_.sphere(wx,wy,wz,9,9,9,[1,.3,.65],2,6,4);
   for(const p of[[PIER_END+760,PIER_Y-1100],[-170,6880]]){const B=bat(p[0],p[1]);B.cyl(p[0],-3,p[1],7,5,9,8,[1,.45,.1],0,[1,.6,.2]);B.cyl(p[0],6,p[1],1,1,14,4,[.9,.9,.9],0);B.box(p[0]-2,20,p[1]-2,p[0]+2,23,p[1]+2,[1,.3,.2],2)}
   {const B=bat(-60,6880);B.box(-90,-3,6840,0,1.4,6920,[.46,.33,.3],0,[.52,.38,.33],0)}
+  for(const Rp of RAMPS){
+    const B=bat(Rp.x0+40,Rp.z),y0=2.4,hz=Rp.w/2,L=Rp.x1-Rp.x0,nn=nrm3([-Rp.h,L,0]);
+    for(let k=0;k<7;k++){const a=k/7,b=(k+1)/7,xa=Rp.x0+L*a,xb=Rp.x0+L*b;B.quad([xa,y0+Rp.h*a,Rp.z-hz],[xb,y0+Rp.h*b,Rp.z-hz],[xb,y0+Rp.h*b,Rp.z+hz],[xa,y0+Rp.h*a,Rp.z+hz],nn,k%2?[.12,.12,.14]:[.95,.72,.12],0,null)}
+    for(const s of[-1,1])B.tri([Rp.x0,y0,Rp.z+s*hz],[Rp.x1,y0,Rp.z+s*hz],[Rp.x1,y0+Rp.h,Rp.z+s*hz],[0,0,s],[.45,.45,.5],0,null);
+    B.quad([Rp.x1,y0,Rp.z-hz],[Rp.x1,y0,Rp.z+hz],[Rp.x1,y0+Rp.h,Rp.z+hz],[Rp.x1,y0+Rp.h,Rp.z-hz],[1,0,0],[.4,.4,.45],0,null);
+    for(let k=0;k<6;k++){const x=Rp.x0+10+k*14,z=Rp.z+(k%2?1:-1)*(hz+8);B.cyl(x,2.4,z,2,.4,6,6,[1,.45,.1],0);B.box(x-1.6,4,z-1.6,x+1.6,5,z+1.6,[.95,.95,.95],0)}
+    for(let k=0;k<4;k++)B.cyl(Rp.K.x+200+k*18,2.4,Rp.K.y+40+(k%2)*14,4,4,11,8,k%2?[.2,.35,.6]:[.7,.2,.15],0,[.3,.3,.32]);
+  }
+  for(const K of blocks){
+    if(K.park||K.plaza||K.glade||K.stunt)continue;
+    const B=bat(K.x+150,K.y+150),r=mulberry(K.i*517+K.j*31+5);
+    for(let e=0;e<4;e++){
+      const n=1+((r()*3)|0),hz=e%2===0;
+      for(let q=0;q<n;q++){
+        const t=36+r()*228,x=e===0?K.x+t:e===1?K.x+296:e===2?K.x+t:K.x+4,z=e===0?K.y+4:e===1?K.y+t:e===2?K.y+296:K.y+t;
+        if(K.blds.some(b=>x>b.x-4&&x<b.x+b.w+4&&z>b.y-4&&z<b.y+b.h+4)||STORES.some(st=>Math.hypot(st.x-x,st.y-z)<44))continue;
+        const k=r();
+        if(k<.28){B.cyl(x,2.4,z,2.1,2.1,7,7,[.14,.3,.2],0,[.1,.2,.14]);B.cyl(x,9.4,z,2.3,1.6,1,7,[.12,.24,.16],0)}
+        else if(k<.46){B.cyl(x,2.4,z,1.1,1,4.2,6,[.85,.15,.12],0);B.sphere(x,6.6,z,1.1,.9,1.1,[.85,.15,.12],0,5,3);B.box(x-1.7,4.4,z-.4,x+1.7,5.2,z+.4,[.85,.15,.12],0)}
+        else if(k<.66){const a=hz?5:1.6,b2=hz?1.6:5;B.box(x-a,5,z-b2,x+a,5.8,z+b2,[.45,.3,.18],0);B.box(x-a*.9,2.4,z-b2*.9,x-a*.7,5,z+b2*.9,[.2,.2,.22],0);B.box(x+a*.7,2.4,z-b2*.9,x+a*.9,5,z+b2*.9,[.2,.2,.22],0);
+          if(hz)B.box(x-a,5.8,z+(e===0?-1.6:1.2),x+a,10,z+(e===0?-1.2:1.6),[.45,.3,.18],0);else B.box(x+(e===3?-1.6:1.2),5.8,z-b2,x+(e===3?-1.2:1.6),10,z+b2,[.45,.3,.18],0)}
+        else if(k<.8){const c=pick([[.15,.3,.7],[.75,.15,.15],[.9,.75,.15]]);B.box(x-1.6,2.4,z-1.6,x+1.6,8,z+1.6,c,0);B.box(x-1.3,6,z-1.7,x+1.3,7.5,z+1.7,[.85,.88,.9],0)}
+        else if(k<.9&&hz){const bz=e===0?z+2:z-2,fz=e===0?z-3:z+3;B.box(x-13,13,Math.min(bz,fz)-1,x+13,14,Math.max(bz,fz)+1,[.3,.3,.35],0);
+          for(const sx of[-12,12])B.box(x+sx-.4,2.4,bz-.4,x+sx+.4,13,bz+.4,[.3,.3,.35],0);
+          B.box(x-11,4,bz-.15,x+5,12,bz+.15,[.06,.08,.12],8);B.box(x+5.5,3.6,bz-.3,x+11.5,12.4,bz+.3,pick([[1,.35,.6],[.25,.85,1],[1,.8,.3]]),2);B.box(x-9,5,fz,x+3,5.8,fz+(e===0?1.5:-1.5),[.4,.4,.45],0)}
+      }
+    }
+  }
   const out=[];
   for(const c of CHM.values()){const n=c.B.n/12;out.push({m:c.B.build(),x:c.cx*CHW+CHW/2,z:c.cz*CHW+CHW/2,n})}
   CHM.clear();
@@ -2134,7 +2206,7 @@ function frustum(B,bx0,bx1,by,bz,tx0,tx1,ty0,ty1,tz,F,Bk,S,T){
   fr4(B,b1,b2,t2,t1,[1,0,0],F[0],F[1]);fr4(B,b0,b3,t3,t0,[-1,0,0],Bk[0],Bk[1]);
   if(T)fr4(B,t0,t1,t2,t3,[0,1,0],T[0],T[1]);
 }
-const CSPEC={sedan:[9.2,8,8.6,-.5,.34,-.3,.1,16],taxi:[9.2,8,8.6,-.5,.34,-.3,.1,16],cop:[9.4,8.2,8.8,-.5,.34,-.3,.1,16.4],
+const CSPEC={swat:[10.8,10,10.6,-.66,.34,-.6,.14,19.6],sedan:[9.2,8,8.6,-.5,.34,-.3,.1,16],taxi:[9.2,8,8.6,-.5,.34,-.3,.1,16],cop:[9.4,8.2,8.8,-.5,.34,-.3,.1,16.4],
   sport:[7.8,6.4,7.8,-.42,.26,-.22,0,12.8],super:[7,5.4,7.4,-.3,.22,-.14,.02,11.6],suv:[10.8,10,10.6,-.66,.34,-.6,.14,19.6],pickup:[10.2,9.4,9.8,-.18,.36,-.12,.2,18.4]};
 function buildCar(kind){
   const K=KINDS[kind],hl=K.l/2,hw=K.w/2,B=new Batch(),Cb=new Batch(),Lg=new Batch(),bA=new Batch(),bB=new Batch();
@@ -2171,8 +2243,8 @@ function buildCar(kind){
   B.box(hl+.2,lightY-3.6,-hw*.42,hl+.5,lightY-.9,hw*.42,DK[0],0);
   B.box(hl+1,3.8,-2.6,hl+1.25,5.4,2.6,[.92,.9,.82],0);B.box(-hl-1.25,3.8,-2.6,-hl-1,5.4,2.6,[.92,.9,.82],0);
   for(const sx of[-1,1])for(const sz of[-1,1]){const cx=sx*hl*.6,cz=sz*(hw+.05);B.box(cx-5,3,cz-.25,cx+5,8.8,cz+.25,[.03,.03,.05],0)}
-  if(kind==='cop'){
-    for(const s of[-1,1])B.box(-hl*.4,4,s*hw-.4,hl*.22,9.2,s*hw+.4,[.94,.94,.97],7);
+  if(kind==='cop'||kind==='swat'){
+    if(kind==='cop')for(const s of[-1,1])B.box(-hl*.4,4,s*hw-.4,hl*.22,9.2,s*hw+.4,[.94,.94,.97],7);
     bA.box(-3,roof,-hw+3,2.5,roof+2.4,-.6,WHT,6);bB.box(-3,roof,.6,2.5,roof+2.4,hw-3,WHT,6);B.box(-3.4,roof,-hw+2.6,2.9,roof+.5,hw-2.6,DK[0],0);
   }
   if(kind==='taxi')Lg.box(-3,roof,-4,3,roof+3,4,[1,.78,.28],2);
@@ -2252,6 +2324,28 @@ function buildMeshes(){
   U.box(-.5,0,-.5,.5,1,.5,WHT,3,WHT,3);
   PEDM.torso=T.build();PEDM.head=Hd.build();PEDM.hair=Hr.build();PEDM.leg=Lg.build();PEDM.arm=Am.build();PEDM.gun=Gn.build();PEDM.rifle=Rf.build();
   PEDM.legsKO=LK.build();PEDM.armsKO=AK.build();UNITBOX=U.build();
+  {
+    const tube=(B,rings,seg,c,m)=>{const pt=(Q,a)=>[(Q[3]||0)+Math.cos(a)*Q[1],Q[0],Math.sin(a)*Q[2]];
+      for(let r=0;r<rings.length-1;r++){const A=rings[r],Bq=rings[r+1];for(let i=0;i<seg;i++){const a0=i/seg*TAU,a1=(i+1)/seg*TAU,am=(a0+a1)/2;B.quad(pt(A,a0),pt(A,a1),pt(Bq,a1),pt(Bq,a0),[Math.cos(am),0,Math.sin(am)],c,m,null)}}
+      const top=rings[0][0]>rings[rings.length-1][0]?rings[0]:rings[rings.length-1],bot=top===rings[0]?rings[rings.length-1]:rings[0];
+      for(let i=0;i<seg;i++){const a0=i/seg*TAU,a1=(i+1)/seg*TAU;B.tri([top[3]||0,top[0],0],pt(top,a0),pt(top,a1),[0,1,0],c,m,null);B.tri([bot[3]||0,bot[0],0],pt(bot,a1),pt(bot,a0),[0,-1,0],c,m,null)}};
+    const To=new Batch(),Hp=new Batch(),He=new Batch(),HS=new Batch(),HL=new Batch(),Th=new Batch(),Sh=new Batch(),Ua=new Batch(),Fa=new Batch(),GF=new Batch(),RF=new Batch(),dk=[.05,.04,.05],gd2=[.09,.09,.11];
+    tube(To,[[9,1.6,2.35],[11.5,1.75,2.55],[13.8,1.95,3.05],[15.3,1.75,3.2],[15.9,1.15,2.1]],10,WHT,3);
+    for(const z of[-3.3,3.3])To.sphere(0,15,z,1.3,1.2,1.3,WHT,3,6,4);
+    tube(Hp,[[7.3,1.55,2.4],[9.3,1.62,2.42]],10,WHT,3);Hp.box(-1.7,8.9,-2.5,1.7,9.5,2.5,[.12,.1,.1],0);
+    tube(He,[[15.4,.85,.85],[17.2,.8,.8]],6,WHT,3);
+    He.sphere(0,18.7,0,2.3,2.75,2.25,WHT,3,8,6);He.sphere(.45,17.5,0,1.85,1.45,1.85,WHT,3,7,4);
+    He.box(2,18.1,-.32,2.75,19,.32,WHT,3);for(const z of[-1,1]){He.sphere(-.2,18.6,z*2.2,.45,.8,.4,WHT,3,5,3);He.box(1.95,19.05,z>0?.5:-1.15,2.2,19.55,z>0?1.15:-.5,dk,0);He.box(1.95,19.85,z>0?.4:-1.3,2.24,20.15,z>0?1.3:-.4,[.12,.08,.07],0)}
+    He.box(1.98,17.15,-.6,2.1,17.4,.6,[.4,.18,.18],0);
+    HS.sphere(-.35,19.75,0,2.5,2.05,2.42,WHT,3,8,5);HL.sphere(-.35,19.75,0,2.5,2.05,2.42,WHT,3,8,5);HL.box(-2.7,14.4,-2.1,-1.1,19.7,2.1,WHT,3);
+    tube(Th,[[.5,1.42,1.38],[-4.2,1.05,1.05]],7,WHT,3);Th.sphere(0,-4.2,0,1.06,1.06,1.06,WHT,3,6,4);
+    tube(Sh,[[0,1.02,1.02],[-3.7,.78,.78]],7,WHT,3);Sh.box(-1.15,-4.6,-1.05,2.6,-3.5,1.05,[.08,.08,.1],0);
+    tube(Ua,[[.6,1.08,1.08],[-3.6,.84,.84]],7,WHT,3);
+    tube(Fa,[[0,.8,.8],[-3.3,.62,.62]],7,WHT,3);Fa.sphere(.15,-3.95,0,.78,.85,.68,WHT,3,6,4);
+    GF.box(-.45,-8,-.42,.9,-3,.42,gd2,0);GF.box(-2.6,-4.4,-.38,-.4,-3.3,.38,gd2,0);
+    RF.box(-.55,-13.9,-.5,1,-1.9,.5,gd2,0);RF.box(-2.8,-5.4,-.42,-.5,-4,.42,gd2,0);RF.box(-.6,-1.9,-.55,1.3,1.1,.55,[.25,.18,.12],0);
+    Object.assign(PEDM,{torso:To.build(),hips:Hp.build(),head:He.build(),hairS:HS.build(),hairL:HL.build(),thigh:Th.build(),shin:Sh.build(),uarm:Ua.build(),farm:Fa.build(),gunF:GF.build(),rifleF:RF.build()});
+  }
   WORLD=buildWorld();
   for(const K of blocks)for(const b of K.blds){
     if(!b.neon)continue;
@@ -2264,38 +2358,47 @@ function buildMeshes(){
 const inView=(x,y,m,r)=>{const dx=x-cam.px,dy=y-cam.pz;if(dx*dx+dy*dy>r*r)return false;return dx*cam.fx+dy*cam.fz>-m-60};
 const DARK=[.1,.1,.12];
 const NOOPT={},DHAIR=[.1,.08,.12];
-const DPANTS=[.15,.17,.3];
+const DPANTS=[.15,.17,.3];let PEDLOD=false;
 function drawPedModel(p,col,skin,ko,walk,face,gun,o){
   o=o||NOOPT;
-  const sw=o.swim,gh=o.y!==undefined?o.y:groundH(p.x,p.y),amp=o.amp===undefined?1:o.amp,bob=ko||sw?0:Math.abs(Math.sin(walk))*.6*amp,yaw=-face,y0=(ko?4.2:bob)+gh+(sw?-9:0)+(o.z||0);
-  const pants=o.pants||DPANTS,hair=o.hair||DHAIR;
+  const sw=o.swim,gh=o.y!==undefined?o.y:groundH(p.x,p.y),amp=o.amp===undefined?1:o.amp,yaw=-face;
+  const bob=ko||sw?0:Math.abs(Math.sin(walk))*.6*Math.min(1,amp),y0=(ko?4.2:bob)+gh+(sw?-9:0)+(o.z||0);
+  const pants=o.pants||DPANTS,hair=o.hair||DHAIR,hs=o.hs||0;
+  const dx0=p.x-cam.px,dz0=p.y-cam.pz,lod=PEDLOD||G.q===0||dx0*dx0+dz0*dz0>240*240;
   if(ko){
-    setModel(p.x,y0,p.y,yaw,Math.PI/2+(o.rot||0),1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);drawMesh(PEDM.armsKO);
-    tint(hair);drawMesh(PEDM.hair);tint(pants);drawMesh(PEDM.legsKO);return;
+    setModel(p.x,y0,p.y,yaw,Math.PI/2+(o.rot||0),1,1,1);tint(col);drawMesh(PEDM.torso);tint(pants);drawMesh(PEDM.hips);drawMesh(PEDM.legsKO);
+    tint(skin);drawMesh(PEDM.head);drawMesh(PEDM.armsKO);if(hs<2){tint(hair);drawMesh(hs?PEDM.hairL:PEDM.hairS)}return;
   }
-  setModel(p.x,y0,p.y,yaw,0,1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);
-  tint(hair);drawMesh(PEDM.hair);if(o.pony)drawMesh(PEDM.pony);
+  setModel(p.x,y0,p.y,yaw,0,1,1,1);tint(col);drawMesh(PEDM.torso);tint(pants);drawMesh(PEDM.hips);tint(skin);drawMesh(PEDM.head);
+  if(hs<2||o.pony){tint(hair);if(hs<2)drawMesh(hs===1?PEDM.hairL:PEDM.hairS);if(o.pony)drawMesh(PEDM.pony)}
   if(o.cap){tint(o.capc||DHAIR);drawMesh(PEDM.cap)}
-  const cf=Math.cos(face),sf=Math.sin(face),sw0=Math.sin(walk);
-  tint(skin);
+  const cf=Math.cos(face),sf=Math.sin(face),s0=Math.sin(walk),c0=Math.cos(walk),A=Math.min(1.5,amp);
   for(const s of[-1,1]){
-    let ap=-s*sw0*.55*amp;
-    if(sw)ap=walk*1.3+(s>0?Math.PI:0);
-    else if(o.seat)ap=1.15;
-    else if(s>0&&gun&&(o.aim||amp<.2))ap=Math.PI/2;
-    else if(s>0&&o.phone)ap=1.9;
-    const lz=s*3.75,px=p.x-sf*lz,pz=p.y+cf*lz;
-    setModel(px,y0+14.9,pz,yaw,ap,1,1,1);drawMesh(PEDM.arm);
-    if(s>0&&gun&&!sw){tint(WHT);drawMesh(gun===1?PEDM.gun:PEDM.rifle);tint(skin)}
+    let u=-s*s0*.5*A,f=u+.25+.45*Math.max(0,u);
+    if(sw){u=walk*1.3+(s>0?Math.PI:0);f=u+.3}
+    else if(o.seat){u=.75;f=1.35}
+    else if(gun&&(o.aim||amp<.2)){if(s>0){u=Math.PI/2;f=Math.PI/2}else if(gun===2){u=1.05;f=1.8}}
+    else if(s>0&&o.phone){u=.35;f=2.15}
+    const lz=s*3.75,px=p.x-sf*lz,pz=p.y+cf*lz,py=y0+14.9;
+    if(lod){tint(skin);setModel(px,py,pz,yaw,u,1,1,1);drawMesh(PEDM.arm);if(s>0&&gun&&!sw){tint(WHT);drawMesh(gun===1?PEDM.gun:PEDM.rifle)}continue}
+    tint(col);setModel(px,py,pz,yaw,u,1,1,1);drawMesh(PEDM.uarm);
+    const ex=Math.sin(u)*3.6,ey=-Math.cos(u)*3.6;
+    tint(skin);setModel(px+cf*ex,py+ey,pz+sf*ex,yaw,f,1,1,1);drawMesh(PEDM.farm);
+    if(s>0&&gun&&!sw){tint(WHT);drawMesh(gun===1?PEDM.gunF:PEDM.rifleF)}
   }
   if(sw)return;
   tint(pants);
   for(const s of[-1,1]){
-    const lp=o.seat?1.35:s*sw0*.6*amp,lz=s*1.3;
-    setModel(p.x-sf*lz,y0+8.2,p.y+cf*lz,yaw,lp,1,1,1);drawMesh(PEDM.leg);
+    let t=s*s0*.6*A,k=t-Math.max(0,s*c0)*1.05*A-.06*A;
+    if(o.seat){t=1.45;k=.1}
+    const lz=s*1.3,px=p.x-sf*lz,pz=p.y+cf*lz,py=y0+8.2;
+    setModel(px,py,pz,yaw,t,1,1,1);
+    if(lod){drawMesh(PEDM.leg);continue}
+    drawMesh(PEDM.thigh);const kx=Math.sin(t)*4.2,ky=-Math.cos(t)*4.2;
+    setModel(px+cf*kx,py+ky,pz+sf*kx,yaw,k,1,1,1);drawMesh(PEDM.shin);
   }
 }
-function heroOpt(H,extra){return Object.assign({hair:H.hair,pony:H.pony,cap:H.cap,capc:H.capc,pants:H.pants},extra||NOOPT)}
+function heroOpt(H,extra){return Object.assign({hair:H.hair,pony:H.pony,cap:H.cap,capc:H.capc,pants:H.pants,hs:H.hs},extra||NOOPT)}
 function drawBoat(c){
   const m=CARM[c.kind],K=KINDS[c.kind],t=G.t;
   let col=hex(c.col);col=c.hp<=0?DARK:mulc(col,.45+.55*clamp(c.hp/c.maxhp,0,1));
@@ -2317,8 +2420,10 @@ function drawCar(c,noCab){
   // suspension: pitch from longitudinal accel, roll from lateral accel
   const fv=c.fv||0,acc=((fv-(c.pfv===undefined?fv:c.pfv))/Math.max(dt,.004));c.pfv=fv;
   const tp=clamp(acc*.00009,-.045,.045),tr=clamp(-(c.yr||0)*fv*.00016,-.06,.06),k=Math.min(1,dt*7);
-  c.rp=(c.rp||0)+(tp-(c.rp||0))*k;c.rr=(c.rr||0)+(tr-(c.rr||0))*k;
-  gl.uniformMatrix4fv(CP.u.uModel,false,matRPY(c.x,0,c.y,-c.a,c.rp,c.rr));
+  const tp2=c.air?clamp(c.vz*.0016,-.32,.32)*Math.cos(c.a):c.onR?.19*Math.cos(c.a):tp;
+  c.rp=(c.rp||0)+(tp2-(c.rp||0))*k;c.rr=(c.rr||0)+(tr-(c.rr||0))*k;
+  const cy0=c.air?c.z+2.4:groundH(c.x,c.y)+(c.z||0);
+  gl.uniformMatrix4fv(CP.u.uModel,false,matRPY(c.x,cy0,c.y,-c.a,c.rp,c.rr));
   tint(col);drawMesh(m.body);if(m.cab&&!noCab)drawMesh(m.cab);tint(WHT);drawMesh(m.lights);
   if(m.barA){
     const on=c.ai==='cop',f=Math.floor(G.t*8)%2;
@@ -2331,7 +2436,7 @@ function drawCar(c,noCab){
   const st=clamp((c.yr||0)/(c.turn||2.5)*.55,-.55,.55),cs=Math.cos(c.a),sn=Math.sin(c.a),hl=c.l/2,hw=c.w/2;
   for(const sx of[-1,1])for(const sz of[-1,1]){
     const lx=sx*hl*.6,lz=sz*(hw-1.2);
-    setModel(c.x+cs*lx-sn*lz,3.9,c.y+sn*lx+cs*lz,-(c.a+(sx>0?st:0)),-c.wr,1,1,1);drawMesh(WHEELM);
+    setModel(c.x+cs*lx-sn*lz,3.9+cy0+c.rp*lx,c.y+sn*lx+cs*lz,-(c.a+(sx>0?st:0)),-c.wr,1,1,1);drawMesh(WHEELM);
   }
 }
 function drawDynamic(E,L,shd){
@@ -2341,7 +2446,7 @@ function drawDynamic(E,L,shd){
     if(shd?Math.hypot(c.x-cam.tx,c.y-cam.tz)>900:!inView(c.x,c.y,80,1250))continue;
     drawCar(c,fp&&c===P.car);
   }
-  for(const o of offs){if(!inView(o.x,o.y,40,900))continue;drawPedModel(o,OFFC,hex(o.skin),o.st===9,o.walk,o.face,o.st!==9?1:0,o.opt)}
+  for(const o of offs){if(!inView(o.x,o.y,40,900))continue;drawPedModel(o,o.col||OFFC,hex(o.skin),o.st===9,o.walk,o.face,o.st!==9?(o.gun||1):0,o.opt)}
   for(const p of peds){
     if(!inView(p.x,p.y,40,900))continue;
     drawPedModel(p,hex(p.col),hex(p.skin),p.st===2,p.ph,p.a,false,p.opt);
@@ -2472,6 +2577,8 @@ function addMarkers(){
   for(const q of PNSL)beacon(q.x,q.y,38,[1,.75,.2],.85);
   for(const q of SHOPL)beacon(q.x,q.y,36,[.3,1,.55],.85);
   for(const q of STORES)beacon(q.x,q.y,30,[1,.3,.26],q.cd>0?.25:.8);
+  beacon(BANK.x,BANK.y,40,[1,.85,.3],BANK.cd>0?.25:.9);
+  for(const Rp of RAMPS)if(Math.hypot(Rp.x0-cam.px,Rp.z-cam.pz)<1400)beacon(Rp.x0-40,Rp.z,24,[1,.8,.2],Rp.done?.3:.8);
   if(G.story<STORY.length&&!mission)beacon(SAFE.x,SAFE.y,46,[1,.8,.25],1);
   for(const o of objectives())beacon(o.x,o.y,o.first?44:30,[.2,.9,1],o.first?1:.5);
   if(G.wp&&!mission)beacon(G.wp.x,G.wp.y,40,[1,.95,.35],.9);
@@ -2503,6 +2610,8 @@ function updLabels(VP){
   for(const q of PNSL)put('RESPRAY $150',q.x,q.y,700);
   for(const q of SHOPL)put('GUNS + ARMOR $200',q.x,q.y,700);
   for(const q of STORES)put(q.cd>0?'QWIK 24 · CLOSED':'QWIK 24 · ROB',q.x,q.y,700);
+  put(BANK.cd>0?'BAY NATIONAL · CLOSED':'BAY NATIONAL · VAULT',BANK.x,BANK.y,900);
+  for(const Rp of RAMPS)put(Rp.done?'STUNT JUMP · DONE':'STUNT JUMP',Rp.x0-40,Rp.z,700);
   if(G.story<STORY.length&&!mission)put('STORY · '+STORY[G.story].title,SAFE.x,SAFE.y,900);else put('SAFEHOUSE',SAFE.x,SAFE.y,500);
   const rf=P.car||P;let arrow=false;
   const ob=navTarget();
@@ -2538,7 +2647,7 @@ function shadowPass(){
   gl.useProgram(PD.p);CP=PD;gl.uniformMatrix4fv(PD.u.uLVP,false,LVP);gl.uniformMatrix4fv(PD.u.uModel,false,IDM);
   gl.enableVertexAttribArray(PD.a.aPos);
   for(const ch of WORLD)if(Math.abs(ch.x-fx)<S+800&&Math.abs(ch.z-fz)<S+800)drawMesh(ch.m);
-  drawDynamic(ENV,0,true);
+  PEDLOD=true;drawDynamic(ENV,0,true);PEDLOD=false;
   gl.disableVertexAttribArray(PD.a.aPos);
   CP=PM;SHON=true;
 }
@@ -2682,7 +2791,14 @@ function rainInit(){
     RN.g=C.createGain();RN.g.gain.value=0;s.connect(f);f.connect(RN.g);RN.g.connect(C.destination);s.start();RN.src=s;
   }catch(e){RN.g=null}
 }
+const AMB={g:null};
+function ambInit(){
+  if(!AU.ctx||AMB.g)return;
+  try{const C=AU.ctx,b=C.createBuffer(1,C.sampleRate*3,C.sampleRate),d=b.getChannelData(0);let l=0;for(let i=0;i<d.length;i++){l=(l+.02*(Math.random()*2-1))/1.02;d[i]=l*3.5}
+    const s=C.createBufferSource();s.buffer=b;s.loop=true;const f=C.createBiquadFilter();f.type='lowpass';f.frequency.value=420;AMB.g=C.createGain();AMB.g.gain.value=0;s.connect(f);f.connect(AMB.g);AMB.g.connect(C.destination);s.start()}catch(e){AMB.g=null}
+}
 function rainTick(){
+  if(AU.ctx&&AMB.g)AMB.g.gain.setTargetAtTime(G.mode==='play'&&!AU.mute?.05*(1-ENV.night*.4):0,AU.ctx.currentTime,.6);
   if(!AU.ctx||!RN.g)return;
   const want=G.mode==='play'&&!AU.mute?Math.min(1,G.rainI)*.07:0;
   RN.g.gain.setTargetAtTime(want,AU.ctx.currentTime,.4);
@@ -2791,6 +2907,8 @@ function shoot(t,wi){
   for(let k=0;k<w.pel;k++)fireRay(ox,oy,a+rnd(-w.sp,w.sp)*acc,w,car,false);
   sfx(w.snd,w.id==='shotgun'?.22:.09,'square',w.id==='shotgun'?.11:.07,.3);G.shake=Math.max(G.shake,w.id==='shotgun'?3:1.2);
   addHeat(.08,P.x,P.y);
+  for(const q of peds)if(q.st===0&&Math.hypot(q.x-P.x,q.y-P.y)<340){q.st=1;q.fl=rnd(3,6);q.film=0;q.a=Math.atan2(q.y-P.y,q.x-P.x)+rnd(-.5,.5)}
+  if(Math.random()<.08)sfx(rnd(700,900),.35,'triangle',.03,1.3);
 }
 function punch(){
   G.fireCd=WPN[0].cd;G.gunT=.12;let best=null,bd=26;
@@ -2832,11 +2950,12 @@ function closeWheel(){if(!G.wheel)return;G.wheel=false;if(hasW(G.wsel))G.w=G.wse
 addEventListener('mousemove',e=>{if(!G.wheel)return;const dx=e.clientX-innerWidth/2,dy=e.clientY-innerHeight/2;if(Math.hypot(dx,dy)<40)return;let a=Math.atan2(dy,dx);if(a<0)a+=TAU;const i=[3,0,1,2][Math.round(a/(Math.PI/2))&3];if(i!==G.wsel&&hasW(i)){G.wsel=i;updWheel()}});
 function updRob(dt){
   const el=$('rob');let s=null;
-  for(const q of STORES)if(q.cd>0)q.cd-=dt;
-  if(G.mode==='play'&&!P.car&&!P.swim)for(const q of STORES)if(q.cd<=0&&Math.hypot(P.x-q.x,P.y-q.y)<36){s=q;break}
+  for(const q of ROBS)if(q.cd>0)q.cd-=dt;
+  if(G.mode==='play'&&!P.car&&!P.swim)for(const q of ROBS)if(q.cd<=0&&Math.hypot(P.x-q.x,P.y-q.y)<(q.bank?42:36)){s=q;break}
+  const dur=s&&s.bank?6:3;
   const armed=G.w!==0&&G.am[G.w]>0;
   G.inStore=!!(s&&armed);
-  if(s&&!G.robHint){G.robHint=1;toast(armed?'Hold FIRE to rob the QWIK 24':'Pull out a gun to rob this store',2400)}
+  if(s&&!G.robHint){G.robHint=1;toast(armed?(s.bank?'Hold FIRE to crack the Bay National vault':'Hold FIRE to rob the QWIK 24'):'Pull out a gun to rob this place',2400);$('robT').textContent=s.bank?'Cracking the vault':'Emptying the register'}
   if(!s)G.robHint=0;
   if(s&&armed&&(keys.f||IN.fire)){
     if(G.rob===0)heroSay('robStart');
@@ -2844,11 +2963,12 @@ function updRob(dt){
   }else G.rob=Math.max(0,G.rob-dt*.6);
   const show=G.rob>0&&!!s;
   if(el.hidden===show)el.hidden=!show;
-  if(show)$('robF').style.width=Math.min(100,G.rob/3*100)+'%';
-  if(G.rob>=3&&s){
-    G.rob=0;s.cd=180;G.fireCd=1.5;const two=!BUD.inCar&&Math.hypot(BUD.x-P.x,BUD.y-P.y)<140,amt=Math.round((300+Math.random()*450)*(two?1.4:1)/10)*10;
-    G.cash+=amt;G.stats.rob++;G.heat=Math.max(G.heat,2.3);G.evade=0;G.heatT=2.5;
-    toast((two?'Two-person job  ':'Register emptied  ')+'+$'+amt,2600);sfx(1200,.1,'square',.06,1.2);sfx(880,.35,'triangle',.1,1.8);
+  if(show)$('robF').style.width=Math.min(100,G.rob/dur*100)+'%';
+  if(G.rob>=dur&&s){
+    const bk=s.bank;
+    G.rob=0;s.cd=bk?900:180;G.fireCd=1.5;const two=!BUD.inCar&&Math.hypot(BUD.x-P.x,BUD.y-P.y)<140,amt=Math.round((bk?6000+Math.random()*3000:300+Math.random()*450)*(two?1.4:1)/10)*10;
+    G.cash+=amt;G.stats.rob++;G.heat=Math.max(G.heat,bk?4.3:2.3);G.evade=0;G.heatT=2.5;
+    toast((bk?'Vault cracked  ':two?'Two-person job  ':'Register emptied  ')+'+$'+amt.toLocaleString('en-US'),2600);sfx(1200,.1,'square',.06,1.2);sfx(880,.35,'triangle',.1,1.8);
     post('rob',true);partnerSay('rob');
     if(mission&&mission.type==='story'&&mission.store===s)mission.robbed=true;
   }
@@ -2992,6 +3112,7 @@ function drawMap(){
   for(const q of PNSL)dot(q.x,q.y,3,'#ff9f2a');
   for(const q of SHOPL)dot(q.x,q.y,3,'#4dff8d');
   for(const q of STORES)dot(q.x,q.y,3,q.cd>0?'#6b3330':'#ff5a4a');
+  dot(BANK.x,BANK.y,4,'#ffd84a');for(const Rp of RAMPS)dot(Rp.x0,Rp.z,2.6,Rp.done?'#6b6030':'#ffe14a');
   if(G.story<STORY.length&&!mission)dot(SAFE.x,SAFE.y,5,'#ffc94a',true);
   for(const o of objectives())dot(o.x,o.y,o.first?4.5:3,'#2be4ff',true);
   if(G.wp)dot(G.wp.x,G.wp.y,4,'#ffe14a',true);
@@ -3043,6 +3164,7 @@ function drawBig(){
   for(const q of PNSL)dot(q.x,q.y,4,'#ff9f2a');
   for(const q of SHOPL)dot(q.x,q.y,4,'#4dff8d');
   for(const q of STORES)dot(q.x,q.y,4,q.cd>0?'#6b3330':'#ff5a4a');
+  dot(BANK.x,BANK.y,6,'#ffd84a');for(const Rp of RAMPS)dot(Rp.x0,Rp.z,4,'#ffe14a');
   for(const d of DOCKS)dot(d.x,d.y,3,'#7ad7ff');
   if(G.story<STORY.length&&!mission)dot(SAFE.x,SAFE.y,6,'#ffc94a');
   for(const o of objectives())dot(o.x,o.y,5,'#2be4ff');
@@ -3224,7 +3346,7 @@ $('bPhone').addEventListener('click',togglePhone);
 $('phClose').addEventListener('click',closePhone);
 $('mute').addEventListener('click',()=>{AU.mute=!AU.mute;$('mute').textContent=AU.mute?'Sound off':'Sound on'});
 $('go').addEventListener('click',()=>{
-  audioInit();radioInit();rainInit();
+  audioInit();radioInit();rainInit();ambInit();
   if(AU.ctx&&AU.ctx.state==='suspended')AU.ctx.resume();
   G.mode='play';$('title').hidden=true;$('hud').hidden=false;
   const c=P.car;if(c){P.x=c.x;P.y=c.y}
@@ -3241,14 +3363,14 @@ function frame(now){
     if(G.spOn){G.sp-=dt*15;if(G.sp<=0||G.mode!=='play'){G.sp=Math.max(0,G.sp);G.spOn=false}G.spPulse=(G.spPulse||0)-dt;if(G.spPulse<=0){G.spPulse=.85;sfx(62,.3,'sine',.12,.6)}}
     else if(G.mode==='play')G.sp=Math.min(100,G.sp+dt*2.2);
     G.spFx+=((G.spOn?1:0)-G.spFx)*Math.min(1,dt*6);
-    step(dt*(G.mode==='over'?.4:G.wheel?.25:G.spOn?.42:1));
+    step(dt*(G.mode==='over'?.4:G.wheel?.25:G.stunt?.38:G.spOn?.42:1));
     saveT+=dt;
     if(saveT>5){saveT=0;try{localStorage.setItem('neonbay.cash',String(G.cash));localStorage.setItem('neonbay.fol',String(G.fol))}catch(e){}}
   }
   render();drawMap();if(G.mapOpen)drawBig();updHud();
   requestAnimationFrame(frame);
 }
-window.__nb={get shon(){return SHON},get sht(){return SHT},ENVx:ENV,mk:mkCar,offs,toggleSpecial,setQuality,BUD,HEROES,STORES,STORY,DOCKS,animals,get heli(){return HELI},get mission(){return mission},doSwitch,cycW,selW,openWheel,closeWheel,post,FEED,togglePhone,startStory,SAFE,jump,openMap,closeMap,setWaypointAt,updWeather,SK,SIGS,WORLD,get tris(){return drawnTris},step,render,updHud,drawMap,G,P,cars,peds,doAction,keys,IN,cam,startJob,JOBS,gameOver,ENV,shoot,nextStation,say,get glerr(){return glError}};
+window.__nb={RAMPS,BANK,get shon(){return SHON},get sht(){return SHT},ENVx:ENV,mk:mkCar,offs,toggleSpecial,setQuality,BUD,HEROES,STORES,STORY,DOCKS,animals,get heli(){return HELI},get mission(){return mission},doSwitch,cycW,selW,openWheel,closeWheel,post,FEED,togglePhone,startStory,SAFE,jump,openMap,closeMap,setWaypointAt,updWeather,SK,SIGS,WORLD,get tris(){return drawnTris},step,render,updHud,drawMap,G,P,cars,peds,doAction,keys,IN,cam,startJob,JOBS,gameOver,ENV,shoot,nextStation,say,get glerr(){return glError}};
 resize();addEventListener('resize',resize);
 try{G.cash=parseInt(localStorage.getItem('neonbay.cash')||'0',10)||0;G.fol=parseInt(localStorage.getItem('neonbay.fol')||'1204',10)||1204;G.story=clamp(parseInt(localStorage.getItem('neonbay.story')||'0',10)||0,0,STORY.length)}catch(e){}
 glInit();
