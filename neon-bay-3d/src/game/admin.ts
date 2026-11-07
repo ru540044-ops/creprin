@@ -85,6 +85,7 @@ export const WARPS: { name: string; at: () => { x: number; z: number } }[] = [
   { name: 'ビーチ', at: () => ({ x: BEACH_X + 30, z: 0 }) },
   { name: 'ダウンタウン', at: () => ({ x: 0, z: -50 }) },
   { name: 'BAY CUSTOMS', at: () => CUSTOMS.spawn },
+  ...(['danchi', 'house', 'tower', 'villa'] as const).map((id) => ({ name: { danchi: '団地', house: '一軒家', tower: 'タワマン', villa: '豪邸' }[id], at: () => { const d = doors.find((q) => q.id === 'h_' + id)!; return { x: d.x + Math.sin(d.ang) * 2.5, z: d.z + Math.cos(d.ang) * 2.5 }; } })),
   { name: '屋上ヘリパッド', at: () => { const h = HELIPADS[HELIPADS.length - 1]; return { x: h.x + 9, z: h.z }; } },
   { name: 'ランウェイ・ジャンプ', at: () => { const r = RAMPS[RAMPS.length - 1]; return { x: r.x - Math.sin(r.yaw) * 120, z: r.z - Math.cos(r.yaw) * 120 }; } },
 ];

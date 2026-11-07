@@ -191,6 +191,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           </div>
         </div>
       </div>
+      {game.fadeT > 0 && <div className="fade" style={{ opacity: Math.min(1, game.fadeT) }} />}
       {game.hurtT > 0 && <div className="hurt" style={{ opacity: Math.min(1, game.hurtT * 1.6) }} />}
       {admin.is && (() => { const n = (['god', 'noWanted', 'infAmmo', 'carGod', 'carBoost', 'fastRun', 'superJump', 'freezeTime'] as const).filter((k) => admin[k]).length + (admin.timeScale !== 1 ? 1 : 0); return <div className="adBadge">ADMIN{n ? ' ●' + n : ''}</div>; })()}
       {admin.is && admin.debug && <div className="adDebug">x {game.player.x.toFixed(1)} z {game.player.z.toFixed(1)} · {game.where}<br />歩行者 {peds.length} · 車 {vehicles.length} · 手配 {game.wanted} · {game.fps} FPS · {game.hour.toFixed(2)}時</div>}

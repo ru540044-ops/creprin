@@ -21,6 +21,8 @@ export const game = {
   arms: { owned: { pistol: false, smg: false }, ammo: { pistol: 0, smg: 0, grenade: 0 }, mag: { pistol: 0, smg: 0 }, cur: 'fist' as string, armor: 0 },
   ui: '' as string,
   phone: false, // in-game phone open (the character holds it)
+  homes: [] as string[], // properties the player owns
+  fadeT: 0, // black fade (sleeping)
   carAnim: 0, // 1 while getting into a car (driving is blocked)
   hurtT: 0, // red damage flash timer
   blast: null as null | { x: number; z: number }, // knockback from an explosion (consumed by the player) // full-screen shop panel currently open ('' = none)
@@ -54,7 +56,7 @@ export function save() {
   if (wiped) return;
   try {
     const p = game.where === 'out' ? game.player : { ...game.player, x: game.outsidePos.x, z: game.outsidePos.z, yaw: game.outsidePos.yaw };
-    localStorage.setItem(KEY, JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, arms: game.arms, radio: game.radio }));
+    localStorage.setItem(KEY, JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, homes: game.homes, arms: game.arms, radio: game.radio }));
   } catch { /* storage unavailable */ }
 }
 export function load(): boolean {
@@ -68,6 +70,7 @@ export function load(): boolean {
     if (typeof s.radio === 'number') game.radio = s.radio;
     if (s.tb && typeof s.tb === 'object') Object.assign(progress.trialBest, s.tb);
     if (s.st && typeof s.st === 'object') Object.assign(progress.stunts, s.st);
+    if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
     if (typeof s.ccam === 'number') game.cam.carMode = s.ccam; if (s.mute) audio.muted = true;
     if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI; }
     if (s.q) game.quality = s.q; if (s.wp) game.waypoint = s.wp; if (typeof s.cam === 'number') game.cam.mode = s.cam;

@@ -280,6 +280,26 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
   for (const b of buildings) if ((b.type === 'office' || b.type === 'brick') && b.h < 50 && r() < 0.12) props.billboards.push({ x: (b.x0 + b.x1) / 2, z: b.z0 + 2, y: b.y0 + b.h, a: 0, w: Math.min(18, b.x1 - b.x0 - 4), c: Math.floor(r() * 4) });
 }
 
+/* ---------- homes you can walk into (danchi flat, family house, tower penthouse, beach villa) ---------- */
+{
+  const blkOf = (b: Building) => blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
+  const free = (x: number, z: number) => !doors.some((d) => Math.hypot(d.x - x, d.z - z) < 30);
+  const pick = (test: (b: Building, blk: BlockInfo) => boolean, tx: number, tz: number, maxSet = 9) => {
+    let best: Building | null = null, bd = 1e9;
+    for (const b of buildings) { const blk = blkOf(b); if (!blk || blk === GARAGE.block || b.z0 - blk.z0 > maxSet || !test(b, blk)) continue; const cx = (b.x0 + b.x1) / 2; if (!free(cx, b.z0)) continue; const d = Math.hypot(cx - tx, b.z0 - tz); if (d < bd) { bd = d; best = b; } }
+    return best;
+  };
+  const front = (id: string, b: Building | null, label: string, color: string) => { if (b) doors.push({ id: 'h_' + id, x: (b.x0 + b.x1) / 2, z: b.z0 - 0.8, ang: Math.PI, label, interior: id, color }); };
+  front('danchi', pick((b, k) => b.type === 'brick' && k.zone === 'residential' && b.x1 - b.x0 > 40, -350, 350), '潮見団地 3号棟', '#c9b48a');
+  front('house', pick((b, k) => b.type === 'house' && k.zone === 'residential', -250, 120, 24), '一軒家', '#9dff3a');
+  front('tower', pick((b, k) => b.type === 'glass' && k.zone === 'downtown' && b.h > 100, 40, -40), 'BAY TOWER RESIDENCE', '#ffd23a');
+  // the villa is a new building on the beach
+  const vx0 = BEACH_X + 8, vz0 = -470, vx1 = BEACH_X + 36, vz1 = -444;
+  addB({ x0: vx0, z0: vz0, x1: vx1, z1: vz1, y0: -0.6, h: 8.6, type: 'terminal', tint: [0.97, 0.97, 0.98] });
+  for (const L of [props.palms, props.umbrellas] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (L[k].x > vx0 - 3 && L[k].x < vx1 + 3 && L[k].z > vz0 - 3 && L[k].z < vz1 + 3) L.splice(k, 1);
+  doors.push({ id: 'h_villa', x: vx0 - 0.8, z: (vz0 + vz1) / 2, ang: -Math.PI / 2, label: 'MODERN VILLA', interior: 'villa', color: '#ffffff' });
+}
+
 /* ---------- collision grid ---------- */
 const CELL = 40, grid = new Map<string, number[]>();
 solids.forEach((s, idx) => {

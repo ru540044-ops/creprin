@@ -8,11 +8,12 @@ import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } fr
 import { RACES, PRIZES } from '../crime/race';
 import { progress } from '../state/store';
 import AdminApp from './AdminApp';
+import { PROPERTIES } from '../world/homes';
 import { admin } from '../admin';
 import { audio, sfx } from '../audio';
 
 const GARAGE_CAP = GARAGE.slots.length;
-type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin';
+type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin' | 'realty';
 
 /** Side view drawn from the same profile the 3D model is extruded from. */
 export function CarSVG({ kind, color }: { kind: VKind; color: string }) {
@@ -170,6 +171,24 @@ function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
   );
 }
 
+function Realty({ close }: { close: () => void }) {
+  const go = (id: string, name: string) => { const d = doors.find((q) => q.id === 'h_' + id); if (!d) return; game.waypoint = { x: d.x, z: d.z }; save(); toast(name + 'を目的地に設定'); close(); };
+  const icon: Record<string, string> = { danchi: '🏢', house: '🏡', tower: '🌃', villa: '🏝' };
+  return (
+    <div className="appBody">
+      <p className="appNote">家にはいつでも入って内見できる。買うとベッドで寝られる（時間を進めて体力回復＆セーブ）。</p>
+      {PROPERTIES.map((P) => { const own = game.homes.includes(P.id); return (
+        <div className="jobCard" key={P.id}>
+          <b>{icon[P.id]} {P.kind}　{own && <span className="pay">所有中</span>}</b>
+          <p>{P.name}<br />{P.blurb}</p>
+          <span className="pay">${P.price.toLocaleString('en-US')}</span>
+          <div className="jobBtns"><button type="button" onClick={() => go(P.id, P.name)}>場所へ案内</button></div>
+        </div>
+      ); })}
+    </div>
+  );
+}
+
 function Settings({ quality, setQuality, refresh }: { quality: Quality; setQuality: (q: Quality) => void; refresh: () => void }) {
   return (
     <div className="appBody">
@@ -193,7 +212,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
     game.money -= d.price; ownedCars.push({ kind: k, color: c }); game.waypoint = { x: GARAGE.x, z: GARAGE.z };
     sfx('buy'); toast(d.name + 'を購入！ガレージに納車しました（目的地に設定）', 3.2); save(); refresh();
   };
-  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者' }[app];
+  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者', realty: '不動産' }[app];
   return (
     <div className="overlay phoneWrap" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="phone" role="dialog" aria-label="スマートフォン">
@@ -204,6 +223,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
             <button type="button" className="appIc" onClick={() => open('garage')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#1c8f7a)' }}>🅿</i>ガレージ</button>
             <button type="button" className="appIc" onClick={() => { sfx('ui'); onClose(); openMap(); }}><i style={{ background: 'linear-gradient(135deg,#2be4ff,#2b6bff)' }}>🗺</i>マップ</button>
             <button type="button" className="appIc" onClick={() => open('jobs')}><i style={{ background: 'linear-gradient(135deg,#ffd23a,#ff6a00)' }}>💰</i>仕事</button>
+            <button type="button" className="appIc" onClick={() => open('realty')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#2b6bff)' }}>🏠</i>不動産</button>
             {admin.is && <button type="button" className="appIc" onClick={() => open('admin')}><i style={{ background: 'linear-gradient(135deg,#ff2a40,#7a00ff)' }}>🛡</i>管理者</button>}
             <button type="button" className="appIc" onClick={() => open('settings')}><i style={{ background: 'linear-gradient(135deg,#8a8aa8,#3c3c55)' }}>⚙</i>設定</button>
           </div>
@@ -213,6 +233,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
             {app === 'motors' && <Motors buy={buy} />}
             {app === 'garage' && <Garage refresh={refresh} close={onClose} />}
             {app === 'admin' && <AdminApp close={onClose} />}
+            {app === 'realty' && <Realty close={onClose} />}
             {app === 'jobs' && <Jobs close={onClose} refresh={refresh} />}
             {app === 'settings' && <Settings quality={quality} setQuality={setQuality} refresh={refresh} />}
           </>

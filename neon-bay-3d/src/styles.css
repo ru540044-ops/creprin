@@ -173,3 +173,5 @@ button.armed{background:#ff4b4b !important;color:#fff}
 
 .countdown{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:5;pointer-events:none;font-size:clamp(64px,20vw,140px);font-weight:900;font-style:italic;color:#ffd23a;text-shadow:0 5px 0 #000,0 0 30px rgba(255,210,58,.7);animation:pop .5s ease-out}
 @keyframes pop{from{transform:translate(-50%,-50%) scale(1.8);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+
+.fade{position:fixed;inset:0;z-index:7;background:#000;pointer-events:none;transition:opacity .2s}

@@ -56,6 +56,7 @@ function Ticker() {
     acc.current.t += dt; acc.current.n++; if (acc.current.t > 0.5) { game.fps = Math.round(acc.current.n / acc.current.t); acc.current.t = 0; acc.current.n = 0; }
     if (game.toastT > 0) game.toastT -= dt;
     if (game.hurtT > 0) game.hurtT -= dt;
+    if (game.fadeT > 0) game.fadeT -= dt;
     if (game.started) game.clock += tdt(dt);
     wind.value += dt;
   });

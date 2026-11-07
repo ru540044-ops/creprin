@@ -10,6 +10,7 @@ import { cruise, panic } from '../ai/traffic';
 import { flash } from '../combat/fx';
 import { clamp } from '../world/rng';
 import { admin } from '../admin';
+import { PROPERTIES } from '../world/homes';
 import { updateStunts, updateTaxi, taxi, stunt } from './stunts';
 import { RACES, race, raceDef, startRace, updateRace, position, fmtT, PRIZES } from './race';
 
@@ -246,6 +247,11 @@ export function jobNear(): Near | null {
     }
     return null;
   }
+  { const I = INTERIORS[game.where]; if (I && I.home && !me) {
+    const l = local(), owned = game.where === 'home' || game.homes.includes(game.where), P = PROPERTIES.find((q) => q.id === game.where);
+    if (owned && I.bed && Math.hypot(l.x - I.bed.x, l.z - I.bed.z) < 2.4) return { kind: 'job', id: 'sleep', label: '寝る（時間を進めて体力回復・セーブ）', btn: '寝る' };
+    if (!owned && P && I.buy && Math.hypot(l.x - I.buy.x, l.z - I.buy.z) < 2.2) return { kind: 'job', id: 'buyhome:' + P.id, label: `この物件を買う $${P.price.toLocaleString('en-US')}${game.money < P.price ? '（資金不足）' : ''}`, btn: '購入' };
+  } }
   if (game.where === 'arms' && !me) { const l = local(); return Math.hypot(l.x, l.z + 1.1) < 2.2 ? { kind: 'job', id: 'gunshop', label: 'BAY ARMS で買い物', btn: '買う' } : null; }
   if (game.where !== 'out') return null;
   if (!me) {
@@ -270,6 +276,12 @@ export function jobAction(id: string) {
   if (id === 'rob') {
     rob.door = game.lastDoor; rob.phase = 'fill'; rob.t = 0; rob.dur = 6; rob.cash = (game.where === 'gas' ? 600 : 800) + Math.round(Math.random() * 14) * 100;
     sfx('crash', 0.25); toast('「金を出せ！」 店員がレジを開けた', 2.2); setWanted(1, '店員が通報した');
+  } else if (id.startsWith('buyhome:')) {
+    const P = PROPERTIES.find((q) => 'buyhome:' + q.id === id);
+    if (P && !game.homes.includes(P.id)) { if (game.money < P.price) toast('お金が足りない（$' + P.price.toLocaleString('en-US') + '）', 2); else { game.money -= P.price; game.homes.push(P.id); sfx('buy'); toast(`${P.kind}を購入！ ベッドで寝るとセーブ＆時間を進められる`, 3.2); save(); } }
+  } else if (id === 'sleep') {
+    game.fadeT = 2.2; game.hour = game.hour >= 6 && game.hour < 18 ? 20.5 : 8; game.health = 100; game.stamina = 100; game.weather.next = Math.min(game.weather.next, 5);
+    sfx('ui'); setTimeout(() => toast(game.hour > 12 ? 'よく寝た。夜になった（セーブしました）' : 'おはよう。朝になった（セーブしました）', 2.4), 900); save();
   } else if (id.startsWith('race:')) { startRace(id.slice(5)); } else if (id === 'gunshop') { game.ui = 'arms'; sfx('ui'); } else if (id === 'customs') { game.ui = 'customs'; sfx('ui'); } else if (id === 'robcd') toast('このレジはさっき強盗された。時間をおこう', 2);
   else if (id === 'bag') { game.money += rob.cash; robbedAt[rob.door] = game.clock; sfx('buy'); toast('+$' + rob.cash.toLocaleString('en-US') + '　店を出て警察から逃げろ！', 2.8); rob.phase = ''; setWanted(2, '強盗成功'); save(); }
   else if (id === 'pry') { if (armored.pry <= 0) { armored.pry = 0.001; toast('ドアをこじ開けている…離れるな', 1.8); } }
