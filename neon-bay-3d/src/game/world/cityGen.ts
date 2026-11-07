@@ -158,6 +158,46 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
   if (best) doors.push({ id: 'home', x: (best.x0 + best.x1) / 2, z: best.z0 - 0.8, ang: Math.PI, label: 'SAFEHOUSE', interior: 'home', color: '#2be4ff' });
 }
 
+/* ---------- garage (owned cars are delivered here) ---------- */
+export const GARAGE = (() => {
+  const home = doors.find((d) => d.id === 'home')!;
+  let best: BlockInfo | null = null, bd = 1e9;
+  for (const b of blocks) {
+    if (b.zone !== 'residential' && b.zone !== 'commercial') continue;
+    const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, d = Math.hypot(cx - home.x, cz - home.z);
+    if (d < 60 || doors.some((q) => q.x > b.x0 - 2 && q.x < b.x1 + 2 && q.z > b.z0 - 2 && q.z < b.z1 + 2)) continue;
+    if (d < bd) { bd = d; best = b; }
+  }
+  const b = best!;
+  for (let k = buildings.length - 1; k >= 0; k--) { const q = buildings[k]; if (q.x0 >= b.x0 - 1 && q.x1 <= b.x1 + 1 && q.z0 >= b.z0 - 1 && q.z1 <= b.z1 + 1) { buildings.splice(k, 1); solids.splice(k, 1); } }
+  for (let k = props.trees.length - 1; k >= 0; k--) { const t = props.trees[k]; if (t.x > b.x0 && t.x < b.x1 && t.z > b.z0 && t.z < b.z1) props.trees.splice(k, 1); }
+  b.zone = 'parking';
+  addB({ x0: b.x0 + 6, z0: b.z1 - 34, x1: b.x1 - 6, z1: b.z1 - 6, y0: 0.15, h: 9, type: 'warehouse', tint: [0.55, 0.58, 0.64] });
+  const col = [2, 1, 3, 0, 4], slots = Array.from({ length: 10 }, (_, n) => ({ x: b.x0 + 12 + col[n % 5] * 15.5, z: n < 5 ? b.z0 + 16 : b.z0 + 36, yaw: Math.PI }));
+  return { x: (b.x0 + b.x1) / 2, z: b.z0 + 2, block: b, slots };
+})();
+
+/* ---------- parked cars along the curbs, in lots and at gas stations ---------- */
+export const parkSlots: { x: number; z: number; yaw: number; kind: string; ci: number }[] = [];
+{
+  const r = mulberry(31337), kinds = ['sedan', 'sedan', 'sedan', 'suv', 'suv', 'sport', 'truck', 'bike', 'sedan', 'super'];
+  for (let k = 0; k <= N; k++) for (let sgm = 0; sgm < N; sgm++) {
+    const c = roadC(k), a = -HALF + sgm * PITCH + ROAD + 12;
+    for (let n = 0; n < 2; n++) {
+      if (r() < 0.45) continue;
+      const t = a + 6 + r() * (PITCH - ROAD - 36), side = r() < 0.5 ? -1 : 1, off = side * (ROAD / 2 - 1.35), kind = kinds[Math.floor(r() * kinds.length)];
+      if (r() < 0.5) parkSlots.push({ x: c + off, z: t, yaw: side > 0 ? 0 : Math.PI, kind, ci: Math.floor(r() * 6) });
+      else parkSlots.push({ x: t, z: c + off, yaw: side > 0 ? -Math.PI / 2 : Math.PI / 2, kind, ci: Math.floor(r() * 6) });
+    }
+  }
+  for (const b of blocks) {
+    if (b.zone === 'parking' && b !== GARAGE.block) for (let x = b.x0 + 10.6; x < b.x1 - 22; x += 3.2) { if (r() < 0.45) parkSlots.push({ x, z: b.z0 + 12.7, yaw: Math.PI, kind: kinds[Math.floor(r() * 7)], ci: Math.floor(r() * 6) }); if (r() < 0.45) parkSlots.push({ x, z: b.z1 - 12.7, yaw: 0, kind: kinds[Math.floor(r() * 7)], ci: Math.floor(r() * 6) }); }
+    if (b.zone === 'gas') for (const ox of [-6, 6]) parkSlots.push({ x: (b.x0 + b.x1) / 2 + ox, z: b.z0 + 25, yaw: Math.PI / 2, kind: r() < 0.5 ? 'sedan' : 'suv', ci: Math.floor(r() * 6) });
+  }
+  for (let n = 0; n < 8; n++) parkSlots.push({ x: AIRPORT.x0 + 300 + n * 7, z: 110, yaw: Math.PI, kind: kinds[n % kinds.length], ci: n % 6 });
+  for (let n = 0; n < 4; n++) parkSlots.push({ x: PORT.x0 + 40 + n * 30, z: PORT.z0 + 15, yaw: Math.PI / 2, kind: n % 2 ? 'truck' : 'suv', ci: n });
+}
+
 /* ---------- street furniture ---------- */
 for (let k = 0; k <= N; k++) {
   const c = roadC(k);

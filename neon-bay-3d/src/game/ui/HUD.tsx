@@ -1,6 +1,8 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { game, toast, save } from '../state/store';
-import { input } from '../input';
+import { game, toast, save, Quality } from '../state/store';
+import Phone from './Phone';
+import { playerCar } from '../vehicles/sim';
+import { input, releaseDrive } from '../input';
 import { mapImage, toMap, fromMap, POI, MAP } from './mapRender';
 import { INTERIORS } from '../world/Interiors';
 
@@ -74,6 +76,7 @@ function Joystick() {
   const [st, setSt] = useState({ on: false, bx: 0, by: 0, kx: 0, ky: 0 });
   const id = useRef<number | null>(null);
   const R = 58;
+  useEffect(() => () => { input.joyActive = false; input.joyX = input.joyY = 0; }, []);
   const set = (e: React.PointerEvent, bx: number, by: number) => {
     let dx = e.clientX - bx, dy = e.clientY - by; const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
     input.joyActive = true; input.joyX = dx / R; input.joyY = -dy / R; setSt({ on: true, bx, by, kx: dx, ky: dy });
@@ -104,9 +107,29 @@ function HoldBtn({ label, cls, onDown, onUp, active, disabled }: { label: string
 }
 
 /* ---------- HUD ---------- */
-export default function HUD({ quality, setQuality }: { quality: string; setQuality: (q: any) => void }) {
+function Speedo() {
+  const me = playerCar(); if (!me) return null;
+  const kmh = Math.round(game.speed * 3.6), fv = me.vx * Math.sin(me.yaw) + me.vz * Math.cos(me.yaw);
+  const gear = me.dead ? '-' : fv < -0.5 ? 'R' : kmh < 2 ? 'N' : String(me.gear + 1), hp = Math.max(0, me.hp / me.def.hp);
+  return (
+    <div className="speedo" aria-label={'速度 ' + kmh + ' km/h'}>
+      <div className="spd"><b>{kmh}</b><span>km/h</span></div>
+      <div className="gear">{gear}</div>
+      <div className="vname">{me.def.name}</div>
+      <i className="vhp"><b style={{ width: hp * 100 + '%', background: hp > 0.5 ? 'var(--mint)' : hp > 0.25 ? 'var(--amber)' : '#ff4b4b' }} /></i>
+      <div className="rpm"><b style={{ width: Math.round(me.rpm * 100) + '%' }} /></div>
+    </div>
+  );
+}
+
+export default function HUD({ quality, setQuality }: { quality: Quality; setQuality: (q: Quality) => void }) {
   useTicker(100);
   const [map, setMap] = useState(false);
+  const [phone, setPhone] = useState(false);
+  useEffect(() => { const id = setInterval(() => { if (input.phone) { input.phone = false; setPhone((v) => !v); } }, 50); return () => clearInterval(id); }, []);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPhone(false); setMap(false); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
+  const me = playerCar(), driving = !!me;
+  useEffect(() => { releaseDrive(); }, [driving]);
   const [district, setDistrict] = useState({ name: '', t: 0 });
   useEffect(() => { if (game.district && game.district !== district.name) setDistrict({ name: game.district, t: Date.now() }); });
   const showDistrict = Date.now() - district.t < 3500;
@@ -122,24 +145,39 @@ export default function HUD({ quality, setQuality }: { quality: string; setQuali
             <div className="whoT"><b>NOVA</b><span>{inside ? INTERIORS[game.where]?.name : game.district}</span></div>
             <div className="bars"><i className="hp" style={{ width: game.health + '%' }} /><i className="st" style={{ width: game.stamina + '%' }} /></div>
           </div>
-          <div className="card mis"><span className="lab">ミッション</span><b>自由行動</b><span>ミッションは第4段階で追加します。今は街を探索し、店に入ってみよう</span></div>
+          <div className="card mis"><span className="lab">ミッション</span><b>自由行動</b><span>{driving ? 'ドライブ中。視点ボタンでカメラ切替、降車で降りる' : 'スマホの Bay Motors で車を買うとガレージに届く。道ばたの車にも乗れる'}</span></div>
         </div>
         <div className="tr">
           <Minimap onOpen={() => setMap(true)} />
           <div className="money">${game.money.toLocaleString('en-US')}</div>
           <div className="stars" aria-label={'手配度 ' + game.wanted}>{[0, 1, 2, 3, 4].map((i) => <b key={i} className={i < game.wanted ? 'on' : ''}>★</b>)}</div>
           <div className="small">{String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} · {game.fps} FPS</div>
-          <button type="button" className="chip" onClick={() => { const n = quality === 'low' ? 'medium' : quality === 'medium' ? 'high' : 'low'; setQuality(n); }}>画質: {({ low: '低', medium: '中', high: '高' } as any)[quality]}</button>
+          <button type="button" className="chip phoneChip" onClick={() => setPhone(true)} aria-label="スマホを開く">📱 スマホ</button>
         </div>
       </div>
       {showDistrict && <div className="district">{district.name}</div>}
       {game.toastT > 0 && <div className="toast">{game.toast}</div>}
       {near && <div className="prompt">{game.isTouch ? '' : '[E] '}{near.label}</div>}
-      {game.isTouch ? (
+      {driving && <Speedo />}
+      {game.isTouch && driving ? (
+        <>
+          <div className="steer">
+            <HoldBtn label="◀" cls="st" active={input.left} onDown={() => { input.left = true; }} onUp={() => { input.left = false; }} />
+            <HoldBtn label="▶" cls="st" active={input.right} onDown={() => { input.right = true; }} onUp={() => { input.right = false; }} />
+          </div>
+          <div className="pedals">
+            <HoldBtn label="降車" cls="act" onDown={() => { input.action = true; }} />
+            <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
+            <HoldBtn label="アクセル" cls="gas" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
+            <HoldBtn label="サイド" cls="hb" active={input.hb} onDown={() => { input.hb = true; }} onUp={() => { input.hb = false; }} />
+            <HoldBtn label="ブレーキ" cls="brk" active={input.brake} onDown={() => { input.brake = true; }} onUp={() => { input.brake = false; }} />
+          </div>
+        </>
+      ) : game.isTouch ? (
         <>
           <Joystick />
           <div className="btns">
-            <HoldBtn label={near ? (near.kind === 'exit' ? '出る' : '入る') : 'アクション'} cls="act" disabled={!near} onDown={() => { input.action = true; }} />
+            <HoldBtn label={near ? (near.kind === 'exit' ? '出る' : near.kind === 'car' ? '乗る' : '入る') : 'アクション'} cls="act" disabled={!near} onDown={() => { input.action = true; }} />
             <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
             <HoldBtn label={p.crouch ? '立つ' : 'しゃがむ'} active={p.crouch} onDown={() => { input.crouchToggle = true; }} />
             <HoldBtn label="ダッシュ" cls="dash" active={p.sprinting} onDown={() => { input.dash = true; }} onUp={() => { input.dash = false; }} />
@@ -147,9 +185,10 @@ export default function HUD({ quality, setQuality }: { quality: string; setQuali
           </div>
         </>
       ) : (
-        <div className="keys">WASD 移動 · Shift ダッシュ · Space ジャンプ · C しゃがむ · E 入る/出る · V 視点 · 右ドラッグ/ドラッグで視点</div>
+        <div className="keys">{driving ? 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイドブレーキ · E 降りる · V 視点 · P スマホ' : 'WASD 移動 · Shift ダッシュ · Space ジャンプ · C しゃがむ · E 入る/乗る · V 視点 · P スマホ · ドラッグで視点'}</div>
       )}
       {map && <FullMap onClose={() => setMap(false)} />}
+      {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} setQuality={setQuality} />}
     </>
   );
 }

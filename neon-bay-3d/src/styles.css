@@ -62,3 +62,51 @@ button{font-family:var(--ui)}
 .map canvas{border-radius:10px;box-shadow:0 0 0 2px var(--cyan);cursor:crosshair}
 .row{display:flex;gap:10px;justify-content:center}.row button{background:var(--panel);color:var(--ink);border:0;box-shadow:inset 0 0 0 1px var(--edge);border-radius:10px;padding:10px 16px;font-weight:700}.row .pri{background:var(--pink);color:var(--bg)}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;font-size:11px;color:var(--dim)}.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+
+/* ---------- driving ---------- */
+.steer{position:fixed;left:max(14px,var(--sal));bottom:calc(14px + var(--sab));z-index:3;display:flex;gap:12px}
+.tb.st{width:78px;height:78px;font-size:26px;border-color:var(--ink)}
+.pedals{position:fixed;right:max(14px,var(--sar));bottom:calc(14px + var(--sab));z-index:3;display:grid;grid-template-columns:repeat(3,62px);grid-template-rows:repeat(2,62px);gap:8px}
+.tb.gas{grid-column:3;grid-row:1/3;height:auto;border-radius:16px;border-color:var(--mint);font-size:13px}
+.tb.brk{border-color:#ff4b4b;border-radius:16px}
+.tb.hb{border-color:var(--amber);border-radius:16px}
+.speedo{position:fixed;left:50%;bottom:calc(12px + var(--sab));transform:translateX(-50%);z-index:3;pointer-events:none;display:grid;grid-template-columns:auto auto;gap:0 10px;align-items:end;background:var(--panel);box-shadow:inset 0 0 0 1px var(--edge);border-radius:14px;padding:6px 14px 8px;min-width:170px}
+.spd{display:flex;align-items:baseline;gap:4px}.spd b{font-size:34px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1}.spd span{font-size:11px;color:var(--dim)}
+.gear{font-size:24px;font-weight:900;color:var(--amber);text-align:right}
+.vname{grid-column:1/3;font-size:10px;color:var(--dim);letter-spacing:.08em}
+.vhp,.rpm{grid-column:1/3;display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:3px}.vhp b,.rpm b{display:block;height:100%}.rpm b{background:var(--pink)}
+.phoneChip{color:var(--ink);font-size:12px;padding:8px 12px}
+@media (max-height:500px){.tb.st{width:66px;height:66px}.pedals{grid-template-columns:repeat(3,54px);grid-template-rows:repeat(2,54px)}.speedo{min-width:140px;padding:4px 10px 6px}.spd b{font-size:26px}}
+@media (max-width:560px) and (min-height:501px){.speedo{bottom:calc(170px + var(--sab))}}
+
+/* ---------- phone ---------- */
+.phoneWrap{background:rgba(6,5,16,.55);place-items:center end;padding-right:max(24px,var(--sar))}
+.phone{width:min(360px,92vw);height:min(660px,calc(100dvh - 24px));display:flex;flex-direction:column;background:linear-gradient(180deg,#191433,#0c0a1d);border-radius:32px;box-shadow:0 0 0 3px #2a2547,0 0 0 6px #0a0816,0 20px 50px rgba(0,0,0,.6);overflow:hidden;touch-action:pan-y}
+.pStatus{display:flex;justify-content:space-between;padding:12px 22px 6px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.homeGrid{flex:1;display:grid;grid-template-columns:repeat(2,1fr);gap:16px;align-content:start;padding:22px}
+.appIc{background:none;border:0;color:var(--ink);display:grid;justify-items:center;gap:7px;font-size:12px;font-weight:700;padding:6px}
+.appIc i{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;font-style:normal;font-size:30px;box-shadow:0 6px 16px rgba(0,0,0,.4)}
+.appTop{display:grid;grid-template-columns:80px 1fr 80px;align-items:center;padding:4px 10px 8px;border-bottom:1px solid var(--edge)}
+.appTop button{background:none;border:0;color:var(--cyan);font-size:14px;font-weight:700;text-align:left;padding:8px 4px}.appTop b{text-align:center;font-size:15px}
+.appBody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;display:grid;gap:12px;align-content:start;touch-action:pan-y}
+.appNote{margin:0;font-size:12px;color:var(--dim);line-height:1.5}.appNote b{color:var(--mint)}
+.carCard{background:rgba(255,255,255,.05);border-radius:16px;padding:12px;display:grid;gap:8px}
+.carsvg{width:100%;height:72px}
+.carHead{display:flex;justify-content:space-between;align-items:baseline}.carHead b{font-size:16px}.carHead span{font-weight:800;color:var(--mint);font-variant-numeric:tabular-nums}
+.blurb{margin:0;font-size:12px;color:var(--dim)}
+.stats{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;font-size:11px;color:var(--dim)}
+.sbar{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}.sbar b{display:block;height:100%;background:var(--cyan)}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}.swatches button{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.25);padding:0}.swatches button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--pink)}
+.buy{background:var(--pink);color:var(--bg);border:0;border-radius:12px;padding:12px;font-weight:900;font-size:14px}.buy:disabled{background:rgba(255,255,255,.12);color:var(--dim)}
+.gHead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+.gHead button,.gBtns button,.plain{background:rgba(255,255,255,.08);color:var(--ink);border:0;border-radius:10px;padding:9px 11px;font-size:12px;font-weight:700}
+.gHead button:disabled,.gBtns button:disabled{opacity:.35}
+button.armed{background:#ff4b4b !important;color:#fff}
+.gRow{display:grid;grid-template-columns:90px 1fr;gap:6px 10px;background:rgba(255,255,255,.05);border-radius:14px;padding:10px;align-items:center}
+.gRow .carsvg{height:44px}.gInfo{display:grid;gap:2px}.gInfo b{font-size:14px}.gInfo span{font-size:11px;color:var(--dim)}
+.gBtns{grid-column:1/3;display:flex;gap:8px}.gBtns button{flex:1}
+.setRow{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px}
+.seg{display:flex;background:rgba(255,255,255,.08);border-radius:10px;padding:3px}.seg button{background:none;border:0;color:var(--dim);padding:8px 14px;border-radius:8px;font-weight:700}.seg button.on{background:var(--cyan);color:var(--bg)}
+.plain.danger{color:#ff7a7a}
+.pHome{margin:8px auto 12px;background:rgba(255,255,255,.1);color:var(--ink);border:0;border-radius:999px;padding:9px 28px;font-weight:700;font-size:13px}
+@media (max-width:560px){.phoneWrap{place-items:center;padding-right:16px}}

@@ -2,7 +2,9 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { game, toast, save } from '../state/store';
-import { input, moveVector } from '../input';
+import { input, moveVector, releaseDrive } from '../input';
+import { vehicles, playerCar, Veh } from '../vehicles/sim';
+import { sfx } from '../audio';
 import { collide, groundAt, doors, pointBlocked, districtAt, isWater } from '../world/cityGen';
 import { INTERIORS, FLOOR, interiorCollide } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
@@ -44,16 +46,64 @@ function useCharacter() {
   }, []);
 }
 
+/** Keep the walking player out of car bodies (oriented box test against nearby vehicles). */
+function pushOutOfCars(p: { x: number; y: number; z: number }) {
+  for (const v of vehicles) {
+    const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 6 || Math.abs(dz) > 6 || p.y > v.y + v.def.hgt) continue;
+    const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), lf = dx * fx + dz * fz, ls = dx * fz - dz * fx, hl = v.def.len / 2 + R * 0.8, hw = v.def.wid / 2 + R * 0.8;
+    if (Math.abs(lf) >= hl || Math.abs(ls) >= hw) continue;
+    const pf = hl - Math.abs(lf), ps = hw - Math.abs(ls);
+    if (pf < ps) { const s = Math.sign(lf) || 1; p.x += fx * s * pf; p.z += fz * s * pf; } else { const s = Math.sign(ls) || 1; p.x += fz * s * ps; p.z += -fx * s * ps; }
+  }
+}
+
 export default function Player() {
   const C = useCharacter();
   const grp = useRef<THREE.Group>(null!);
   const { camera } = useThree();
-  const st = useMemo(() => ({ phase: 0, vx: 0, vz: 0, lean: 0, saveT: 0, crouchK: 0, landT: 0 }), []);
+  const st = useMemo(() => ({ phase: 0, vx: 0, vz: 0, lean: 0, saveT: 0, crouchK: 0, landT: 0, carYaw: 0, look: 0, lookP: 0, lookT: 0, fov: 62 }), []);
   const camPos = useMemo(() => new THREE.Vector3(), []), camTgt = useMemo(() => new THREE.Vector3(), []), want = useMemo(() => new THREE.Vector3(), []);
+
+  const exitCar = (me: Veh) => {
+    const p = game.player, sp = Math.hypot(me.vx, me.vz);
+    if (sp > 9) { toast('スピードを落とすと降りられる', 1.4); return; }
+    const lx = Math.cos(me.yaw), lz = -Math.sin(me.yaw), fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), off = me.def.wid / 2 + 0.6;
+    const spots = [[lx * off, lz * off], [-lx * off, -lz * off], [-fx * (me.def.len / 2 + 0.8), -fz * (me.def.len / 2 + 0.8)], [fx * (me.def.len / 2 + 0.8), fz * (me.def.len / 2 + 0.8)]];
+    let ok: number[] | null = null;
+    for (const [dx, dz] of spots) {
+      const q = { x: me.x + dx, z: me.z + dz }, q0x = q.x, q0z = q.z;
+      if (isWater(q.x, q.z)) continue;
+      if (collide(q, R, groundAt(q.x, q.z), H) && Math.hypot(q.x - q0x, q.z - q0z) > 0.05) continue;
+      if (vehicles.some((v) => v !== me && Math.hypot(v.x - q.x, v.z - q.z) < v.def.len / 2 + 0.4)) continue;
+      ok = [q.x, q.z]; break;
+    }
+    if (!ok) { toast('ここでは降りられない', 1.4); return; }
+    game.cam.yaw = st.carYaw + Math.PI + st.look; game.cam.pitch = 0.28;
+    game.inCar = 0; releaseDrive(); sfx('door');
+    p.x = ok[0]; p.z = ok[1]; p.y = groundAt(p.x, p.z); p.vy = 0; p.yaw = me.yaw; st.vx = st.vz = 0; camPos.set(p.x + Math.sin(game.cam.yaw) * 4, p.y + 2.5, p.z + Math.cos(game.cam.yaw) * 4);
+    save();
+  };
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05), p = game.player, inside = game.where !== 'out', def = INTERIORS[game.where];
+    const me = playerCar();
+    if (game.inCar && !me) game.inCar = 0;
     if (!game.started) { st.phase += dt; }
+    else if (me) {
+      // ----- driving: the car sim moves the car, the player rides along -----
+      if (input.lookDX || input.lookDY) st.lookT = 1.4;
+      st.look -= input.lookDX * 0.0055; st.lookP = clamp(st.lookP + input.lookDY * 0.004, -0.15, 0.9); input.lookDX = 0; input.lookDY = 0;
+      st.lookT -= dt; if (st.lookT <= 0 && game.speed > 3) { st.look *= 1 - Math.min(1, dt * 2.5); st.lookP *= 1 - Math.min(1, dt * 2.5); }
+      if (input.camCycle) { input.camCycle = false; game.cam.carMode = (game.cam.carMode + 1) % 3; toast(['追従カメラ', '遠景カメラ', 'ボンネットカメラ'][game.cam.carMode], 1.2); }
+      input.jump = false; input.crouchToggle = false;
+      p.x = me.x; p.z = me.z; p.y = me.y; p.yaw = me.yaw; p.speed = 0; p.vy = 0; p.grounded = true; p.crouch = false; st.vx = st.vz = 0;
+      game.stamina = clamp(game.stamina + 12 * dt, 0, 100);
+      game.near = null;
+      if (input.action) { input.action = false; exitCar(me); }
+      game.district = districtAt(p.x, p.z);
+      if (game.waypoint && Math.hypot(p.x - game.waypoint.x, p.z - game.waypoint.z) < 14) { game.waypoint = null; toast('目的地に到着'); }
+      st.saveT += dt; if (st.saveT > 5) { st.saveT = 0; save(); }
+    }
     else {
       // ----- look -----
       game.cam.yaw -= input.lookDX * 0.0055; game.cam.pitch = clamp(game.cam.pitch + input.lookDY * 0.004, -0.35, 1.1);
@@ -81,6 +131,7 @@ export default function Player() {
       else {
         collide(p, R, p.y, H);
         if (isWater(p.x, p.z)) { p.x = ox; p.z = oz; } // no swimming yet: the shoreline blocks you
+        pushOutOfCars(p);
         const g = groundAt(p.x, p.z);
         if (p.y <= g + 0.02 || (p.grounded && p.y - g < 0.45 && p.vy <= 0)) { if (!p.grounded && p.vy < -8) st.landT = 0.25; p.y = g; p.vy = 0; p.grounded = true; } else p.grounded = false;
       }
@@ -90,6 +141,11 @@ export default function Player() {
       game.near = null;
       if (inside && def) { if (Math.hypot(p.x - def.ox - def.exit.x, p.z - def.oz - def.exit.z) < 1.6) game.near = { kind: 'exit', label: '外へ出る', id: def.id }; }
       else for (const d of doors) if (Math.hypot(p.x - d.x, p.z - d.z) < 1.8) { game.near = { kind: 'door', label: d.label + 'に入る', id: d.id }; break; }
+      if (!inside && !game.near) {
+        let best: Veh | null = null, bd = 1e9;
+        for (const v of vehicles) { if (v.dead) continue; const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 8 || Math.abs(dz) > 8) continue; const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), d = Math.hypot(Math.max(0, Math.abs(dx * fx + dz * fz) - v.def.len / 2), Math.max(0, Math.abs(dx * fz - dz * fx) - v.def.wid / 2)); if (d < 1.7 && d < bd) { bd = d; best = v; } }
+        if (best) game.near = { kind: 'car', label: best.def.name + (best.owned >= 0 ? '（自分の車）' : '') + 'に乗る', id: String(best.id) };
+      }
       if (input.action) {
         input.action = false;
         const n = game.near;
@@ -98,6 +154,13 @@ export default function Player() {
           game.outsidePos = { x: d.x + Math.sin(d.ang) * 2.2, z: d.z + Math.cos(d.ang) * 2.2, yaw: d.ang };
           game.where = I.id; p.x = I.ox + I.spawn.x; p.z = I.oz + I.spawn.z; p.y = FLOOR; p.vy = 0; p.yaw = I.spawn.yaw; game.cam.yaw = I.spawn.yaw + Math.PI; st.vx = st.vz = 0;
           toast(I.name, 1.6); save();
+        } else if (n && n.kind === 'car') {
+          const v = vehicles.find((q) => String(q.id) === n.id);
+          if (v && !v.dead) {
+            game.inCar = v.id; v.touched = true; releaseDrive(); sfx('door');
+            st.carYaw = v.yaw; st.look = 0; st.lookP = 0; st.lookT = 0; game.near = null;
+            toast(v.def.name + (v.owned < 0 ? '' : ''), 1.2);
+          }
         } else if (n && n.kind === 'exit') {
           const o = game.outsidePos; game.where = 'out'; p.x = o.x; p.z = o.z; p.y = groundAt(o.x, o.z); p.vy = 0; p.yaw = o.yaw; game.cam.yaw = o.yaw + Math.PI; st.vx = st.vz = 0; save();
         }
@@ -131,7 +194,18 @@ export default function Player() {
       a.top.rotation.z = sg * (0.08 + run * 0.06);
       a.mid.rotation.x = -(0.25 + amp * (0.35 + run * 0.6));
     });
-    if (grp.current) { grp.current.position.set(game.player.x, game.player.y, game.player.z); grp.current.rotation.y = game.player.yaw; grp.current.visible = game.cam.mode !== 2 || !game.started; }
+    C.root.rotation.z = 0; C.root.position.set(0, 0, 0);
+    if (me && me.def.kind === 'bike') { // seated rider, leaning with the bike
+      C.hips.position.y = 1.0; C.spine.rotation.x = 0.55; C.spine.rotation.y = 0; C.head.rotation.x = -0.45;
+      C.legs.forEach((l) => { l.top.rotation.x = -1.25; l.mid.rotation.x = 1.55; });
+      C.arms.forEach((a, i) => { a.top.rotation.x = -1.15; a.top.rotation.z = (i ? 1 : -1) * 0.12; a.mid.rotation.x = -0.35; });
+      C.root.position.z = -0.32; C.root.rotation.z = 0;
+    }
+    if (grp.current) {
+      grp.current.position.set(game.player.x, game.player.y, game.player.z); grp.current.rotation.set(0, game.player.yaw, 0);
+      if (me && me.def.kind === 'bike') { grp.current.rotateX(-me.pitch); grp.current.rotateZ(me.lean); }
+      grp.current.visible = me ? me.def.kind === 'bike' && game.cam.carMode !== 2 : game.cam.mode !== 2 || !game.started;
+    }
 
     // ----- camera -----
     const P = game.player, mode = game.cam.mode, inside2 = game.where !== 'out';
@@ -140,6 +214,29 @@ export default function Player() {
     camTgt.set(P.x, P.y + height, P.z);
     if (!game.started) { // attract orbit over the city
       const t = performance.now() / 12000; camera.position.set(P.x + Math.sin(t) * 60, 45, P.z + Math.cos(t) * 60); camera.lookAt(P.x, 10, P.z); return;
+    }
+    const cam = camera as THREE.PerspectiveCamera;
+    const wantFov = me ? 60 + Math.min(16, game.speed * 0.22) : 62;
+    if (Math.abs(st.fov - wantFov) > 0.05) { st.fov += (wantFov - st.fov) * Math.min(1, dt * 3); cam.fov = st.fov; cam.updateProjectionMatrix(); }
+    game.shake = Math.max(0, game.shake - dt * 2.2);
+    if (me) {
+      st.carYaw += angDiff(st.carYaw, me.yaw) * Math.min(1, dt * (3.5 + game.speed * 0.06));
+      const cyaw = st.carYaw + Math.PI + st.look, cm = game.cam.carMode; game.cam.yaw = cyaw;
+      const sh = game.shake * 0.25, jx = (Math.random() - 0.5) * sh, jy = (Math.random() - 0.5) * sh;
+      if (cm === 2) { // hood camera
+        const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), hy = me.def.kind === 'bike' ? 1.55 : me.def.kind === 'truck' ? 2.7 : me.def.hgt * 0.82;
+        camera.position.set(me.x + fx * (me.def.kind === 'bike' ? -0.1 : me.def.len * 0.12) + jx, me.y + hy + jy, me.z + fz * (me.def.kind === 'bike' ? -0.1 : me.def.len * 0.12));
+        const ly = me.yaw + st.look; want.set(camera.position.x + Math.sin(ly) * 10, camera.position.y - 0.6 - st.lookP * 6 - me.pitch * 10, camera.position.z + Math.cos(ly) * 10);
+        camera.lookAt(want); return;
+      }
+      const L = me.def.len, dist2 = cm === 0 ? 3.6 + L * 0.75 : 7 + L * 1.1, ht = me.def.hgt * 0.9 + (cm === 0 ? 0.55 : 1.3), pitch2 = (cm === 0 ? 0.1 : 0.18) + st.lookP;
+      camTgt.set(me.x, me.y + ht, me.z);
+      const cx = Math.sin(cyaw) * Math.cos(pitch2), cz = Math.cos(cyaw) * Math.cos(pitch2), cy = Math.sin(pitch2);
+      let d2 = dist2;
+      for (let k = 1; k <= 12; k++) { const t = (k / 12) * dist2, x = camTgt.x + cx * t, y = camTgt.y + cy * t, z = camTgt.z + cz * t; if (pointBlocked(x, y, z) || y < groundAt(x, z) + 0.3) { d2 = Math.max(1.2, t - dist2 / 12); break; } }
+      want.set(camTgt.x + cx * d2 + jx, camTgt.y + cy * d2 + jy, camTgt.z + cz * d2);
+      camPos.lerp(want, Math.min(1, dt * 12)); if (camPos.distanceTo(want) > 12) camPos.copy(want);
+      camera.position.copy(camPos); camera.lookAt(camTgt.x, camTgt.y - 0.15, camTgt.z); return;
     }
     if (mode === 2) {
       camera.position.set(P.x - Math.sin(yaw) * 0.15, P.y + (P.crouch ? 1.0 : 1.66), P.z - Math.cos(yaw) * 0.15);

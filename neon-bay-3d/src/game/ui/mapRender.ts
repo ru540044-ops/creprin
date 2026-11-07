@@ -1,4 +1,4 @@
-import { blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD } from '../world/cityGen';
+import { GARAGE, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD } from '../world/cityGen';
 
 /** World bounds of the map image and its scale. */
 export const MAP = { x0: -1560, z0: -1760, x1: 1120, z1: 1120, s: 0.3 };
@@ -33,5 +33,5 @@ export function mapImage() {
   img = cv; return cv;
 }
 
-export const POI = () => doors.map((d) => ({ x: d.x, z: d.z, c: d.color, t: d.label }));
+export const POI = () => [...doors.map((d) => ({ x: d.x, z: d.z, c: d.color, t: d.label })), { x: GARAGE.x, z: GARAGE.z + 20, c: '#3dffb0', t: 'GARAGE' }];
 export { N };

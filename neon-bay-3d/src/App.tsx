@@ -6,10 +6,13 @@ import Environment from './game/world/Environment';
 import Interiors from './game/world/Interiors';
 import Player from './game/player/Player';
 import HUD from './game/ui/HUD';
+import Vehicles from './game/vehicles/Vehicles';
+import { vehicles, playerCar, owned, spawn, remove, drive, collisions } from './game/vehicles/sim';
+import { initAudio } from './game/audio';
 import { game, load, save, clearSave, Quality } from './game/state/store';
 import { bindKeyboard, input } from './game/input';
-import { doors, SPAWN, groundAt } from './game/world/cityGen';
-(window as any).__nb3d = { game, input, doors, SPAWN, groundAt };
+import { doors, SPAWN, groundAt, buildings } from './game/world/cityGen';
+(window as any).__nb3d = { game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions };
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -46,6 +49,7 @@ function Scene({ quality }: { quality: Quality }) {
       <City shadows={q.shadows} />
       <Interiors where={where} />
       <Player />
+      <Vehicles />
       <Waypoint />
       <Ticker />
     </>
@@ -82,18 +86,20 @@ export default function App() {
       {started ? <HUD quality={quality} setQuality={setQuality} /> : (
         <div className="overlay title">
           <div className="tcard">
-            <p className="eyebrow">オープンワールド · 第1段階</p>
+            <p className="eyebrow">オープンワールド · 第2段階</p>
             <h1>Neon Bay</h1>
-            <p className="lede">3Dの街を自由に歩き回れます。ダウンタウン、商店街、住宅街、工業地帯、公園、ビーチ、港、空港、山、高速道路。店のドアの前でアクションを押すと中に入れます。</p>
+            <p className="lede">3Dの街を歩いて、車に乗って走れます。道ばたの車に近づいて「乗る」。スマホの Bay Motors でスーパーカーを買うと、セーフハウス近くのガレージに届きます。</p>
             <ul className="how">
               <li><b>移動</b>{game.isTouch ? '左側のスティック' : 'W A S D'}</li>
               <li><b>視点</b>{game.isTouch ? '右側をドラッグ' : 'マウスをドラッグ'}</li>
-              <li><b>操作</b>{game.isTouch ? 'ジャンプ・ダッシュ・しゃがむ・アクション・視点ボタン' : 'Space ジャンプ · Shift ダッシュ · C しゃがむ · E 入る · V 視点'}</li>
+              <li><b>操作</b>{game.isTouch ? 'ジャンプ・ダッシュ・しゃがむ・アクション・視点ボタン' : 'Space ジャンプ · Shift ダッシュ · C しゃがむ · E 入る/乗る · V 視点'}</li>
+              <li><b>運転</b>{game.isTouch ? '左 ◀ ▶ でハンドル、右にアクセル・ブレーキ(バック)・サイド・降車' : 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイド · E 降りる'}</li>
+              <li><b>スマホ</b>{game.isTouch ? '右上の「スマホ」' : 'P キー'}：車の購入・ガレージ・マップ・設定</li>
               <li><b>マップ</b>ミニマップをタップで全体マップ、タップで目的地設定</li>
               <li><b>セーブ</b>5秒ごとに自動保存</li>
             </ul>
-            <p className="note">車・NPC・警察・ミッションは次の段階で追加します（この段階では未実装です）。</p>
-            <button type="button" className="go" onClick={() => { game.started = true; setStarted(true); }}>{hadSave ? '続きから' : 'スタート'}</button>
+            <p className="note">NPC・交通・警察・ミッション・お金を稼ぐ手段は次の段階で追加します（まだ未実装です）。所持金 $50,000 から始まります。</p>
+            <button type="button" className="go" onClick={() => { initAudio(); game.started = true; setStarted(true); }}>{hadSave ? '続きから' : 'スタート'}</button>
             {hadSave && <button type="button" className="sub" onClick={() => { clearSave(); location.reload(); }}>最初からやり直す</button>}
           </div>
         </div>
