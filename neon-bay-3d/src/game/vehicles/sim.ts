@@ -8,7 +8,8 @@ export interface Veh {
   id: number; def: VDef; color: string; x: number; z: number; y: number; yaw: number; vx: number; vz: number; yr: number;
   steer: number; hp: number; slot: number; owned: number; touched: boolean; drift: boolean; gear: number; rpm: number;
   braking: boolean; reversing: boolean; spin: number; pitch: number; roll: number; slip: number; dead: boolean; burn: number; lean: number;
-  role: '' | 'police' | 'armored' | 'traffic'; ai: AI | null; // AI-driven cars carry their driver state
+  role: '' | 'police' | 'armored' | 'traffic'; ai: AI | null;
+  door: number; squat: number; blink: number; blinkT: number; gearPrev: number; fvPrev: number; // animation state // AI-driven cars carry their driver state
 }
 /** Per-car AI driver: route on the road grid plus the controls it decided on this frame. */
 export interface AI { ctl: Drive | null; ni: number; nj: number; pi: number; pj: number; stuck: number; rev: number; revSteer: number; direct: number; t: number; [k: string]: any }
@@ -21,7 +22,7 @@ export const owned = ownedCars;
 
 export function spawn(kind: VKind, x: number, z: number, yaw: number, color?: string, slot = -1, ownedIdx = -1): Veh {
   const def = VDEFS[kind];
-  const v: Veh = { id: nextId++, def, color: color || def.colors[0], x, z, y: groundAt(x, z), yaw, vx: 0, vz: 0, yr: 0, steer: 0, hp: def.hp, slot, owned: ownedIdx, touched: false, drift: false, gear: 0, rpm: 0, braking: false, reversing: false, spin: 0, pitch: 0, roll: 0, slip: 0, dead: false, burn: 0, lean: 0, role: '', ai: null };
+  const v: Veh = { id: nextId++, def, color: color || def.colors[0], x, z, y: groundAt(x, z), yaw, vx: 0, vz: 0, yr: 0, steer: 0, hp: def.hp, slot, owned: ownedIdx, touched: false, drift: false, gear: 0, rpm: 0, braking: false, reversing: false, spin: 0, pitch: 0, roll: 0, slip: 0, dead: false, burn: 0, lean: 0, role: '', ai: null, door: 0, squat: 0, blink: 0, blinkT: 0, gearPrev: 0, fvPrev: 0 };
   vehicles.push(v); if (slot >= 0) activeSlot.add(slot); return v;
 }
 export function remove(v: Veh) { const i = vehicles.indexOf(v); if (i >= 0) vehicles.splice(i, 1); if (v.slot >= 0 && !v.touched) activeSlot.delete(v.slot); }
@@ -98,7 +99,9 @@ export function drive(v: Veh, c: Drive | null, dt: number) {
   // body follows terrain / curbs
   const gy = groundAt(v.x, v.z); v.y += (gy - v.y) * Math.min(1, dt * 12);
   v.pitch += (Math.atan2(hF - hB, 3) - v.pitch) * Math.min(1, dt * 8);
-  v.roll += (clamp(-v.yr * fv * 0.004, -0.08, 0.08) - v.roll) * Math.min(1, dt * 6);
+  v.roll += (clamp(-v.yr * fv * 0.011, -0.11, 0.11) - v.roll) * Math.min(1, dt * 5);
+  const la = (fv - v.fvPrev) / Math.max(dt, 1e-3); v.fvPrev = fv;
+  v.squat += (clamp(la * 0.0075, -0.065, 0.05) - v.squat) * Math.min(1, dt * 7);
   v.lean += ((d.kind === 'bike' ? clamp(-v.yr * fv * 0.05, -0.75, 0.75) : 0) - v.lean) * Math.min(1, dt * 6);
   v.spin += (fv / d.wheelR) * dt;
   if (c && Math.hypot(v.vx, v.vz) > 0.5) v.touched = true;

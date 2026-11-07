@@ -8,6 +8,8 @@ import Player from './game/player/Player';
 import HUD from './game/ui/HUD';
 import Vehicles from './game/vehicles/Vehicles';
 import CrimeView from './game/crime/CrimeView';
+import Birds from './game/world/Birds';
+import { wind } from './game/world/City';
 import { PedsView, FXView } from './game/ai/PedsView';
 import { peds } from './game/ai/peds';
 import * as pedsMod from './game/ai/peds';
@@ -43,7 +45,9 @@ function Ticker() {
   useFrame((st, dt) => {
     acc.current.t += dt; acc.current.n++; if (acc.current.t > 0.5) { game.fps = Math.round(acc.current.n / acc.current.t); acc.current.t = 0; acc.current.n = 0; }
     if (game.toastT > 0) game.toastT -= dt;
+    if (game.hurtT > 0) game.hurtT -= dt;
     if (game.started) game.clock += dt;
+    wind.value += dt;
   });
   return null;
 }
@@ -62,6 +66,7 @@ function Scene({ quality }: { quality: Quality }) {
       <CrimeView />
       <PedsView />
       <FXView />
+      <Birds />
       <Waypoint />
       <Ticker />
     </>
@@ -98,7 +103,7 @@ export default function App() {
       {started ? <HUD quality={quality} setQuality={setQuality} /> : (
         <div className="overlay title">
           <div className="tcard">
-            <p className="eyebrow">オープンワールド · 第3段階</p>
+            <p className="eyebrow">オープンワールド · 第3.5段階</p>
             <h1>Neon Bay</h1>
             <p className="lede">3Dの街を歩いて、車に乗って走れます。道ばたの車に近づいて「乗る」。スマホの Bay Motors でスーパーカーを買うと、セーフハウス近くのガレージに届きます。</p>
             <ul className="how">

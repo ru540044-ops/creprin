@@ -18,10 +18,22 @@ export const ARMOR_PRICE = 800;
 
 /** What the auto-aim is locked onto. */
 export type Target = { ped: Ped } | { veh: Veh };
-export const combat = { cool: 0, lock: null as Target | null, punchT: 0, recoil: 0, lastShot: 0 };
+export const combat = { cool: 0, lock: null as Target | null, punchT: 0, recoil: 0, lastShot: 0, reload: 0, reloadDur: 1 };
+export const MAG = { pistol: 12, smg: 30 };
+/** Start a reload if the magazine is not full and there is spare ammo. */
+export function startReload() {
+  const id = game.arms.cur as 'pistol' | 'smg'; if (id !== 'pistol' && id !== 'smg' || combat.reload > 0) return;
+  if (game.arms.mag[id] >= MAG[id] || game.arms.ammo[id] <= 0) return;
+  combat.reloadDur = combat.reload = id === 'smg' ? 1.7 : 1.15; sfx('door', 0.35);
+}
+/** Called every frame: finish reloads (moves rounds from the reserve into the magazine). */
+export function tickWeapons(dt: number) {
+  if (combat.reload > 0 && (combat.reload -= dt) <= 0) { const id = game.arms.cur as 'pistol' | 'smg'; if (id === 'pistol' || id === 'smg') { const n = Math.min(MAG[id] - game.arms.mag[id], game.arms.ammo[id]); game.arms.mag[id] += n; game.arms.ammo[id] -= n; sfx('ui', 0.6); } }
+}
 
 export const armed = () => game.arms.cur !== 'fist';
 export function cycleWeapon() {
+  combat.reload = 0;
   const order: WeaponId[] = ['fist', 'pistol', 'smg'], have = order.filter((w) => w === 'fist' || game.arms.owned[w as 'pistol' | 'smg']);
   const i = have.indexOf(game.arms.cur as WeaponId); game.arms.cur = have[(i + 1) % have.length]; sfx('ui');
   toast(WEAPONS[game.arms.cur as WeaponId].name, 0.9);
@@ -63,9 +75,10 @@ export function fire(ox: number, oy: number, oz: number, dx: number, dy: number,
     if (hit) { hitPed(hit, W.dmg, dx * 3, dz * 3, true); impact(hit.x, hit.y + 1.4, hit.z, false); if (copSees(hit.x, hit.z, 50)) setWanted(Math.max(1, game.wanted), '暴行'); }
     return true;
   }
-  const ammo = game.arms.ammo[id as 'pistol' | 'smg'];
-  if (ammo <= 0) { combat.cool = 0.4; sfx('ui'); toast('弾切れ（BAY ARMSで購入）', 1.2); return false; }
-  game.arms.ammo[id as 'pistol' | 'smg'] = ammo - 1;
+  if (combat.reload > 0) return false;
+  const gid = id as 'pistol' | 'smg';
+  if (game.arms.mag[gid] <= 0) { if (game.arms.ammo[gid] > 0) startReload(); else { combat.cool = 0.4; sfx('ui'); toast('弾切れ（BAY ARMSで購入）', 1.2); } return false; }
+  game.arms.mag[gid] -= 1; if (game.arms.mag[gid] === 0 && game.arms.ammo[gid] > 0) setTimeout(startReload, 150);
   combat.recoil = 1; combat.lastShot = performance.now();
   flash(ox + dx * 0.4, oy + dy * 0.4, oz + dz * 0.4, id === 'smg' ? 0.8 : 1); sfx('shot', id === 'smg' ? 0.55 : 0.8);
   scare(ox, oz, 55);
@@ -108,5 +121,6 @@ export function buy(item: 'pistol' | 'smg' | 'pistolAmmo' | 'smgAmmo' | 'armor')
   if (item === 'pistolAmmo') A.ammo.pistol += WEAPONS.pistol.pack;
   if (item === 'smgAmmo') A.ammo.smg += WEAPONS.smg.pack;
   if (item === 'armor') A.armor = 100;
+  for (const g of ['pistol', 'smg'] as const) if (A.owned[g] && A.mag[g] < MAG[g]) { const n = Math.min(MAG[g] - A.mag[g], A.ammo[g]); A.mag[g] += n; A.ammo[g] -= n; }
   sfx('buy'); save(); return null;
 }

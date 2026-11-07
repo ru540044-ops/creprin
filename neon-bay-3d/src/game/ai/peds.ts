@@ -5,13 +5,17 @@ import { pedsAhead } from './traffic';
 import { setWanted, copSees } from '../crime/crime';
 import { sfx } from '../audio';
 import { clamp } from '../world/rng';
+import { gaitFor, Gait, IDLE_VARIANTS, IdleVariant } from '../anim/pose';
+import { signalState } from '../world/City';
+import { combat } from '../combat/weapons';
 
 /** Pedestrians walk the sidewalk ring of each block, cross at corners, and react to danger. */
-export type PedState = 'walk' | 'idle' | 'cross' | 'flee' | 'down' | 'dead' | 'hands';
+export type PedState = 'walk' | 'idle' | 'cross' | 'flee' | 'down' | 'dead' | 'hands' | 'wait' | 'cower' | 'handsup' | 'getup';
 export interface Ped {
   id: number; x: number; z: number; y: number; yaw: number; vx: number; vz: number; vy: number;
   state: PedState; t: number; blk: number; corner: number; dir: number; tx: number; tz: number;
   hp: number; look: number; phase: number; speed: number; fall: number; scale: number; callT: number; fx: number; fz: number; cash: number;
+  gait: Gait; idleV: IdleVariant; idleDur: number; fdir: number; fside: number; head: number; flail: boolean; aimedT: number; crossBlk: number; crossCorner: number;
 }
 export const peds: Ped[] = [];
 export const pickups: { x: number; z: number; y: number; amount: number; t: number }[] = [];
@@ -40,7 +44,8 @@ function spawnPed(px: number, pz: number) {
     const x = a.x + (e.x - a.x) * t, z = a.z + (e.z - a.z) * t, d = Math.hypot(x - px, z - pz);
     if (d < 40 || d > 140) continue;
     if (k < 10 && (x - px) * bx + (z - pz) * bz < 0 && d < 90) continue; // do not pop in right in front of the camera
-    const p: Ped = { id: nextId++, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'walk', t: 0, blk: b, corner: (c + 1) & 3, dir: 1, tx: 0, tz: 0, hp: 100, look: Math.floor(Math.random() * 1e6), phase: Math.random() * 6, speed: 1.2 + Math.random() * 0.5, fall: 0, scale: 0.92 + Math.random() * 0.16, callT: 0, fx: 0, fz: 0, cash: 10 + Math.floor(Math.random() * 60) };
+    const p: Ped = { id: nextId++, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'walk', t: 0, blk: b, corner: (c + 1) & 3, dir: 1, tx: 0, tz: 0, hp: 100, look: Math.floor(Math.random() * 1e6), phase: Math.random() * 6, speed: 1.2 + Math.random() * 0.5, fall: 0, scale: 0.92 + Math.random() * 0.16, callT: 0, fx: 0, fz: 0, cash: 10 + Math.floor(Math.random() * 60), gait: gaitFor(0), idleV: 'look' as IdleVariant, idleDur: 1, fdir: 1, fside: 0, head: 0, flail: false, aimedT: 0, crossBlk: 0, crossCorner: 0 };
+    p.gait = gaitFor(p.look); p.speed = p.gait.speed; p.flail = Math.random() < 0.5;
     if (Math.random() < 0.5) { p.dir = -1; p.corner = c; }
     setTarget(p); peds.push(p); return p;
   }
@@ -50,25 +55,29 @@ function spawnPed(px: number, pz: number) {
 /** A ped who just got out of a car (carjacked driver): runs away. */
 export function ejectPed(x: number, z: number, fromX: number, fromZ: number) {
   if (peds.length >= PED_MAX) peds.shift();
-  const p: Ped = { id: nextId++, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'flee', t: 7, blk: 0, corner: 0, dir: 1, tx: x, tz: z, hp: 100, look: Math.floor(Math.random() * 1e6), phase: 0, speed: 1.4, fall: 0, scale: 1, callT: Math.random() < 0.6 ? 6 : 0, fx: fromX, fz: fromZ, cash: 40 };
+  const p: Ped = { id: nextId++, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'flee', t: 7, blk: 0, corner: 0, dir: 1, tx: x, tz: z, hp: 100, look: Math.floor(Math.random() * 1e6), phase: 0, speed: 1.4, fall: 0, scale: 1, callT: Math.random() < 0.6 ? 6 : 0, fx: fromX, fz: fromZ, cash: 40, gait: gaitFor(0), idleV: 'look' as IdleVariant, idleDur: 1, fdir: 1, fside: 0, head: 0, flail: false, aimedT: 0, crossBlk: 0, crossCorner: 0 };
+  p.gait = gaitFor(p.look); p.flail = true;
   peds.push(p); return p;
 }
 
 /** Everyone within r runs away from (x,z). */
 export function scare(x: number, z: number, r: number) {
-  for (const p of peds) if ((p.state === 'walk' || p.state === 'idle' || p.state === 'cross') && Math.hypot(p.x - x, p.z - z) < r) { p.state = 'flee'; p.t = 6 + Math.random() * 4; p.fx = x; p.fz = z; }
+  for (const p of peds) if ((p.state === 'walk' || p.state === 'idle' || p.state === 'cross' || p.state === 'wait') && Math.hypot(p.x - x, p.z - z) < r) {
+    if (Math.hypot(p.x - x, p.z - z) < 16 && Math.random() < 0.35) { p.state = 'cower'; p.t = 2 + Math.random() * 2.5; } else { p.state = 'flee'; p.t = 6 + Math.random() * 4; }
+    p.fx = x; p.fz = z;
+  }
 }
 
 /** Damage a ped. Knockdown for big hits, death at 0 hp (drops cash). byPlayer drives the police reaction. */
 export function hitPed(p: Ped, dmg: number, kx: number, kz: number, byPlayer: boolean) {
   if (p.state === 'dead') return;
-  p.hp -= dmg;
+  p.hp -= dmg; if (p.hp < 60) p.gait = { ...p.gait, limp: 0.7 };
   if (p.hp <= 0) {
-    p.state = 'dead'; p.t = 40; p.vx = kx; p.vz = kz; p.vy = Math.min(5, Math.hypot(kx, kz) * 0.35);
+    p.state = 'dead'; p.t = 40; p.fdir = (kx * Math.sin(p.yaw) + kz * Math.cos(p.yaw)) > 0 ? -1 : 1; p.fside = (Math.random() - 0.5) * 1.4; p.vx = kx; p.vz = kz; p.vy = Math.min(5, Math.hypot(kx, kz) * 0.35);
     pickups.push({ x: p.x, z: p.z, y: p.y, amount: p.cash, t: 45 });
     if (byPlayer) { if (copSees(p.x, p.z, 70)) setWanted(Math.max(2, game.wanted), '警察の目の前で人を倒した'); else if (Math.random() < 0.35) setTimeout(() => { if (game.wanted < 1) setWanted(1, '目撃者が通報した'); }, 5000); }
   } else if (dmg >= 18 || Math.hypot(kx, kz) > 4) {
-    p.state = 'down'; p.t = 2.5 + Math.random() * 1.5; p.vx = kx; p.vz = kz; p.vy = Math.min(4, Math.hypot(kx, kz) * 0.3);
+    p.state = 'down'; p.t = 2.5 + Math.random() * 1.5; p.fdir = (kx * Math.sin(p.yaw) + kz * Math.cos(p.yaw)) > 0 ? -1 : 1; p.fside = (Math.random() - 0.5); p.vx = kx; p.vz = kz; p.vy = Math.min(4, Math.hypot(kx, kz) * 0.3);
     if (byPlayer && Math.random() < 0.5) p.callT = 7;
   } else { p.state = 'flee'; p.t = 7; p.fx = p.x - kx; p.fz = p.z - kz; }
   scare(p.x, p.z, 18);
@@ -105,12 +114,13 @@ export function updatePeds(dt: number) {
   pedsAhead.length = 0;
   for (const p of peds) {
     p.t -= dt;
+    if (p.state === 'getup') { if (p.t <= 0) { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; p.fall = 0; } continue; }
     if (p.state === 'dead' || p.state === 'down') {
       // tumble with the knock velocity, then lie there
       p.vy -= 18 * dt; p.x += p.vx * dt; p.z += p.vz * dt; p.y += p.vy * dt; const g = groundAt(p.x, p.z);
       if (p.y <= g) { p.y = g; p.vy = 0; p.vx *= 1 - Math.min(1, dt * 6); p.vz *= 1 - Math.min(1, dt * 6); }
       collide(p, 0.3, p.y, 0.5); p.fall = Math.min(1, p.fall + dt * 5);
-      if (p.state === 'down' && p.t <= 0) { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; }
+      if (p.state === 'down' && p.t <= 0) { p.state = 'getup'; p.t = 1.0; }
       continue;
     }
     p.fall = Math.max(0, p.fall - dt * 3);
@@ -123,7 +133,17 @@ export function updatePeds(dt: number) {
     }
     const st2 = p.state as PedState; if (st2 === 'down' || st2 === 'dead') continue;
     let wx = 0, wz = 0, sp = 0;
-    if (p.state === 'hands') {
+    // being aimed at: hands up (or bolt)
+    const L = combat.lock, aimed = !!L && 'ped' in L && L.ped === p;
+    if (aimed && (p.state === 'walk' || p.state === 'idle' || p.state === 'cross' || p.state === 'wait')) { if (Math.random() < 0.65) { p.state = 'handsup'; p.t = 99; } else { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; } }
+    if (p.state === 'handsup') { p.aimedT = aimed ? 0 : p.aimedT + dt; p.yaw += angDiff(p.yaw, Math.atan2(pl.x - p.x, pl.z - p.z)) * Math.min(1, dt * 6); if (p.aimedT > 1.8) { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; p.aimedT = 0; } }
+    else if (p.state === 'cower') { if (p.t <= 0) { p.state = 'flee'; p.t = 6; } }
+    else if (p.state === 'wait') { // at the kerb until the cars on that road get a red light
+      const B = blocks[p.blk], ni = p.corner === 0 || p.corner === 3 ? B.i : B.i + 1, nj = p.corner < 2 ? B.j : B.j + 1, horiz = Math.abs(corner(p.crossBlk, p.crossCorner).x - p.x) > 3;
+      const ok = (ni + nj) % 2 !== 0 || signalState(ni, nj, horiz ? 0 : 1, game.clock) === 2;
+      if (ok || p.t <= 0) { p.blk = p.crossBlk; p.corner = p.crossCorner; p.state = 'cross'; setTarget(p); }
+    }
+    else if (p.state === 'hands') {
       if (p.t <= 0) { game.money += p.cash; sfx('buy'); toast('+$' + p.cash + '（カツアゲ）', 1.8); p.cash = 0; p.state = 'flee'; p.t = 8; p.fx = game.player.x; p.fz = game.player.z; if (Math.random() < 0.45) p.callT = 5; }
     } else if (p.state === 'flee') {
       const dx = p.x - p.fx, dz = p.z - p.fz, L = Math.hypot(dx, dz) || 1; wx = dx / L; wz = dz / L; sp = 5.2;
@@ -137,8 +157,8 @@ export function updatePeds(dt: number) {
       if (d < 0.6) {
         if (p.state === 'cross') { p.state = 'walk'; }
         const r = Math.random();
-        if (r < 0.2) { p.state = 'idle'; p.t = 2 + Math.random() * 4; }
-        else if (r < 0.38) { const a = across(p.blk, p.corner); if (a) { p.blk = a[0]; p.corner = a[1]; p.state = 'cross'; setTarget(p); continue; } }
+        if (r < 0.2 && p.gait.kind !== 'jogger') { p.state = 'idle'; p.t = 3 + Math.random() * 6; p.idleDur = p.t; p.idleV = IDLE_VARIANTS[1 + Math.floor(Math.random() * (IDLE_VARIANTS.length - 1))]; }
+        else if (r < 0.4) { const a = across(p.blk, p.corner); if (a) { p.crossBlk = a[0]; p.crossCorner = a[1]; p.state = 'wait'; p.t = 18; continue; } }
         p.corner = (p.corner + p.dir + 4) & 3; setTarget(p);
       } else { wx = dx / d; wz = dz / d; sp = p.speed * (p.state === 'cross' ? 1.3 : 1); }
     }
@@ -151,7 +171,10 @@ export function updatePeds(dt: number) {
     if (out && !me) { const dx = p.x - pl.x, dz = p.z - pl.z, d = Math.hypot(dx, dz); if (d < 0.7 && d > 1e-3) { p.x += (dx / d) * (0.7 - d); p.z += (dz / d) * (0.7 - d); } }
     p.y += (groundAt(p.x, p.z) - p.y) * Math.min(1, dt * 12);
     const s = Math.hypot(p.vx, p.vz); if (s > 0.2) p.yaw += angDiff(p.yaw, Math.atan2(p.vx, p.vz)) * Math.min(1, dt * 10);
-    p.phase += dt * s * 2.6;
+    p.phase += dt * (s > 0.15 ? 2.5 + s * 1.2 : 0) * p.gait.cadence;
+    // glance at the player when close
+    const pd = Math.hypot(pl.x - p.x, pl.z - p.z), want = out && pd < 6 && (p.state === 'walk' || p.state === 'idle' || p.state === 'wait') ? clamp(angDiff(p.yaw, Math.atan2(pl.x - p.x, pl.z - p.z)), -1.1, 1.1) : 0;
+    p.head += (want - p.head) * Math.min(1, dt * 4);
     if (p.state === 'cross' || p.state === 'flee') pedsAhead.push(p);
   }
   // cash pickups

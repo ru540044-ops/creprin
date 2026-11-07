@@ -138,6 +138,25 @@ function usePropGeos() {
   }, []);
 }
 
+/** Wind: foliage vertices sway with height, each tree with its own phase (vertex shader). */
+export const wind = { value: 0 };
+function addWind(m: THREE.Material) {
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uWind = wind;
+    sh.vertexShader = 'uniform float uWind;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef USE_INSTANCING
+  vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+#else
+  vec3 ip = vec3(0.0);
+#endif
+  float hh = max(0.0, position.y - 1.2);
+  float ph = uWind * 1.25 + ip.x * 0.11 + ip.z * 0.07;
+  float gust = 0.6 + 0.4 * sin(uWind * 0.23 + ip.x * 0.01);
+  transformed.x += (sin(ph) * 0.045 + sin(ph * 2.9 + position.z) * 0.015) * hh * gust;
+  transformed.z += (cos(ph * 0.87) * 0.035 + sin(ph * 3.3 + position.x) * 0.012) * hh * gust;`);
+  };
+}
+
 function bucket<T extends { x: number; z: number }>(list: T[]) {
   const m = new Map<string, T[]>();
   for (const it of list) { const k = Math.floor(it.x / CH) + ',' + Math.floor(it.z / CH); let a = m.get(k); if (!a) m.set(k, (a = [])); a.push(it); }
@@ -152,6 +171,7 @@ function PropsChunk({ k, B, mats, pg, adMats }: { k: string; B: Record<string, M
     bin: new THREE.MeshStandardMaterial({ color: '#2f4f3a', roughness: 0.6 }), red: new THREE.MeshStandardMaterial({ color: '#c2271d', roughness: 0.5 }),
     cont: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55, metalness: 0.4 }), cloth: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 }),
   }), []);
+  useMemo(() => { for (const m of [pm.leaf, pm.palm, pm.pine]) addWind(m); }, [pm]);
   const L = (n: string) => B[n].get(k) || [];
   const lamps = L('lamps'), trees = L('trees'), palms = L('palms'), pines = L('pines');
   const leafCols = useMemo(() => trees.map((_, i) => [0.2 + ((i * 37) % 10) / 60, 0.42 + ((i * 13) % 10) / 50, 0.2]), [trees]);

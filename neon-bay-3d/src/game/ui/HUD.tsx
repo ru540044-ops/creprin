@@ -145,6 +145,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
   useTicker(100);
   const [map, setMap] = useState(false);
   const [phone, setPhone] = useState(false);
+  useEffect(() => { game.phone = phone; }, [phone]);
   useEffect(() => { const id = setInterval(() => { if (input.phone) { input.phone = false; setPhone((v) => !v); } }, 50); return () => clearInterval(id); }, []);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPhone(false); setMap(false); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
   const me = playerCar(), driving = !!me, js = jobStatus();
@@ -173,7 +174,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
         <div className="tr">
           <Minimap onOpen={() => setMap(true)} />
           <div className="money">${game.money.toLocaleString('en-US')}</div>
-          {!driving && game.arms.cur !== 'fist' && <div className="weap">{WEAPONS[game.arms.cur as 'pistol'].name} <b>{game.arms.ammo[game.arms.cur as 'pistol']}</b></div>}
+          {!driving && game.arms.cur !== 'fist' && <div className="weap">{WEAPONS[game.arms.cur as 'pistol'].name} <b>{combat.reload > 0 ? 'リロード中' : game.arms.mag[game.arms.cur as 'pistol']}</b> / {game.arms.ammo[game.arms.cur as 'pistol']}</div>}
           <div className={'stars' + (game.wanted > 0 && !law.seen ? ' search' : '')} aria-label={'手配度 ' + game.wanted}>{[0, 1, 2, 3, 4].map((i) => <b key={i} className={i < game.wanted ? 'on' : ''}>★</b>)}</div>
           <div className="small">{String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} · {game.fps} FPS</div>
           <div className="chips">
@@ -182,6 +183,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           </div>
         </div>
       </div>
+      {game.hurtT > 0 && <div className="hurt" style={{ opacity: Math.min(1, game.hurtT * 1.6) }} />}
       {law.over && <div className={'over ' + law.over.kind}><b>{law.over.kind === 'busted' ? 'BUSTED' : 'WASTED'}</b><span>{law.over.kind === 'busted' ? '逮捕' : '死亡'}　-${law.over.fine.toLocaleString('en-US')}</span></div>}
       {showDistrict && <div className="district">{district.name}</div>}
       {game.toastT > 0 && <div className="toast">{game.toast}</div>}

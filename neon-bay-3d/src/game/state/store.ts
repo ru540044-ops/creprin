@@ -18,8 +18,11 @@ export const game = {
   where: 'out' as string, // 'out' or an interior id
   near: null as null | { kind: 'door' | 'exit' | 'car' | 'job'; label: string; id: string; btn?: string },
   lastDoor: '', // id of the door the player last came in through
-  arms: { owned: { pistol: false, smg: false }, ammo: { pistol: 0, smg: 0 }, cur: 'fist' as string, armor: 0 },
-  ui: '' as string, // full-screen shop panel currently open ('' = none)
+  arms: { owned: { pistol: false, smg: false }, ammo: { pistol: 0, smg: 0 }, mag: { pistol: 0, smg: 0 }, cur: 'fist' as string, armor: 0 },
+  ui: '' as string,
+  phone: false, // in-game phone open (the character holds it)
+  carAnim: 0, // 1 while getting into a car (driving is blocked)
+  hurtT: 0, // red damage flash timer // full-screen shop panel currently open ('' = none)
   radio: 0, // car radio station (0 = off)
   inCar: 0, // id of the vehicle the player is driving, 0 = on foot
   speed: 0, // m/s of the player's vehicle
@@ -59,7 +62,7 @@ export function load(): boolean {
     game.money = s.money ?? game.money; game.hour = s.hour ?? game.hour;
     if (s.v === 1) game.money = Math.max(game.money, 50000); // saves from before cars existed get the starting car budget
     if (Array.isArray(s.owned)) { ownedCars.length = 0; for (const o of s.owned) if (o && typeof o.kind === 'string') ownedCars.push({ kind: o.kind, color: String(o.color) }); }
-    if (s.arms && s.arms.owned) { Object.assign(game.arms.owned, s.arms.owned); Object.assign(game.arms.ammo, s.arms.ammo || {}); game.arms.armor = s.arms.armor || 0; game.arms.cur = s.arms.cur || 'fist'; }
+    if (s.arms && s.arms.owned) { Object.assign(game.arms.owned, s.arms.owned); Object.assign(game.arms.ammo, s.arms.ammo || {}); Object.assign(game.arms.mag, s.arms.mag || {}); game.arms.armor = s.arms.armor || 0; game.arms.cur = s.arms.cur || 'fist'; }
     if (typeof s.radio === 'number') game.radio = s.radio;
     if (s.tb && typeof s.tb === 'object') Object.assign(progress.trialBest, s.tb);
     if (typeof s.ccam === 'number') game.cam.carMode = s.ccam; if (s.mute) audio.muted = true;

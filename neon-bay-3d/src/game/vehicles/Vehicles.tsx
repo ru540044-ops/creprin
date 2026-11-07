@@ -13,6 +13,9 @@ import { updateTraffic } from '../ai/traffic';
 import { updatePeds } from '../ai/peds';
 import { tickFx } from '../combat/fx';
 import { radioTick } from '../radio';
+import { tickWeapons } from '../combat/weapons';
+import { flash } from '../combat/fx';
+import { sfx } from '../audio';
 
 const models = new Map<number, CarModel>();
 
@@ -24,6 +27,41 @@ export function driveInput() {
   let steer = (k.has('d') || k.has('arrowright') || input.right ? 1 : 0) - (k.has('a') || k.has('arrowleft') || input.left ? 1 : 0);
   if (input.joyActive) steer = jx;
   return { thr, brake, steer, hb: k.has(' ') || input.hb };
+}
+
+/** Tyre smoke and skid marks from sliding / hard-braking / burnouts. */
+function TireFX() {
+  const NS = 70, NK = 800, glow = getTextures().glow;
+  const smoke = useMemo(() => { const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glow, color: '#d8d8dc', transparent: true, depthWrite: false, opacity: 0.5 }), NS); m.frustumCulled = false; return m; }, [glow]);
+  const marks = useMemo(() => { const g = new THREE.PlaneGeometry(0.26, 0.5).rotateX(-Math.PI / 2); const m = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: '#0b0b0d', transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), NK); m.frustumCulled = false; const z = new THREE.Matrix4().makeScale(0, 0, 0); for (let i = 0; i < NK; i++) m.setMatrixAt(i, z); return m; }, []);
+  const S = useMemo(() => ({ puffs: Array.from({ length: NS }, () => ({ x: 0, y: -99, z: 0, t: 0, s: 1 })), ps: 0, mk: 0, last: new Map<number, [number, number][]>(), age: new Float32Array(NK) }), []);
+  const m4 = useMemo(() => new THREE.Matrix4(), []), q = useMemo(() => new THREE.Quaternion(), []), p3 = useMemo(() => new THREE.Vector3(), []), s3 = useMemo(() => new THREE.Vector3(), []), up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  useFrame(({ camera }, dt) => {
+    let markDirty = false;
+    for (const v of vehicles) {
+      const sp = Math.hypot(v.vx, v.vz); if (sp < 2.5 || v.def.kind === 'bike') { S.last.delete(v.id); continue; }
+      const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), lx = Math.cos(v.yaw), lz = -Math.sin(v.yaw), hard = v.braking && sp > 12 && !v.reversing;
+      const skid = v.slip > 4 || hard || (v.id === game.inCar && v.rpm > 0.85 && sp < 7 && v.gear === 0);
+      if (!skid) { S.last.delete(v.id); continue; }
+      const rx = -v.def.wheelbase / 2, wz = v.def.wid / 2 - 0.16, prev = S.last.get(v.id) || [];
+      const now: [number, number][] = [];
+      [-1, 1].forEach((sd, k) => {
+        const x = v.x + fx * rx + lx * sd * wz, z = v.z + fz * rx + lz * sd * wz; now.push([x, z]);
+        const pv = prev[k];
+        if (!pv || Math.hypot(x - pv[0], z - pv[1]) > 0.42) {
+          const i = S.mk; S.mk = (S.mk + 1) % NK; S.age[i] = 25;
+          q.setFromAxisAngle(up, pv ? Math.atan2(x - pv[0], z - pv[1]) : v.yaw); p3.set(x, v.y + 0.03, z); s3.set(1, 1, 1); m4.compose(p3, q, s3); marks.setMatrixAt(i, m4); markDirty = true;
+          if (Math.random() < (v.slip > 4 ? 0.7 : 0.35)) { const P = S.puffs[S.ps]; S.ps = (S.ps + 1) % NS; P.x = x; P.y = v.y + 0.3; P.z = z; P.t = 1.4; P.s = 0.6; }
+        } else now[k] = pv;
+      });
+      S.last.set(v.id, now);
+    }
+    for (let i = 0; i < NK; i++) if (S.age[i] > 0 && (S.age[i] -= dt) <= 0) { marks.setMatrixAt(i, m4.makeScale(0, 0, 0)); markDirty = true; }
+    if (markDirty) marks.instanceMatrix.needsUpdate = true;
+    for (let i = 0; i < NS; i++) { const P = S.puffs[i]; if (P.t > 0) { P.t -= dt; P.y += dt * 0.9; P.s += dt * 2.2; } p3.set(P.x, P.y, P.z); s3.setScalar(P.t > 0 ? P.s : 0.0001); m4.compose(p3, camera.quaternion, s3); smoke.setMatrixAt(i, m4); }
+    smoke.instanceMatrix.needsUpdate = true;
+  });
+  return <><primitive object={marks} /><primitive object={smoke} /></>;
 }
 
 function Smoke() {
@@ -79,7 +117,7 @@ function VehicleView({ v }: { v: Veh }) {
     m.root.visible = Math.abs(v.x - camera.position.x) < 220 && Math.abs(v.z - camera.position.z) < 220;
     if (!m.root.visible) return;
     m.root.position.set(v.x, v.y, v.z); m.root.rotation.y = v.yaw;
-    m.tilt.rotation.x = -v.pitch; m.tilt.rotation.z = v.def.kind === 'bike' ? v.lean : v.roll;
+    m.tilt.rotation.x = -v.pitch - v.squat; m.tilt.rotation.z = v.def.kind === 'bike' ? v.lean : v.roll;
     if (m.paint.color.getHexString() !== v.color.slice(1)) m.paint.color.set(v.color);
     const dmg = 1 - v.hp / v.def.hp; m.paint.roughness = 0.28 + dmg * 0.5; m.paint.metalness = 0.55 - dmg * 0.35;
     m.body.position.y = v.dead ? -0.08 : 0; m.body.rotation.z = v.dead ? 0.03 : 0;
@@ -87,6 +125,9 @@ function VehicleView({ v }: { v: Veh }) {
     m.lights.head.emissiveIntensity = v.dead ? 0 : mine ? 0.6 + nightK * 2.2 : 0.15;
     m.lights.tail.emissiveIntensity = v.dead ? 0 : v.braking ? 3 : mine ? 0.6 + nightK * 0.9 : 0.25;
     if (m.lights.bar) { const on = !v.dead && !!v.ai && v.ai.mode === 'chase' && game.wanted > 0, ph = Math.floor(performance.now() / 160) % 2; m.lights.bar[0].emissiveIntensity = on ? (ph ? 5 : 0.3) : 0.15; m.lights.bar[1].emissiveIntensity = on ? (ph ? 0.3 : 5) : 0.15; }
+    if (m.door) m.door.rotation.y = -1.15 * v.door;
+    const blinkOn = Math.floor(performance.now() / 360) % 2 === 0;
+    if (m.lights.blinkL) { m.lights.blinkL.emissiveIntensity = (v.blink === 1 || v.blink === 2) && blinkOn ? 3.5 : 0; m.lights.blinkR!.emissiveIntensity = (v.blink === -1 || v.blink === 2) && blinkOn ? 3.5 : 0; m.lights.rev!.emissiveIntensity = v.reversing && !v.dead ? 2.5 : 0; }
     m.wheels.forEach((w, i) => { w.rotation.z = -v.spin; const front = v.def.kind === 'bike' ? i === 0 : w.position.x > 0; w.rotation.y = front ? v.steer : 0; });
   });
   return <primitive object={m.root} />;
@@ -110,12 +151,21 @@ export default function Vehicles() {
     const sub = 2, h = dt / sub;
     for (let s = 0; s < sub; s++) {
       for (const v of vehicles) {
-        if (v === me) drive(v, game.started && !law.over ? driveInput() : null, h);
+        if (v === me) drive(v, game.started && !law.over && !game.carAnim ? driveInput() : null, h);
         else if (v.ai) drive(v, v.ai.ctl, h);
         else if (Math.abs(v.vx) + Math.abs(v.vz) > 0.02) drive(v, null, h);
       }
       const hit = collisions(h);
       if (hit > 4 && me) { game.shake = Math.min(1.2, hit / 18); }
+    }
+    tickWeapons(dt);
+    for (const v of vehicles) {
+      // turn signals for AI drivers, hazards on a stopped cash truck
+      if (v.ai && v.ai.ctl) { const s = v.ai.ctl.steer, sp = Math.hypot(v.vx, v.vz); if (Math.abs(s) > 0.35 && sp < 11) { v.blink = s > 0 ? -1 : 1; v.blinkT = 0.9; } else if ((v.blinkT -= dt) <= 0) v.blink = 0; }
+      if (v.role === 'armored' && v.ai && !v.ai.ctl?.thr && Math.hypot(v.vx, v.vz) < 0.5) v.blink = 2;
+      // exhaust backfire on hard upshifts (sports cars)
+      if (v.gear > v.gearPrev && v.id === game.inCar && (v.def.kind === 'super' || v.def.kind === 'sport') && v.rpm > 0.6) { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw); flash(v.x - fx * (v.def.len / 2 + 0.15), v.y + 0.38, v.z - fz * (v.def.len / 2 + 0.15), 0.9); sfx('shot', 0.18); }
+      v.gearPrev = v.gear;
     }
     updatePeds(dt); tickFx(dt); radioTick(!!me && game.started, game.radio);
     for (const v of vehicles) if (v.dead && v.burn > 0) v.burn -= dt;
@@ -133,6 +183,7 @@ export default function Vehicles() {
     <>
       {vehicles.map((v) => <VehicleView key={v.id} v={v} />)}
       <Smoke />
+      <TireFX />
       <GarageSign />
       <primitive object={target} />
       <spotLight ref={headSpot} target={target} angle={0.55} penumbra={0.6} distance={75} decay={1.5} color="#fff1d0" intensity={0} />
