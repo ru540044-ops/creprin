@@ -56,8 +56,9 @@ export function buildCarModel(def: VDef, color: string): CarModel {
 /** Apply Bay Customs visuals: paint finish, neon colour, wheel colour, window tint. */
 export function applyMods(m: CarModel, mods: Mods | undefined) {
   const f = mods?.finish || 'gloss', P = m.paint;
-  const base = f === 'matte' ? [0.1, 0.82, 0.4] : f === 'chrome' ? [1, 0.06, 2.2] : f === 'pearl' ? [0.75, 0.16, 1.9] : [0.55, 0.28, 1.4];
+  const base = f === 'matte' ? [0.1, 0.82, 0.4] : f === 'chrome' ? [1, 0.05, 2.0] : f === 'pearl' ? [0.7, 0.22, 1.5] : [0.5, 0.32, 1.2];
   P.userData.metal = base[0]; P.userData.rough = base[1]; P.envMapIntensity = base[2];
+  if ((P as THREE.MeshPhysicalMaterial).isMeshPhysicalMaterial) (P as THREE.MeshPhysicalMaterial).clearcoat = f === 'matte' || f === 'chrome' ? 0 : 1;
   P.emissive.set(f === 'pearl' ? P.color : '#000000'); P.emissiveIntensity = f === 'pearl' ? 0.08 : 0;
   if (m.neon) { m.neon.visible = !!mods?.neon; if (mods?.neon) (m.neon.material as THREE.MeshBasicMaterial).color.set(mods.neon).multiplyScalar(2.4); }
   if (m.rim) m.rim.color.set(mods?.wheel || '#d9dde4');
@@ -65,7 +66,7 @@ export function applyMods(m: CarModel, mods: Mods | undefined) {
 }
 function buildHeli(def: VDef, color: string): Omit<CarModel, 'tilt'> {
   const S = shared(), root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-  const paint = new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.3, envMapIntensity: 1.4 }), glass = S.glass.clone();
+  const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.5, roughness: 0.3, envMapIntensity: 1.2, clearcoat: 1, clearcoatRoughness: 0.06 }), glass = S.glass.clone();
   const head = new THREE.MeshStandardMaterial({ color: '#fff7e0', emissive: new THREE.Color('#fff2cc'), emissiveIntensity: 0.3 });
   const tail = new THREE.MeshStandardMaterial({ color: '#5a0a0a', emissive: new THREE.Color('#ff1a1a'), emissiveIntensity: 0.4 });
   const add = (geo: THREE.BufferGeometry, m: THREE.Material, shadow = true) => { const mesh = new THREE.Mesh(geo, m); mesh.castShadow = shadow; body.add(mesh); return mesh; };
@@ -86,7 +87,7 @@ function buildHeli(def: VDef, color: string): Omit<CarModel, 'tilt'> {
 function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
   const S = shared(), root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const glass = S.glass.clone(), rim = S.chrome.clone();
-  const paint = new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.28, envMapIntensity: 1.4 });
+  const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.5, roughness: 0.32, envMapIntensity: 1.2, clearcoat: 1, clearcoatRoughness: 0.05 });
   const head = new THREE.MeshStandardMaterial({ color: '#fff7e0', emissive: new THREE.Color('#fff2cc'), emissiveIntensity: 0.3 });
   const tail = new THREE.MeshStandardMaterial({ color: '#5a0a0a', emissive: new THREE.Color('#ff1a1a'), emissiveIntensity: 0.4 });
   const L = def.len / 2, W = def.wid, wheels: THREE.Group[] = [];

@@ -10,7 +10,10 @@ import Vehicles from './game/vehicles/Vehicles';
 import CrimeView from './game/crime/CrimeView';
 import Birds from './game/world/Birds';
 import Weather from './game/world/Weather';
+import Effects from './game/world/Effects';
+import LightFX from './game/world/LightFX';
 import { wind } from './game/world/City';
+import { look } from './game/world/Environment';
 import { PedsView, FXView } from './game/ai/PedsView';
 import { peds } from './game/ai/peds';
 import * as pedsMod from './game/ai/peds';
@@ -30,7 +33,7 @@ import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLI
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -75,6 +78,8 @@ function Scene({ quality }: { quality: Quality }) {
       <FXView />
       <Birds />
       <Weather />
+      <LightFX />
+      <Effects quality={quality} />
       <Waypoint />
       <Ticker />
     </>
@@ -104,7 +109,7 @@ export default function App() {
         dpr={[1, Math.min(q.dpr, window.devicePixelRatio || 1)]}
         gl={{ antialias: quality !== 'low', powerPreference: 'high-performance' }}
         camera={{ fov: 62, near: 0.15, far: 2600, position: [0, 40, 60] }}
-        onCreated={({ gl }) => { gl.toneMapping = THREE.ACESFilmicToneMapping; gl.outputColorSpace = THREE.SRGBColorSpace; }}
+        onCreated={({ gl }) => { gl.toneMapping = THREE.NeutralToneMapping; gl.outputColorSpace = THREE.SRGBColorSpace; try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3dGL = gl; } catch { /* ignore */ } }}
       >
         <Suspense fallback={null}><Scene quality={quality} /></Suspense>
       </Canvas>

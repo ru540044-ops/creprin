@@ -3,12 +3,14 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Sky, Stars } from '@react-three/drei';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { game } from '../state/store';
 import { nightMats, wetMats } from './City';
 import { smooth } from './rng';
 
 /** Sun, sky, fog and day/night cycle. One in-game day = game.dayLen real seconds. */
+/** Lighting balance, tweakable from the debug hook. */
+export const look = { sun: 3.2, hemi: 0.55, env: 1.0, exposure: 0.95 };
+
 export default function Environment({ shadows, shadowSize }: { shadows: boolean; shadowSize: number }) {
   const sun = useRef<THREE.DirectionalLight>(null!);
   const hemi = useRef<THREE.HemisphereLight>(null!);
@@ -17,7 +19,34 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
   const { scene, gl } = useThree();
   const fog = useMemo(() => new THREE.Fog('#c9d6e6', 200, 1500), []);
   scene.fog = fog;
-  useMemo(() => { const pm = new THREE.PMREMGenerator(gl); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose(); }, [gl, scene]);
+  // Reflections come from a painted copy of the current sky (zenith, horizon, sun glow, ground), re-baked as time passes.
+  const envGen = useMemo(() => {
+    const W = 256, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const tex = new THREE.CanvasTexture(cv); tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
+    const pm = new THREE.PMREMGenerator(gl); let rt: THREE.WebGLRenderTarget | null = null;
+    const c = cv.getContext('2d')!, last = { h: -99, cl: -1 };
+    const mix = (a: THREE.Color, b: THREE.Color, t: number) => a.clone().lerp(b, t);
+    const C = (h: string) => new THREE.Color(h);
+    const P = { zDay: C('#2f6fd0'), hDay: C('#d3e3f3'), zDusk: C('#2b335e'), hDusk: C('#ff9a60'), zNight: C('#03050b'), hNight: C('#1b2440'), gDay: C('#5a554c'), gNight: C('#0c0b10'), cloud: C('#8c939c') };
+    return (h: number, day: number, dusk: number, night: number, sun: THREE.Vector3, cloud: number) => {
+      if (Math.abs(h - last.h) < 0.06 && Math.abs(cloud - last.cl) < 0.04) return;
+      last.h = h; last.cl = cloud;
+      let zen = mix(mix(P.zNight, P.zDay, day), P.zDusk, dusk * 0.7), hor = mix(mix(P.hNight, P.hDay, day), P.hDusk, dusk * 0.85);
+      const grey = P.cloud.clone().multiplyScalar(0.25 + day * 0.75); zen = mix(zen, grey, cloud * 0.8); hor = mix(hor, grey, cloud * 0.7);
+      const gnd = mix(P.gNight, P.gDay, day);
+      const g = c.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#' + zen.getHexString()); g.addColorStop(0.47, '#' + hor.getHexString()); g.addColorStop(0.5, '#' + mix(hor, gnd, 0.5).getHexString()); g.addColorStop(1, '#' + gnd.getHexString());
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      if (night > 0.3) { const cg = c.createLinearGradient(0, H * 0.38, 0, H * 0.5); cg.addColorStop(0, 'rgba(255,140,80,0)'); cg.addColorStop(1, `rgba(255,140,90,${0.22 * night})`); c.fillStyle = cg; c.fillRect(0, H * 0.38, W, H * 0.12); } // city glow
+      const d = sun.y > -0.05 ? sun : sun.clone().set(-sun.x, Math.abs(sun.y) * 0.8 + 0.2, -sun.z);
+      const u = Math.atan2(d.z, d.x) / (Math.PI * 2) + 0.5, v = Math.asin(Math.max(-1, Math.min(1, d.y))) / Math.PI + 0.5, x = u * W, y = (1 - v) * H;
+      const sunCol = sun.y > -0.05 ? (dusk > 0.3 ? '255,170,90' : '255,250,235') : '200,215,255', sunA = (sun.y > -0.05 ? 1 : 0.35) * (1 - cloud * 0.8);
+      const sg = c.createRadialGradient(x, y, 0, x, y, sun.y > -0.05 ? 34 : 10); sg.addColorStop(0, `rgba(${sunCol},${sunA})`); sg.addColorStop(0.15, `rgba(${sunCol},${sunA * 0.6})`); sg.addColorStop(1, `rgba(${sunCol},0)`);
+      c.fillStyle = sg; c.fillRect(0, 0, W, H);
+      tex.needsUpdate = true;
+      const next = pm.fromEquirectangular(tex); scene.environment = next.texture; if (rt) rt.dispose(); rt = next;
+    };
+  }, [gl, scene]);
   const sunPos = useMemo(() => new THREE.Vector3(), []);
   const cols = useMemo(() => ({ day: new THREE.Color('#fff4e0'), dusk: new THREE.Color('#ff9a5a'), night: new THREE.Color('#7a90c8'), fogDay: new THREE.Color('#c4d3e4'), fogDusk: new THREE.Color('#e0a284'), fogNight: new THREE.Color('#0d1424') }), []);
   const moonDir = useMemo(() => new THREE.Vector3(), []);
@@ -34,18 +63,19 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
     const dir = elev > -0.05 ? sunPos : moonDir.set(-az * 0.6, 0.7, -0.4).normalize();
     L.position.set(p.x + dir.x * 220, (game.where === 'out' ? 0 : -50) + dir.y * 220, p.z + dir.z * 220); L.target.position.set(p.x, game.where === 'out' ? 0 : -50, p.z); L.target.updateMatrixWorld();
     const W = game.weather, cl = W.cloud;
-    L.intensity = (day * 2.6 + night * 0.25) * (1 - 0.7 * cl) + W.flash * 3;
+    L.intensity = (day * look.sun + night * 0.25) * (1 - 0.7 * cl) + W.flash * 3;
     L.color.copy(cols.day).lerp(cols.dusk, dusk * 0.8).lerp(cols.night, night);
-    hemi.current.intensity = (0.25 + day * 0.75 + night * 0.12) * (1 - 0.25 * cl) + W.flash * 2.5;
+    hemi.current.intensity = (0.3 + day * look.hemi + night * 0.22) * (1 + 0.3 * cl) + W.flash * 2.5;
     hemi.current.color.setRGB(0.62 + day * 0.2, 0.7 + day * 0.15, 0.85 + day * 0.1).lerp(cols.night, night * 0.6);
     hemi.current.groundColor.setRGB(0.32, 0.28, 0.25).multiplyScalar(0.4 + day * 0.6);
     fog.color.copy(cols.fogDay).lerp(cols.fogDusk, dusk * 0.7).lerp(cols.fogNight, night);
     fog.color.lerp(cols.night.clone().setRGB(0.45, 0.48, 0.53).multiplyScalar(0.25 + day * 0.75), cl * 0.75);
     fog.near = (120 + day * 120) * (1 - 0.65 * W.rain); fog.far = (900 + day * 700) * (1 - 0.62 * W.rain);
-    gl.toneMappingExposure = (0.85 + day * 0.25 + night * 0.35) * (1 - 0.12 * cl);
+    gl.toneMappingExposure = (0.85 + day * 0.25 + night * 0.35) * (1 - 0.12 * cl) * look.exposure;
     for (const w of wetMats) { w.m.roughness = w.r * (1 - 0.62 * W.wet); w.m.color.setScalar(1 - 0.3 * W.wet); }
-    (scene as any).environmentIntensity = 0.12 + day * 0.55;
-    if (stars.current) (stars.current.material as THREE.PointsMaterial).opacity = night;
+    (scene as any).environmentIntensity = (0.45 + day * 0.55) * look.env;
+    if (stars.current) (stars.current.material as THREE.PointsMaterial).opacity = night * (1 - W.cloud);
+    envGen(h, day, dusk, night, sunPos, W.cloud);
     const lit = smooth(0.15, -0.1, elev);
     for (const n of nightMats) { if (n.kind === 'emissive') (n.m as THREE.MeshStandardMaterial).emissiveIntensity = lit * n.k + (n.k > 2 ? 0.05 : 0); else { (n.m as THREE.MeshBasicMaterial).opacity = lit * n.k; } }
   });
