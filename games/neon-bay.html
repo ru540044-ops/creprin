@@ -73,7 +73,8 @@ button{font-family:var(--ui)}
 .touch .mm{bottom:auto;top:12px}
 .touch #tl{padding-top:calc(var(--mmh) + 22px)}
 #bl{grid-area:3/1;align-self:end;min-width:0}
-.dpad{display:grid;grid-template-columns:repeat(3,var(--db));grid-template-rows:repeat(3,var(--db));gap:5px}
+.dpad{display:grid;grid-template-columns:repeat(3,var(--db));grid-template-rows:repeat(3,var(--db));gap:5px;pointer-events:auto;touch-action:none;border-radius:50%;padding:4px;background:radial-gradient(circle,rgba(43,228,255,.1) 0,rgba(43,228,255,0) 70%)}
+.dpad .db{pointer-events:none;font-size:19px;font-weight:700;letter-spacing:0}
 .db{pointer-events:auto;padding:0;border-radius:14px;border:2px solid var(--cyan);background:rgba(16,12,38,.72);color:var(--ink);font-size:20px;line-height:1;display:grid;place-items:center;touch-action:none;box-shadow:0 0 12px rgba(43,228,255,.3)}
 .db.on{background:rgba(43,228,255,.38)}
 #dU{grid-area:1/2}#dL{grid-area:2/1}#dD{grid-area:3/2}#dR{grid-area:2/3}
@@ -231,10 +232,10 @@ h1{margin:0;font:400 clamp(52px,15vw,88px)/.95 var(--display);color:var(--pink);
     <div class="hint">WASD move · Shift sprint · Space brake or jump · E enter · C switch hero · X special · Q or hold Tab weapons · Click or F shoot · P phone · M map · V camera · R radio</div>
     <div id="bl">
       <div class="dpad">
-        <button class="db" id="dU" type="button" aria-label="Forward">▲</button>
-        <button class="db" id="dL" type="button" aria-label="Left">◀</button>
-        <button class="db" id="dD" type="button" aria-label="Back">▼</button>
-        <button class="db" id="dR" type="button" aria-label="Right">▶</button>
+        <button class="db" id="dU" type="button" aria-label="Forward, W">W</button>
+        <button class="db" id="dL" type="button" aria-label="Left, A">A</button>
+        <button class="db" id="dD" type="button" aria-label="Back, S">S</button>
+        <button class="db" id="dR" type="button" aria-label="Right, D">D</button>
       </div>
     </div>
     <div id="br">
@@ -285,7 +286,7 @@ h1{margin:0;font:400 clamp(52px,15vw,88px)/.95 var(--display);color:var(--pink);
         <dt>Crime</dt><dd>Hold FIRE inside a red QWIK 24 ring to rob it. Break line of sight to lose the cops</dd>
         <dt>Shops</dt><dd>Stop inside an orange ring for Bay Customs: engine, armor, paint, underglow and repairs. Purple rings are THREADS for clothes and hair</dd>
         <dt>Phone</dt><dd>P for Buzzr, M for the map, V cycles the camera including first person</dd>
-        <dt>Touch</dt><dd>Left thumb steers, right side looks, buttons for the rest</dd>
+        <dt>Touch</dt><dd>The W A S D pad works like the keys: slide your thumb around it, corners press two at once. Drag the right side to look</dd>
       </dl>
       <p id="glerr" hidden></p>
       <button id="go" type="button">Start</button>
@@ -3670,7 +3671,7 @@ const lookBy=dx=>{
 };
 app.addEventListener('contextmenu',e=>e.preventDefault());
 app.addEventListener('pointerdown',e=>{
-  if(G.mode==='attract'||G.mapOpen||G.shop||e.target.closest('button,#phone,#shop'))return;
+  if(G.mode==='attract'||G.mapOpen||G.shop||e.target.closest('button,#phone,#shop,.dpad'))return;
   if(e.pointerType==='mouse'){
     if(e.button===0)IN.fire=true;
     else if(e.button===2){camId=e.pointerId;lx=e.clientX;try{app.setPointerCapture(e.pointerId)}catch(err){}}
@@ -3710,7 +3711,20 @@ const hold=(el,key)=>{
 hold($('bBrk'),'brake');hold($('bFire'),'fire');hold($('bGas'),'gas');
 $('bGas').addEventListener('pointerdown',()=>{if(!P.car)jump()});
 $('map').addEventListener('click',()=>{if(document.body.classList.contains('touch'))toggleMap()});
-hold($('dU'),'up');hold($('dD'),'dn');hold($('dL'),'l');hold($('dR'),'r');
+(function(){
+  const pad=document.querySelector('.dpad'),btn={up:$('dU'),dn:$('dD'),l:$('dL'),r:$('dR')};let pid=null;
+  const set=e=>{
+    const rc=pad.getBoundingClientRect(),dx=e.clientX-(rc.left+rc.width/2),dy=e.clientY-(rc.top+rc.height/2);
+    let up=false,dn=false,l=false,rt=false;
+    if(Math.hypot(dx,dy)>rc.width*.11){const k=Math.round(Math.atan2(dy,dx)/(Math.PI/4));
+      rt=k===0||k===1||k===-1;dn=k===1||k===2||k===3;l=k===4||k===-4||k===3||k===-3;up=k===-1||k===-2||k===-3}
+    IN.up=up;IN.dn=dn;IN.l=l;IN.r=rt;for(const k in btn)btn[k].classList.toggle('on',IN[k]);
+  };
+  const end=e=>{if(e.pointerId!==pid)return;pid=null;IN.up=IN.dn=IN.l=IN.r=false;for(const k in btn)btn[k].classList.remove('on')};
+  pad.addEventListener('pointerdown',e=>{e.preventDefault();document.body.classList.add('touch');pid=e.pointerId;try{pad.setPointerCapture(pid)}catch(_){}set(e)});
+  pad.addEventListener('pointermove',e=>{if(e.pointerId===pid)set(e)});
+  pad.addEventListener('pointerup',end);pad.addEventListener('pointercancel',end);
+})();
 $('bAct').addEventListener('pointerdown',e=>{e.preventDefault();doAction()});
 $('bSpc').addEventListener('pointerdown',e=>{e.preventDefault();toggleSpecial()});
 $('radio').addEventListener('click',()=>{if(G.mode==='play')nextStation()});
