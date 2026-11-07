@@ -3,15 +3,17 @@ import { game, toast, save, clearSave, ownedCars, Quality } from '../state/store
 import { VDEFS, DEALER, VKind } from '../vehicles/defs';
 import { PROF } from '../vehicles/models';
 import { vehicles, deliverNear, sellOwned, repairAll } from '../vehicles/sim';
-import { GARAGE } from '../world/cityGen';
+import { GARAGE, doors, EXPORT_DOCK, TRIALS } from '../world/cityGen';
+import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
+import { progress } from '../state/store';
 import { audio, sfx } from '../audio';
 
 const GARAGE_CAP = GARAGE.slots.length;
-type App = 'home' | 'motors' | 'garage' | 'settings';
+type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs';
 
 /** Side view drawn from the same profile the 3D model is extruded from. */
 export function CarSVG({ kind, color }: { kind: VKind; color: string }) {
-  const d = VDEFS[kind], P = PROF[kind], wb = d.wheelbase / 2, r = d.wheelR;
+  const d = VDEFS[kind], P = PROF[kind === 'police' ? 'sedan' : kind], wb = d.wheelbase / 2, r = d.wheelR;
   const pts = (a: number[][]) => a.map((p) => `${p[0].toFixed(2)},${(-p[1]).toFixed(2)}`).join(' ');
   const wheel = (x: number) => <g key={x}><circle cx={x} cy={-r} r={r} fill="#111" /><circle cx={x} cy={-r} r={r * 0.6} fill="#c9ccd3" /></g>;
   let body;
@@ -98,6 +100,49 @@ function Garage({ refresh, close }: { refresh: () => void; close: () => void }) 
   );
 }
 
+function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
+  const go = (x: number, z: number, msg: string) => { game.waypoint = { x, z }; save(); toast(msg); close(); };
+  const shops = doors.filter((d) => d.interior === 'store' || d.interior === 'gas');
+  const A = armored, ex = exportJob.kind;
+  return (
+    <div className="appBody">
+      <div className="jobCard">
+        <b>コンビニ強盗</b>
+        <p>QWIK 24 か FUEL &amp; SNACKS に入り、レジ前で「強盗」。店員が袋に詰め終わるまでレジから離れず、袋を拾ったら警察（★2）から逃げ切る。</p>
+        <span className="pay">1回 $500〜$1,900 · 同じ店は8分後にまた狙える</span>
+        {shops.map((d) => { const cd = robCooldown(d.id); return (
+          <div className="trow" key={d.id}><span>{d.label}{cd > 0 ? `（あと${Math.ceil(cd / 60)}分）` : ''}</span><div className="jobBtns"><button type="button" onClick={() => go(d.x, d.z, d.label + 'を目的地に設定')}>目的地</button></div></div>
+        ); })}
+      </div>
+      <div className="jobCard">
+        <b>現金輸送車強盗</b>
+        <p>街を走る現金輸送車（地図の $）に車で何度も体当たりして止め、降りて後部ドアをこじ開ける。奪うと ★3。</p>
+        <span className="pay">$2,500〜$6,000</span>
+        {A.v && A.state !== 'looted'
+          ? <div className="jobBtns"><button type="button" onClick={() => go(A.v!.x, A.v!.z, '輸送車の位置を目的地に設定')}>出現中：位置を目的地に</button></div>
+          : <p>次の出現まで約{Math.max(0, Math.ceil(A.nextT))}秒（街の中にいて、手配されていない時に現れる）</p>}
+      </div>
+      <div className="jobCard">
+        <b>車の輸出</b>
+        <p>依頼された車種を街で盗み、港の EXPORT DOCK に乗り入れて「引き渡す」。傷が少ないほど高く売れる。自分の車は不可。</p>
+        <span className="pay">{ex ? `今の依頼：${VDEFS[ex].name}（最大 $${(EXPORT_PAY[ex] || 0).toLocaleString('en-US')}）` : `次の依頼まで約${Math.ceil(exportJob.cool)}秒`}</span>
+        <div className="jobBtns">
+          <button type="button" onClick={() => go(EXPORT_DOCK.x, EXPORT_DOCK.z, '輸出ドックを目的地に設定')}>港へ案内</button>
+          <button type="button" disabled={!ex || exportJob.reroll > 0} onClick={() => { newExport(); exportJob.reroll = 30; sfx('ui'); refresh(); }}>{exportJob.reroll > 0 ? `依頼を変える（${Math.ceil(exportJob.reroll)}秒）` : '依頼を変える'}</button>
+        </div>
+      </div>
+      <div className="jobCard">
+        <b>タイムトライアル</b>
+        <p>紫のリングに車で入り「開始」。全チェックポイントを目標タイム内に通過すると賞金（2回目以降は25%）。</p>
+        {TRIALS.map((T) => { const b = progress.trialBest[T.id]; return (
+          <div className="trow" key={T.id}><span>{T.name}<br /><small>目標 {fmt(T.par)} · 自己ベスト {b !== undefined ? fmt(b) : '—'} · ${T.reward.toLocaleString('en-US')}</small></span><div className="jobBtns"><button type="button" disabled={!!trial.id} onClick={() => go(T.start.x, T.start.z, T.name + 'のスタートを目的地に設定')}>目的地</button></div></div>
+        ); })}
+      </div>
+      <p className="appNote">手配度が付くとパトカーが追ってくる。地図の点滅する円（捜索範囲）の外に出て見つからずにいれば解除。止まってパトカーに囲まれると逮捕（罰金 $1,000）、体力が0になると病院へ（$1,500）。</p>
+    </div>
+  );
+}
+
 function Settings({ quality, setQuality, refresh }: { quality: Quality; setQuality: (q: Quality) => void; refresh: () => void }) {
   return (
     <div className="appBody">
@@ -121,7 +166,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
     game.money -= d.price; ownedCars.push({ kind: k, color: c }); game.waypoint = { x: GARAGE.x, z: GARAGE.z };
     sfx('buy'); toast(d.name + 'を購入！ガレージに納車しました（目的地に設定）', 3.2); save(); refresh();
   };
-  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定' }[app];
+  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事' }[app];
   return (
     <div className="overlay phoneWrap" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="phone" role="dialog" aria-label="スマートフォン">
@@ -131,6 +176,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
             <button type="button" className="appIc" onClick={() => open('motors')}><i style={{ background: 'linear-gradient(135deg,#ff3f93,#ff9a3a)' }}>🏎</i>Bay Motors</button>
             <button type="button" className="appIc" onClick={() => open('garage')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#1c8f7a)' }}>🅿</i>ガレージ</button>
             <button type="button" className="appIc" onClick={() => { sfx('ui'); onClose(); openMap(); }}><i style={{ background: 'linear-gradient(135deg,#2be4ff,#2b6bff)' }}>🗺</i>マップ</button>
+            <button type="button" className="appIc" onClick={() => open('jobs')}><i style={{ background: 'linear-gradient(135deg,#ffd23a,#ff6a00)' }}>💰</i>仕事</button>
             <button type="button" className="appIc" onClick={() => open('settings')}><i style={{ background: 'linear-gradient(135deg,#8a8aa8,#3c3c55)' }}>⚙</i>設定</button>
           </div>
         ) : (
@@ -138,6 +184,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
             <div className="appTop"><button type="button" onClick={() => open('home')} aria-label="戻る">‹ 戻る</button><b>{title}</b><span /></div>
             {app === 'motors' && <Motors buy={buy} />}
             {app === 'garage' && <Garage refresh={refresh} close={onClose} />}
+            {app === 'jobs' && <Jobs close={onClose} refresh={refresh} />}
             {app === 'settings' && <Settings quality={quality} setQuality={setQuality} refresh={refresh} />}
           </>
         )}

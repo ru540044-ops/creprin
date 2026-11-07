@@ -1,12 +1,26 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { game, toast, save, Quality } from '../state/store';
 import Phone from './Phone';
-import { playerCar } from '../vehicles/sim';
+import { playerCar, vehicles } from '../vehicles/sim';
+import { law, jobStatus, armored, searchRadius } from '../crime/crime';
 import { input, releaseDrive } from '../input';
 import { mapImage, toMap, fromMap, POI, MAP } from './mapRender';
 import { INTERIORS } from '../world/Interiors';
 
 function useTicker(ms: number) { const [, f] = useReducer((x: number) => x + 1, 0); useEffect(() => { const id = setInterval(f, ms); return () => clearInterval(id); }, [ms]); }
+
+/* ---------- moving blips: search area, police, cash truck ---------- */
+function drawDynamic(c: CanvasRenderingContext2D, k: number, t: number) {
+  if (game.wanted > 0) {
+    const [a, b] = toMap(law.lastSeen.x, law.lastSeen.z), flash = Math.floor(t / 300) % 2;
+    c.fillStyle = flash ? 'rgba(255,40,60,.18)' : 'rgba(40,90,255,.18)'; c.strokeStyle = flash ? 'rgba(255,60,80,.8)' : 'rgba(60,120,255,.8)'; c.lineWidth = 1.5 * k;
+    c.beginPath(); c.arc(a, b, searchRadius() * MAP.s, 0, Math.PI * 2); c.fill(); c.stroke();
+  }
+  for (const v of vehicles) {
+    if (v.role === 'police' && v.ai) { const [a, b] = toMap(v.x, v.z); c.fillStyle = Math.floor(t / 200 + v.id) % 2 ? '#ff2a40' : '#2b6bff'; c.beginPath(); c.arc(a, b, 3.2 * k * 1.4, 0, Math.PI * 2); c.fill(); }
+    if (v.role === 'armored' && v === armored.v && armored.state !== 'looted') { const [a, b] = toMap(v.x, v.z); c.fillStyle = '#3dffb0'; c.strokeStyle = '#000'; c.lineWidth = 1.2 * k; c.beginPath(); c.arc(a, b, 5 * k * 1.4, 0, Math.PI * 2); c.fill(); c.stroke(); c.fillStyle = '#000'; c.font = `900 ${9 * k * 1.4}px system-ui`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$', a, b + 0.5 * k); }
+  }
+}
 
 /* ---------- minimap ---------- */
 function Minimap({ onOpen }: { onOpen: () => void }) {
@@ -24,6 +38,7 @@ function Minimap({ onOpen }: { onOpen: () => void }) {
       c.translate(S / 2, S / 2); c.rotate(game.cam.yaw); c.scale(zoom, zoom); c.translate(-px, -pz);
       c.drawImage(mapImage(), 0, 0);
       for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 3.6 / zoom * 1.4, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1 / zoom; c.stroke(); }
+      drawDynamic(c, 1 / zoom, t);
       c.restore();
       if (game.waypoint) { // waypoint, clamped to the rim
         const [a, b] = toMap(game.waypoint.x, game.waypoint.z); let dx = (a - px) * zoom, dz = (b - pz) * zoom; const cs = Math.cos(game.cam.yaw), sn = Math.sin(game.cam.yaw);
@@ -50,6 +65,7 @@ function FullMap({ onClose }: { onClose: () => void }) {
     let raf = 0; const draw = () => {
       raf = requestAnimationFrame(draw); const c = cv.getContext('2d')!, k = (W / img.width) * dpr; c.setTransform(k, 0, 0, k, 0, 0); c.drawImage(img, 0, 0);
       for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 6, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1.5; c.stroke(); }
+      drawDynamic(c, 1.6, performance.now());
       if (game.waypoint) { const [a, b] = toMap(game.waypoint.x, game.waypoint.z); c.fillStyle = '#ffd84a'; c.beginPath(); c.arc(a, b, 8, 0, Math.PI * 2); c.fill(); c.stroke(); }
       const p = game.where !== 'out' ? game.outsidePos : game.player, [a, b] = toMap(p.x, p.z);
       c.save(); c.translate(a, b); c.rotate(Math.PI - p.yaw); c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, -12); c.lineTo(-8, 9); c.lineTo(0, 4); c.lineTo(8, 9); c.closePath(); c.fill(); c.stroke(); c.restore();
@@ -66,7 +82,7 @@ function FullMap({ onClose }: { onClose: () => void }) {
       <div className="mapHead"><b>ベイ全体マップ</b><span>タップで目的地を設定</span></div>
       <canvas ref={ref} onPointerDown={tap} />
       <div className="row"><button type="button" onClick={() => { game.waypoint = null; save(); onClose(); }}>目的地を消す</button><button type="button" className="pri" onClick={onClose}>閉じる</button></div>
-      <div className="legend">{POI().map((q) => <span key={q.t}><i style={{ background: q.c }} />{q.t}</span>)}<span><i style={{ background: '#ffd84a' }} />目的地</span></div>
+      <div className="legend">{POI().filter((q, i, a) => a.findIndex((o) => o.t === q.t) === i).map((q) => <span key={q.t}><i style={{ background: q.c }} />{q.t}</span>)}<span><i style={{ background: '#3dffb0' }} />$ 現金輸送車</span><span><i style={{ background: '#ffd84a' }} />目的地</span></div>
     </div>
   );
 }
@@ -128,7 +144,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
   const [phone, setPhone] = useState(false);
   useEffect(() => { const id = setInterval(() => { if (input.phone) { input.phone = false; setPhone((v) => !v); } }, 50); return () => clearInterval(id); }, []);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPhone(false); setMap(false); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
-  const me = playerCar(), driving = !!me;
+  const me = playerCar(), driving = !!me, js = jobStatus();
   useEffect(() => { releaseDrive(); }, [driving]);
   const [district, setDistrict] = useState({ name: '', t: 0 });
   useEffect(() => { if (game.district && game.district !== district.name) setDistrict({ name: game.district, t: Date.now() }); });
@@ -145,16 +161,21 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
             <div className="whoT"><b>NOVA</b><span>{inside ? INTERIORS[game.where]?.name : game.district}</span></div>
             <div className="bars"><i className="hp" style={{ width: game.health + '%' }} /><i className="st" style={{ width: game.stamina + '%' }} /></div>
           </div>
-          <div className="card mis"><span className="lab">ミッション</span><b>自由行動</b><span>{driving ? 'ドライブ中。視点ボタンでカメラ切替、降車で降りる' : 'スマホの Bay Motors で車を買うとガレージに届く。道ばたの車にも乗れる'}</span></div>
+          {js ? (
+            <div className={'card mis' + (game.wanted > 0 ? ' hot' : '')}><span className="lab">ミッション</span><b>{js.title}</b><span>{js.text}</span>{js.prog !== undefined && <i className="prog"><b style={{ width: Math.min(100, js.prog * 100) + '%' }} /></i>}</div>
+          ) : (
+            <div className="card mis tip"><span className="lab">ミッション</span><b>自由行動</b><span>{driving ? 'ドライブ中。視点ボタンでカメラ切替、降車で降りる' : 'お金を稼ぐ：スマホの「仕事」アプリ（強盗・輸送車・輸出・タイムトライアル）'}</span></div>
+          )}
         </div>
         <div className="tr">
           <Minimap onOpen={() => setMap(true)} />
           <div className="money">${game.money.toLocaleString('en-US')}</div>
-          <div className="stars" aria-label={'手配度 ' + game.wanted}>{[0, 1, 2, 3, 4].map((i) => <b key={i} className={i < game.wanted ? 'on' : ''}>★</b>)}</div>
+          <div className={'stars' + (game.wanted > 0 && !law.seen ? ' search' : '')} aria-label={'手配度 ' + game.wanted}>{[0, 1, 2, 3, 4].map((i) => <b key={i} className={i < game.wanted ? 'on' : ''}>★</b>)}</div>
           <div className="small">{String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} · {game.fps} FPS</div>
           <button type="button" className="chip phoneChip" onClick={() => setPhone(true)} aria-label="スマホを開く">📱 スマホ</button>
         </div>
       </div>
+      {law.over && <div className={'over ' + law.over.kind}><b>{law.over.kind === 'busted' ? 'BUSTED' : 'WASTED'}</b><span>{law.over.kind === 'busted' ? '逮捕' : '死亡'}　-${law.over.fine.toLocaleString('en-US')}</span></div>}
       {showDistrict && <div className="district">{district.name}</div>}
       {game.toastT > 0 && <div className="toast">{game.toast}</div>}
       {near && <div className="prompt">{game.isTouch ? '' : '[E] '}{near.label}</div>}
@@ -166,7 +187,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
             <HoldBtn label="▶" cls="st" active={input.right} onDown={() => { input.right = true; }} onUp={() => { input.right = false; }} />
           </div>
           <div className="pedals">
-            <HoldBtn label="降車" cls="act" onDown={() => { input.action = true; }} />
+            <HoldBtn label={near && near.kind === 'job' ? near.btn || '決定' : '降車'} cls="act" onDown={() => { input.action = true; }} />
             <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
             <HoldBtn label="アクセル" cls="gas" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
             <HoldBtn label="サイド" cls="hb" active={input.hb} onDown={() => { input.hb = true; }} onUp={() => { input.hb = false; }} />
@@ -177,7 +198,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
         <>
           <Joystick />
           <div className="btns">
-            <HoldBtn label={near ? (near.kind === 'exit' ? '出る' : near.kind === 'car' ? '乗る' : '入る') : 'アクション'} cls="act" disabled={!near} onDown={() => { input.action = true; }} />
+            <HoldBtn label={near ? (near.kind === 'exit' ? '出る' : near.kind === 'car' ? '乗る' : near.kind === 'job' ? near.btn || '決定' : '入る') : 'アクション'} cls="act" disabled={!near} onDown={() => { input.action = true; }} />
             <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
             <HoldBtn label={p.crouch ? '立つ' : 'しゃがむ'} active={p.crouch} onDown={() => { input.crouchToggle = true; }} />
             <HoldBtn label="ダッシュ" cls="dash" active={p.sprinting} onDown={() => { input.dash = true; }} onUp={() => { input.dash = false; }} />

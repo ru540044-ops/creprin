@@ -8,6 +8,7 @@ import { input } from '../input';
 import { engine } from '../audio';
 import { getTextures, labelTexture } from '../world/textures';
 import { GARAGE } from '../world/cityGen';
+import { updateCrime, law } from '../crime/crime';
 
 const models = new Map<number, CarModel>();
 
@@ -79,6 +80,7 @@ function VehicleView({ v }: { v: Veh }) {
     const nightK = game.hour > 18.6 || game.hour < 6.2 ? 1 : 0, mine = v.id === game.inCar;
     m.lights.head.emissiveIntensity = v.dead ? 0 : mine ? 0.6 + nightK * 2.2 : 0.15;
     m.lights.tail.emissiveIntensity = v.dead ? 0 : v.braking ? 3 : mine ? 0.6 + nightK * 0.9 : 0.25;
+    if (m.lights.bar) { const on = !v.dead && !!v.ai && v.ai.mode === 'chase' && game.wanted > 0, ph = Math.floor(performance.now() / 160) % 2; m.lights.bar[0].emissiveIntensity = on ? (ph ? 5 : 0.3) : 0.15; m.lights.bar[1].emissiveIntensity = on ? (ph ? 0.3 : 5) : 0.15; }
     m.wheels.forEach((w, i) => { w.rotation.z = -v.spin; const front = v.def.kind === 'bike' ? i === 0 : w.position.x > 0; w.rotation.y = front ? v.steer : 0; });
   });
   return <primitive object={m.root} />;
@@ -96,11 +98,13 @@ export default function Vehicles() {
     const dt = Math.min(0.05, rawDt), p = game.player, me = playerCar();
     const fx = me ? me.x : game.where === 'out' ? p.x : game.outsidePos.x, fz = me ? me.z : game.where === 'out' ? p.z : game.outsidePos.z;
     stream(fx, fz, dt);
+    updateCrime(dt); // wanted level, police + cash-truck AI decide their controls here
     // physics: player car is driven, others coast and settle
     const sub = 2, h = dt / sub;
     for (let s = 0; s < sub; s++) {
       for (const v of vehicles) {
-        if (v === me) drive(v, game.started ? driveInput() : null, h);
+        if (v === me) drive(v, game.started && !law.over ? driveInput() : null, h);
+        else if (v.ai) drive(v, v.ai.ctl, h);
         else if (Math.abs(v.vx) + Math.abs(v.vz) > 0.02) drive(v, null, h);
       }
       const hit = collisions(h);

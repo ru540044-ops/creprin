@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { VDef, VKind } from './defs';
+import { labelTexture } from '../world/textures';
 
 /** Side profiles (x = forward, y = up). lower = painted body up to the belt line, glass = greenhouse. */
 export const PROF: Partial<Record<VKind, { lower: number[][]; glass: number[][]; roofY: number }>> = {
@@ -10,7 +11,7 @@ export const PROF: Partial<Record<VKind, { lower: number[][]; glass: number[][];
   suv: { lower: [[-2.42, 0.45], [2.42, 0.45], [2.45, 0.85], [2.3, 1.1], [1.35, 1.2], [-2.35, 1.2], [-2.45, 0.85]], glass: [[-2.3, 1.18], [1.3, 1.18], [0.85, 1.78], [-2.25, 1.8]], roofY: 1.8 },
 };
 
-export interface CarModel { root: THREE.Group; tilt: THREE.Group; body: THREE.Group; wheels: THREE.Group[]; paint: THREE.MeshStandardMaterial; lights: { head: THREE.MeshStandardMaterial; tail: THREE.MeshStandardMaterial } }
+export interface CarModel { root: THREE.Group; tilt: THREE.Group; body: THREE.Group; wheels: THREE.Group[]; paint: THREE.MeshStandardMaterial; lights: { head: THREE.MeshStandardMaterial; tail: THREE.MeshStandardMaterial; bar?: [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial] } }
 
 const shared = (() => {
   let s: any = null;
@@ -55,19 +56,25 @@ function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
     for (const x of [0.71, -0.71]) { const wg = wheel(def.wheelR, 0.16); wg.position.set(x, def.wheelR, 0); root.add(wg); wheels.push(wg); }
     return { root, body, wheels, paint, lights: { head, tail } };
   }
-  if (def.kind === 'truck') {
-    const cabL = 1.9, cx = L - cabL / 2;
+  if (def.kind === 'truck' || def.kind === 'armored') {
+    const cabL = 1.9, cx = L - cabL / 2, arm = def.kind === 'armored';
     add(mergeGeometries([box(cabL, 1.5, W, cx, 1.35, 0), box(cabL * 0.9, 0.9, W * 0.96, cx - 0.05, 2.45, 0)].map((g) => g.toNonIndexed()))!, paint);
     add(box(0.05, 0.75, W * 0.86, L + 0.01, 2.4, 0), S.glass, false);
     for (const s of [-1, 1]) add(box(1.0, 0.65, 0.04, cx - 0.1, 2.42, s * W * 0.485), S.glass, false);
-    add(box(def.len - cabL - 0.15, 2.6, W * 1.02, -cabL / 2 - 0.05, 1.95, 0), new THREE.MeshStandardMaterial({ color: '#f1efe9', roughness: 0.7 }));
+    add(box(def.len - cabL - 0.15, 2.6, W * 1.02, -cabL / 2 - 0.05, 1.95, 0), arm ? paint : new THREE.MeshStandardMaterial({ color: '#f1efe9', roughness: 0.7 }));
+    if (arm) { // armored cash truck: livery panels on both sides + rear doors
+      const lab = new THREE.MeshBasicMaterial({ map: labelTexture('BAY CASH $', '#3dffb0'), toneMapped: false });
+      for (const s of [-1, 1]) { const m = add(new THREE.PlaneGeometry(3.2, 0.8).rotateY(s > 0 ? 0 : Math.PI).translate(-cabL / 2 - 0.05, 2.3, s * (W * 0.51 + 0.01)), lab, false); m.receiveShadow = false; }
+      add(box(0.06, 2.2, W * 0.46, -L + 0.06, 1.85, W * 0.24), S.trim); add(box(0.06, 2.2, W * 0.46, -L + 0.06, 1.85, -W * 0.24), S.trim);
+      add(box(0.1, 0.12, W * 0.9, -L + 0.04, 1.85, 0), S.chrome, false);
+    }
     add(box(def.len, 0.35, W * 0.9, 0, 0.6, 0), S.trim);
     add(box(0.12, 0.3, 0.4, L + 0.02, 1.0, W * 0.32), head, false); add(box(0.12, 0.3, 0.4, L + 0.02, 1.0, -W * 0.32), head, false);
     add(box(0.06, 0.25, 0.3, -L - 0.02, 0.9, W * 0.38), tail, false); add(box(0.06, 0.25, 0.3, -L - 0.02, 0.9, -W * 0.38), tail, false);
     for (const x of [L - 1.0, -L + 1.3, -L + 2.3]) for (const s of [-1, 1]) { const wg = wheel(def.wheelR, 0.36); wg.position.set(x, def.wheelR, s * (W / 2 - 0.12)); root.add(wg); wheels.push(wg); }
     return { root, body, wheels, paint, lights: { head, tail } };
   }
-  const P = PROF[def.kind]!;
+  const P = PROF[def.kind === 'police' ? 'sedan' : def.kind]!;
   add(extrude(P.lower, W), paint);
   add(extrude(P.glass, W * 0.9, 0.04), S.glass);
   const gx0 = Math.min(...P.glass.map((p) => p[0])), gx1 = Math.max(...P.glass.map((p) => p[0]));
@@ -89,8 +96,21 @@ function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
   add(box(0.03, 0.12, 0.42, rear - 0.01, 0.48, 0), new THREE.MeshStandardMaterial({ color: '#f2f0e6' }), false); // rear plate
   add(box(0.06, 0.12, W * 0.7, rear + 0.02, 0.3, 0), S.trim, false); // diffuser
   if (def.kind === 'super' || def.kind === 'sport') add(mergeGeometries([box(0.35, 0.04, W * 0.92, -L + 0.25, P.lower[5][1] + 0.3, 0), box(0.06, 0.28, 0.06, -L + 0.3, P.lower[5][1] + 0.15, W * 0.3), box(0.06, 0.28, 0.06, -L + 0.3, P.lower[5][1] + 0.15, -W * 0.3)].map((g) => g.toNonIndexed()))!, def.kind === 'super' ? S.trim : paint);
+  let bar: [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial] | undefined;
+  if (def.kind === 'police') { // white doors over the black body, roof light bar, push bar
+    const white = new THREE.MeshStandardMaterial({ color: '#f2f2f4', metalness: 0.4, roughness: 0.35 });
+    for (const s of [-1, 1]) add(box(2.3, 0.42, 0.03, -0.1, 0.68, s * (W / 2 + 0.065)), white, false);
+    const lab = new THREE.MeshBasicMaterial({ map: labelTexture('POLICE', '#2b6bff'), toneMapped: false, transparent: true });
+    for (const s of [-1, 1]) add(new THREE.PlaneGeometry(1.5, 0.36).rotateY(s > 0 ? 0 : Math.PI).translate(-0.1, 0.68, s * (W / 2 + 0.085)), lab, false);
+    const red = new THREE.MeshStandardMaterial({ color: '#550000', emissive: new THREE.Color('#ff1530'), emissiveIntensity: 0 });
+    const blue = new THREE.MeshStandardMaterial({ color: '#000855', emissive: new THREE.Color('#1a4dff'), emissiveIntensity: 0 });
+    add(box(0.3, 0.1, W * 0.7, -0.3, P.roofY + 0.09, 0), S.trim, false);
+    add(box(0.26, 0.12, W * 0.3, -0.3, P.roofY + 0.17, W * 0.17), red, false); add(box(0.26, 0.12, W * 0.3, -0.3, P.roofY + 0.17, -W * 0.17), blue, false);
+    add(box(0.12, 0.35, W * 0.7, L + 0.2, 0.5, 0), S.trim);
+    bar = [red, blue];
+  }
   const wx = def.wheelbase / 2, wz = W / 2 - 0.16;
   for (const x of [wx, -wx]) for (const s of [-1, 1]) { const wg = wheel(def.wheelR, 0.28); wg.position.set(x, def.wheelR, s * wz); root.add(wg); wheels.push(wg); }
   void gx0;
-  return { root, body, wheels, paint, lights: { head, tail } };
+  return { root, body, wheels, paint, lights: { head, tail, bar } };
 }

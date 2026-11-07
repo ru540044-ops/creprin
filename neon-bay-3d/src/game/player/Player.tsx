@@ -5,60 +5,32 @@ import { game, toast, save } from '../state/store';
 import { input, moveVector, releaseDrive } from '../input';
 import { vehicles, playerCar, Veh } from '../vehicles/sim';
 import { sfx } from '../audio';
+import { jobNear, jobAction, onEnterCar, law } from '../crime/crime';
+import { hooks } from '../vehicles/sim';
 import { collide, groundAt, doors, pointBlocked, districtAt, isWater } from '../world/cityGen';
 import { INTERIORS, FLOOR, interiorCollide } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
+import { makeCharacter } from './character';
 
 const R = 0.38, H = 1.8, WALK = 2.3, RUN = 5.2, SPRINT = 8.2, CROUCH = 1.6, GRAV = 22, JUMP = 6.4;
 const angDiff = (a: number, b: number) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 
-/** Character built from primitives with jointed limbs; animated procedurally from speed / airborne / crouch. */
-function useCharacter() {
-  return useMemo(() => {
-    const skin = new THREE.MeshStandardMaterial({ color: '#c98f66', roughness: 0.65 });
-    const shirt = new THREE.MeshStandardMaterial({ color: '#ff3f93', roughness: 0.75 });
-    const pants = new THREE.MeshStandardMaterial({ color: '#27324f', roughness: 0.85 });
-    const shoe = new THREE.MeshStandardMaterial({ color: '#f2f2f2', roughness: 0.6 });
-    const hair = new THREE.MeshStandardMaterial({ color: '#1a1012', roughness: 0.9 });
-    const dark = new THREE.MeshStandardMaterial({ color: '#141417', roughness: 0.5 });
-    const cap = (r: number, l: number, m: THREE.Material) => { const g = new THREE.CapsuleGeometry(r, l, 4, 10); const mm = new THREE.Mesh(g, m); mm.castShadow = true; return mm; };
-    const root = new THREE.Group(), hips = new THREE.Group(), spine = new THREE.Group(), head = new THREE.Group();
-    root.add(hips); hips.position.y = 0.95;
-    const pelvis = cap(0.17, 0.12, pants); pelvis.rotation.z = Math.PI / 2; pelvis.scale.set(1, 1.15, 0.8); hips.add(pelvis);
-    hips.add(spine); spine.position.y = 0.1;
-    const torso = cap(0.2, 0.32, shirt); torso.position.y = 0.3; torso.scale.set(1.15, 1, 0.75); spine.add(torso);
-    spine.add(head); head.position.y = 0.66;
-    const neck = cap(0.06, 0.06, skin); neck.position.y = -0.06; head.add(neck);
-    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), skin); skull.position.y = 0.1; skull.scale.set(0.95, 1.1, 1); skull.castShadow = true; head.add(skull);
-    const hairM = new THREE.Mesh(new THREE.SphereGeometry(0.138, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), hair); hairM.position.y = 0.12; hairM.position.z = -0.01; head.add(hairM);
-    const pony = cap(0.045, 0.16, hair); pony.position.set(0, 0.04, -0.15); pony.rotation.x = 0.4; head.add(pony);
-    for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 4), dark); e.position.set(s * 0.045, 0.12, 0.118); head.add(e); }
-    const mkLimb = (upperLen: number, lowerLen: number, r: number, mU: THREE.Material, mL: THREE.Material, end: THREE.Mesh) => {
-      const top = new THREE.Group(), mid = new THREE.Group();
-      const u = cap(r, upperLen - r * 2, mU); u.position.y = -upperLen / 2; top.add(u);
-      top.add(mid); mid.position.y = -upperLen;
-      const l = cap(r * 0.85, lowerLen - r * 2, mL); l.position.y = -lowerLen / 2; mid.add(l);
-      end.position.y = -lowerLen; mid.add(end); return { top, mid };
-    };
-    const arms = [-1, 1].map((s) => { const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), skin); const a = mkLimb(0.3, 0.28, 0.055, shirt, skin, hand); a.top.position.set(s * 0.25, 0.53, 0); spine.add(a.top); return a; });
-    const legs = [-1, 1].map((s) => { const foot = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.26), shoe); foot.position.z = 0.06; foot.castShadow = true; const l = mkLimb(0.46, 0.45, 0.075, pants, pants, foot); l.top.position.set(s * 0.11, -0.02, 0); hips.add(l.top); return l; });
-    return { root, hips, spine, head, arms, legs };
-  }, []);
-}
-
+let hitCD = 0; const knock = { x: 0, z: 0 };
 /** Keep the walking player out of car bodies (oriented box test against nearby vehicles). */
 function pushOutOfCars(p: { x: number; y: number; z: number }) {
   for (const v of vehicles) {
     const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 6 || Math.abs(dz) > 6 || p.y > v.y + v.def.hgt) continue;
     const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), lf = dx * fx + dz * fz, ls = dx * fz - dz * fx, hl = v.def.len / 2 + R * 0.8, hw = v.def.wid / 2 + R * 0.8;
     if (Math.abs(lf) >= hl || Math.abs(ls) >= hw) continue;
+    const vs = Math.hypot(v.vx, v.vz);
+    if (vs > 5.5 && hitCD <= 0) { hitCD = 0.8; hooks.hurtPlayer(Math.min(100, (vs - 4.5) * 7)); sfx('crash', Math.min(1, vs / 20)); knock.x += v.vx * 0.7; knock.z += v.vz * 0.7; }
     const pf = hl - Math.abs(lf), ps = hw - Math.abs(ls);
     if (pf < ps) { const s = Math.sign(lf) || 1; p.x += fx * s * pf; p.z += fz * s * pf; } else { const s = Math.sign(ls) || 1; p.x += fz * s * ps; p.z += -fx * s * ps; }
   }
 }
 
 export default function Player() {
-  const C = useCharacter();
+  const C = useMemo(() => makeCharacter(), []);
   const grp = useRef<THREE.Group>(null!);
   const { camera } = useThree();
   const st = useMemo(() => ({ phase: 0, vx: 0, vz: 0, lean: 0, saveT: 0, crouchK: 0, landT: 0, carYaw: 0, look: 0, lookP: 0, lookT: 0, fov: 62 }), []);
@@ -98,8 +70,9 @@ export default function Player() {
       input.jump = false; input.crouchToggle = false;
       p.x = me.x; p.z = me.z; p.y = me.y; p.yaw = me.yaw; p.speed = 0; p.vy = 0; p.grounded = true; p.crouch = false; st.vx = st.vz = 0;
       game.stamina = clamp(game.stamina + 12 * dt, 0, 100);
-      game.near = null;
-      if (input.action) { input.action = false; exitCar(me); }
+      game.near = jobNear();
+      if (law.over) input.action = false;
+      if (input.action) { input.action = false; const n = game.near; if (n && n.kind === 'job') jobAction(n.id); else exitCar(me); }
       game.district = districtAt(p.x, p.z);
       if (game.waypoint && Math.hypot(p.x - game.waypoint.x, p.z - game.waypoint.z) < 14) { game.waypoint = null; toast('目的地に到着'); }
       st.saveT += dt; if (st.saveT > 5) { st.saveT = 0; save(); }
@@ -111,7 +84,8 @@ export default function Player() {
       if (input.camCycle) { input.camCycle = false; game.cam.mode = (game.cam.mode + 1) % 3; toast(['標準カメラ', '遠景カメラ', '一人称カメラ'][game.cam.mode], 1.2); }
       if (input.crouchToggle) { input.crouchToggle = false; p.crouch = !p.crouch; }
       // ----- move (camera-relative, PC style: the camera never auto-swings) -----
-      const [mx, my] = moveVector(), mag = Math.min(1, Math.hypot(mx, my));
+      const [mx, my] = law.over ? [0, 0] : moveVector(), mag = Math.min(1, Math.hypot(mx, my));
+      if (law.over) { input.action = false; input.jump = false; }
       const yaw = game.cam.yaw, fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
       let dx = fx * my + rx * mx, dz = fz * my + rz * mx; const dl = Math.hypot(dx, dz); if (dl > 1e-3) { dx /= dl; dz /= dl; }
       const wantSprint = input.dash && mag > 0.3 && !p.crouch && game.stamina > 1;
@@ -131,7 +105,7 @@ export default function Player() {
       else {
         collide(p, R, p.y, H);
         if (isWater(p.x, p.z)) { p.x = ox; p.z = oz; } // no swimming yet: the shoreline blocks you
-        pushOutOfCars(p);
+        hitCD -= dt; pushOutOfCars(p); if (knock.x || knock.z) { st.vx += knock.x; st.vz += knock.z; p.vy = Math.max(p.vy, 3); p.grounded = false; knock.x = knock.z = 0; }
         const g = groundAt(p.x, p.z);
         if (p.y <= g + 0.02 || (p.grounded && p.y - g < 0.45 && p.vy <= 0)) { if (!p.grounded && p.vy < -8) st.landT = 0.25; p.y = g; p.vy = 0; p.grounded = true; } else p.grounded = false;
       }
@@ -141,23 +115,25 @@ export default function Player() {
       game.near = null;
       if (inside && def) { if (Math.hypot(p.x - def.ox - def.exit.x, p.z - def.oz - def.exit.z) < 1.6) game.near = { kind: 'exit', label: '外へ出る', id: def.id }; }
       else for (const d of doors) if (Math.hypot(p.x - d.x, p.z - d.z) < 1.8) { game.near = { kind: 'door', label: d.label + 'に入る', id: d.id }; break; }
+      { const j = jobNear(); if (j && (!game.near || game.near.kind !== 'door')) game.near = j; }
       if (!inside && !game.near) {
         let best: Veh | null = null, bd = 1e9;
-        for (const v of vehicles) { if (v.dead) continue; const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 8 || Math.abs(dz) > 8) continue; const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), d = Math.hypot(Math.max(0, Math.abs(dx * fx + dz * fz) - v.def.len / 2), Math.max(0, Math.abs(dx * fz - dz * fx) - v.def.wid / 2)); if (d < 1.7 && d < bd) { bd = d; best = v; } }
+        for (const v of vehicles) { if (v.dead || v.role === 'armored') continue; const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 8 || Math.abs(dz) > 8) continue; const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), d = Math.hypot(Math.max(0, Math.abs(dx * fx + dz * fz) - v.def.len / 2), Math.max(0, Math.abs(dx * fz - dz * fx) - v.def.wid / 2)); if (d < 1.7 && d < bd) { bd = d; best = v; } }
         if (best) game.near = { kind: 'car', label: best.def.name + (best.owned >= 0 ? '（自分の車）' : '') + 'に乗る', id: String(best.id) };
       }
       if (input.action) {
         input.action = false;
         const n = game.near;
-        if (n && n.kind === 'door') {
-          const d = doors.find((q) => q.id === n.id)!, I = INTERIORS[d.interior];
+        if (n && n.kind === 'job') jobAction(n.id);
+        else if (n && n.kind === 'door') {
+          const d = doors.find((q) => q.id === n.id)!, I = INTERIORS[d.interior]; game.lastDoor = d.id;
           game.outsidePos = { x: d.x + Math.sin(d.ang) * 2.2, z: d.z + Math.cos(d.ang) * 2.2, yaw: d.ang };
           game.where = I.id; p.x = I.ox + I.spawn.x; p.z = I.oz + I.spawn.z; p.y = FLOOR; p.vy = 0; p.yaw = I.spawn.yaw; game.cam.yaw = I.spawn.yaw + Math.PI; st.vx = st.vz = 0;
           toast(I.name, 1.6); save();
         } else if (n && n.kind === 'car') {
           const v = vehicles.find((q) => String(q.id) === n.id);
           if (v && !v.dead) {
-            game.inCar = v.id; v.touched = true; releaseDrive(); sfx('door');
+            game.inCar = v.id; v.touched = true; releaseDrive(); sfx('door'); onEnterCar(v);
             st.carYaw = v.yaw; st.look = 0; st.lookP = 0; st.lookT = 0; game.near = null;
             toast(v.def.name + (v.owned < 0 ? '' : ''), 1.2);
           }

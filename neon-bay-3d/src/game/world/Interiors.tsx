@@ -1,4 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { makeCharacter } from '../player/character';
+import { game } from '../state/store';
+import { rob, CLERK, BAG, recentlyRobbed } from '../crime/crime';
 import * as THREE from 'three';
 import { getTextures, labelTexture } from './textures';
 
@@ -38,6 +42,30 @@ export const INTERIORS: Record<string, InteriorDef> = {
   ]),
 };
 
+/** Shop clerk behind the till: idle sway, hands up while being robbed, cowering afterwards. */
+function Clerk() {
+  const C = useMemo(() => makeCharacter({ skin: '#8d5a3b', shirt: '#2b8f5a', pants: '#24262c', shoe: '#30323a', hair: '#141012' }), []);
+  const bag = useRef<THREE.Mesh>(null!);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime, here = rob.door === game.lastDoor, scared = (here && rob.phase !== '') || recentlyRobbed(game.lastDoor);
+    C.hips.position.y = scared && rob.phase !== 'fill' ? 0.78 : 0.95; C.spine.rotation.x = scared ? 0.15 : 0.04; C.head.rotation.y = scared ? 0 : Math.sin(t * 0.4) * 0.4;
+    C.legs.forEach((l) => { l.top.rotation.x = scared && rob.phase !== 'fill' ? -0.6 : 0; l.mid.rotation.x = scared && rob.phase !== 'fill' ? 1.0 : 0; });
+    C.arms.forEach((a, i) => {
+      const sg = i ? 1 : -1;
+      if (here && rob.phase === 'fill') { a.top.rotation.x = -1.1 + Math.sin(t * 9 + i * 2) * 0.35; a.top.rotation.z = sg * 0.2; a.mid.rotation.x = -0.9; } // stuffing the bag
+      else if (scared) { a.top.rotation.x = -2.9; a.top.rotation.z = sg * 0.35; a.mid.rotation.x = -0.4; }
+      else { a.top.rotation.x = 0.05 + Math.sin(t * 1.3) * 0.03; a.top.rotation.z = sg * 0.08; a.mid.rotation.x = -0.15; }
+    });
+    if (bag.current) { bag.current.visible = here && (rob.phase === 'bag' || rob.phase === 'fill'); const k = rob.phase === 'fill' ? 0.4 + 0.6 * (rob.t / rob.dur) : 1; bag.current.scale.setScalar(k); }
+  });
+  return (
+    <>
+      <group position={[CLERK.x, 0, CLERK.z]} rotation-y={Math.PI}><primitive object={C.root} /></group>
+      <mesh ref={bag} position={[BAG.x, 1.25, BAG.z]} castShadow><sphereGeometry args={[0.22, 12, 10]} /><meshStandardMaterial color="#d9c9a0" roughness={0.9} /></mesh>
+    </>
+  );
+}
+
 function Room({ def }: { def: InteriorDef }) {
   const T = getTextures();
   const floorTex = useMemo(() => { const t = (def.id === 'home' ? T.concrete : T.tiles).clone(); t.needsUpdate = true; t.repeat.set(def.w / 2, def.d / 2); return t; }, [def, T]);
@@ -58,6 +86,7 @@ function Room({ def }: { def: InteriorDef }) {
       ))}
       <mesh position={[0, 3.3, -d / 2 + 0.05]}><planeGeometry args={[5, 1.25]} /><meshBasicMaterial map={sign} toneMapped={false} /></mesh>
       {[-w / 4, w / 4].map((x) => <mesh key={x} position={[x, h - 0.05, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[2.4, 0.5]} /><meshBasicMaterial color="#ffffff" toneMapped={false} /></mesh>)}
+      {(def.id === 'store' || def.id === 'gas') && <Clerk />}
       <pointLight position={[0, h - 0.4, 0]} intensity={26} distance={22} decay={1.6} color="#fff1dc" />
       <mesh position={[0, 1.2, d / 2 - 0.06]}><boxGeometry args={[1.8, 2.4, 0.1]} /><meshStandardMaterial color="#2a2f3a" metalness={0.5} roughness={0.3} /></mesh>
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, d / 2 - 1.2]}><ringGeometry args={[0.6, 0.8, 32]} /><meshBasicMaterial color="#2be4ff" toneMapped={false} /></mesh>

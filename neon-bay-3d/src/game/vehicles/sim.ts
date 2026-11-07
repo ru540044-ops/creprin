@@ -8,7 +8,12 @@ export interface Veh {
   id: number; def: VDef; color: string; x: number; z: number; y: number; yaw: number; vx: number; vz: number; yr: number;
   steer: number; hp: number; slot: number; owned: number; touched: boolean; drift: boolean; gear: number; rpm: number;
   braking: boolean; reversing: boolean; spin: number; pitch: number; roll: number; slip: number; dead: boolean; burn: number; lean: number;
+  role: '' | 'police' | 'armored'; ai: AI | null; // AI-driven cars carry their driver state
 }
+/** Per-car AI driver: route on the road grid plus the controls it decided on this frame. */
+export interface AI { ctl: Drive | null; ni: number; nj: number; pi: number; pj: number; stuck: number; rev: number; revSteer: number; direct: number; t: number; [k: string]: any }
+/** Callbacks the crime / police systems hook into. */
+export const hooks = { carHit: (_a: Veh, _b: Veh, _imp: number) => {}, hurtPlayer: (_dmg: number) => {} };
 export const vehicles: Veh[] = [];
 const activeSlot = new Set<number>();
 let nextId = 1;
@@ -16,7 +21,7 @@ export const owned = ownedCars;
 
 export function spawn(kind: VKind, x: number, z: number, yaw: number, color?: string, slot = -1, ownedIdx = -1): Veh {
   const def = VDEFS[kind];
-  const v: Veh = { id: nextId++, def, color: color || def.colors[0], x, z, y: groundAt(x, z), yaw, vx: 0, vz: 0, yr: 0, steer: 0, hp: def.hp, slot, owned: ownedIdx, touched: false, drift: false, gear: 0, rpm: 0, braking: false, reversing: false, spin: 0, pitch: 0, roll: 0, slip: 0, dead: false, burn: 0, lean: 0 };
+  const v: Veh = { id: nextId++, def, color: color || def.colors[0], x, z, y: groundAt(x, z), yaw, vx: 0, vz: 0, yr: 0, steer: 0, hp: def.hp, slot, owned: ownedIdx, touched: false, drift: false, gear: 0, rpm: 0, braking: false, reversing: false, spin: 0, pitch: 0, roll: 0, slip: 0, dead: false, burn: 0, lean: 0, role: '', ai: null };
   vehicles.push(v); if (slot >= 0) activeSlot.add(slot); return v;
 }
 export function remove(v: Veh) { const i = vehicles.indexOf(v); if (i >= 0) vehicles.splice(i, 1); if (v.slot >= 0 && !v.touched) activeSlot.delete(v.slot); }
@@ -27,7 +32,7 @@ let streamT = 0;
 export function stream(px: number, pz: number, dt: number) {
   streamT -= dt; if (streamT > 0) return; streamT = 0.5;
   for (let i = vehicles.length - 1; i >= 0; i--) {
-    const v = vehicles[i]; if (v.id === game.inCar || v.owned >= 0) continue;
+    const v = vehicles[i]; if (v.id === game.inCar || v.owned >= 0 || v.role) continue;
     const d = Math.hypot(v.x - px, v.z - pz);
     if (d > 240 && !v.touched) remove(v);
     else if (d > 520) remove(v); // abandoned cars far away disappear
@@ -119,7 +124,7 @@ export function collisions(dt: number): number {
       const d = Math.sqrt(d2), nx = dx / d, nz = dz / d, pen = R - d, ma = a.def.mass, mb = b.def.mass, ia = 1 / ma, ib = 1 / mb, s = ia + ib;
       a.x -= nx * pen * (ia / s); a.z -= nz * pen * (ia / s); b.x += nx * pen * (ib / s); b.z += nz * pen * (ib / s);
       const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
-      if (rv < 0) { const J = (-1.3 * rv) / s; a.vx -= J * ia * nx; a.vz -= J * ia * nz; b.vx += J * ib * nx; b.vz += J * ib * nz; const imp = -rv; hurt(a, imp * (mb / (ma + mb)) * 2); hurt(b, imp * (ma / (ma + mb)) * 2); a.touched = b.touched = true; if (a.id === game.inCar || b.id === game.inCar) playerHit = Math.max(playerHit, imp); }
+      if (rv < 0) { const J = (-1.3 * rv) / s; a.vx -= J * ia * nx; a.vz -= J * ia * nz; b.vx += J * ib * nx; b.vz += J * ib * nz; const imp = -rv; hurt(a, imp * (mb / (ma + mb)) * 2 * (b.role === 'armored' ? 0.45 : 1)); hurt(b, imp * (ma / (ma + mb)) * 2 * (a.role === 'armored' ? 0.45 : 1)); a.touched = b.touched = true; if (a.id === game.inCar || b.id === game.inCar) playerHit = Math.max(playerHit, imp); hooks.carHit(a, b, imp); }
     }
   }
   return playerHit;

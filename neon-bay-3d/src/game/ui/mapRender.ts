@@ -1,4 +1,4 @@
-import { GARAGE, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD } from '../world/cityGen';
+import { GARAGE, LANDMARKS, EXPORT_DOCK, TRIALS, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD } from '../world/cityGen';
 
 /** World bounds of the map image and its scale. */
 export const MAP = { x0: -1560, z0: -1760, x1: 1120, z1: 1120, s: 0.3 };
@@ -33,5 +33,6 @@ export function mapImage() {
   img = cv; return cv;
 }
 
-export const POI = () => [...doors.map((d) => ({ x: d.x, z: d.z, c: d.color, t: d.label })), { x: GARAGE.x, z: GARAGE.z + 20, c: '#3dffb0', t: 'GARAGE' }];
+export const POI = () => [...doors.map((d) => ({ x: d.x, z: d.z, c: d.color, t: d.label })), { x: GARAGE.x, z: GARAGE.z + 20, c: '#3dffb0', t: 'GARAGE' },
+  ...LANDMARKS.map((L) => ({ x: L.x, z: L.z, c: L.color, t: L.label })), { x: EXPORT_DOCK.x, z: EXPORT_DOCK.z, c: '#ff9a3a', t: 'EXPORT DOCK' }, ...TRIALS.map((T) => ({ x: T.start.x, z: T.start.z, c: '#c07aff', t: 'TIME TRIAL' }))];
 export { N };

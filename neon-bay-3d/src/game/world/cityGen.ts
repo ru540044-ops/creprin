@@ -81,8 +81,8 @@ const SHOP_T: [number, number, number][] = [[0.95, 0.9, 0.82], [0.88, 0.8, 0.9],
 
 function addB(b: Building) { buildings.push(b); solids.push({ x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, y0: b.y0, y1: b.y0 + b.h + (b.gable ? 4 : 0) }); }
 
-const SHOP_LABELS: [string, string, string][] = [['store', 'QWIK 24', '#3dffb0'], ['diner', 'BAY DINER', '#ff6a9a'], ['clothes', 'THREADS', '#c07aff']];
-let shopDoorsLeft = 3;
+const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', 'BAY DINER', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store']];
+let shopDoorsLeft = SHOP_LABELS.length;
 
 for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
   const x0 = blockX0(i), z0 = blockX0(j), x1 = x0 + BLOCK, z1 = z0 + BLOCK, zone = zoneOf(i, j);
@@ -110,10 +110,10 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
         const t = r(), type: BType = t < 0.45 ? 'shop' : t < 0.75 ? 'office' : 'brick';
         const h = type === 'shop' ? 8 + r() * 14 : 18 + r() * 30;
         addB({ x0: bx0, z0: bz0, x1: bx1, z1: bz1, y0: S, h, type, tint: pick(type === 'shop' ? SHOP_T : type === 'office' ? OFFICE_T : BRICK_T, r) });
-        if (type === 'shop' && shopDoorsLeft > 0 && hor && r() < 0.6) {
-          const L = SHOP_LABELS[3 - shopDoorsLeft]; shopDoorsLeft--;
+        if (type === 'shop' && shopDoorsLeft > 0 && hor && (b0 === iz0 || b1 === iz1) && r() < 0.2) {
+          const L = SHOP_LABELS[SHOP_LABELS.length - shopDoorsLeft]; shopDoorsLeft--;
           const front = b0 === iz0 ? bz0 : bz1, dir = b0 === iz0 ? -1 : 1;
-          doors.push({ id: L[0], x: (bx0 + bx1) / 2, z: front + dir * 0.8, ang: dir < 0 ? Math.PI : 0, label: L[1], interior: L[0], color: L[2] });
+          doors.push({ id: L[0], x: (bx0 + bx1) / 2, z: front + dir * 0.8, ang: dir < 0 ? Math.PI : 0, label: L[1], interior: L[3], color: L[2] });
         }
       }
     }
@@ -197,6 +197,34 @@ export const parkSlots: { x: number; z: number; yaw: number; kind: string; ci: n
   for (let n = 0; n < 8; n++) parkSlots.push({ x: AIRPORT.x0 + 300 + n * 7, z: 110, yaw: Math.PI, kind: kinds[n % kinds.length], ci: n % 6 });
   for (let n = 0; n < 4; n++) parkSlots.push({ x: PORT.x0 + 40 + n * 30, z: PORT.z0 + 15, yaw: Math.PI / 2, kind: n % 2 ? 'truck' : 'suv', ci: n });
 }
+
+/* ---------- landmarks: police station, hospital (respawn points), export dock, time trials ---------- */
+export interface Landmark { id: string; label: string; color: string; x: number; z: number; spawn: { x: number; z: number; yaw: number } }
+function landmark(id: string, label: string, color: string, tx: number, tz: number): Landmark {
+  let best: Building | null = null, bd = 1e9;
+  for (const b of buildings) {
+    if (b.type !== 'office' && b.type !== 'brick' && b.type !== 'glass') continue;
+    const blk = blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
+    if (!blk || blk === GARAGE.block || b.z0 - blk.z0 > 7 || b.x1 - b.x0 < 14) continue;
+    const cx = (b.x0 + b.x1) / 2; if (doors.some((d) => Math.hypot(d.x - cx, d.z - b.z0) < 30)) continue;
+    const d = Math.hypot(cx - tx, b.z0 - tz); if (d < bd) { bd = d; best = b; }
+  }
+  const b = best!, cx = (b.x0 + b.x1) / 2, blk = blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1)!;
+  return { id, label, color, x: cx, z: b.z0 - 0.8, spawn: { x: cx, z: blk.z0 - 2.2, yaw: Math.PI } };
+}
+export const POLICE_HQ = landmark('pd', 'BAY PD', '#2b6bff', -380, -220);
+export const HOSPITAL = landmark('hosp', 'BAY GENERAL', '#ff4b5c', 330, 120);
+export const LANDMARKS = [POLICE_HQ, HOSPITAL];
+export const EXPORT_DOCK = { x: PORT.x0 + 26, z: PORT.z0 + 34 };
+
+/** Time trials: checkpoints on road intersections (n = node index) or explicit points. */
+export interface Trial { id: string; name: string; start: { x: number; z: number; yaw: number }; cps: { x: number; z: number }[]; par: number; reward: number }
+const nd = (i: number, j: number) => ({ x: roadC(i), z: roadC(j) });
+export const TRIALS: Trial[] = [
+  { id: 'loop', name: 'ダウンタウン・ループ', start: { x: roadC(4), z: roadC(4), yaw: Math.PI / 2 }, cps: [nd(6, 4), nd(8, 4), nd(10, 4), nd(10, 6), nd(10, 8), nd(10, 10), nd(8, 10), nd(6, 10), nd(4, 10), nd(4, 8), nd(4, 6), nd(4, 4)], par: 72, reward: 3000 },
+  { id: 'hwy', name: 'ハイウェイ・ラン', start: { x: roadC(14) - 20, z: roadC(7), yaw: Math.PI / 2 }, cps: [{ x: HWY_C, z: 0 }, { x: HWY_C, z: -370 }, { x: HWY_C, z: -HWY_C }, { x: 370, z: -HWY_C }, { x: roadC(7), z: -HWY_C }, nd(7, 0)], par: 84, reward: 4000 },
+  { id: 'zig', name: 'パームホロウ・ジグザグ', start: { x: roadC(1), z: roadC(1) - 30, yaw: 0 }, cps: [nd(1, 3), nd(3, 3), nd(3, 5), nd(5, 5), nd(5, 7), nd(1, 7), nd(1, 9), nd(3, 9), nd(3, 12), nd(1, 12)], par: 95, reward: 3500 },
+];
 
 /* ---------- street furniture ---------- */
 for (let k = 0; k <= N; k++) {

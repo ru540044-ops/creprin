@@ -1,5 +1,6 @@
 /** Web Audio: engine tone from rpm/gear, tyre squeal from slip, one-shot crash / door / ui sounds. Starts on the first user tap. */
 let C: AudioContext | null = null, master: GainNode;
+let sir: OscillatorNode, sirG: GainNode;
 let eng1: OscillatorNode, eng2: OscillatorNode, engG: GainNode, engF: BiquadFilterNode, tireG: GainNode, tireF: BiquadFilterNode, noise: AudioBuffer;
 export const audio = { muted: false };
 
@@ -14,6 +15,8 @@ export function initAudio() {
     const g2 = C.createGain(); g2.gain.value = 0.35; eng1.connect(engF); eng2.connect(g2); g2.connect(engF); engF.connect(engG); engG.connect(master); eng1.start(); eng2.start();
     const src = C.createBufferSource(); src.buffer = noise; src.loop = true; tireF = C.createBiquadFilter(); tireF.type = 'bandpass'; tireF.frequency.value = 2200; tireF.Q.value = 4;
     tireG = C.createGain(); tireG.gain.value = 0; src.connect(tireF); tireF.connect(tireG); tireG.connect(master); src.start();
+    sir = C.createOscillator(); sir.type = 'sawtooth'; const sf = C.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = 2400; sirG = C.createGain(); sirG.gain.value = 0;
+    sir.connect(sf); sf.connect(sirG); sirG.connect(master); sir.start();
   } catch { C = null; }
 }
 
@@ -25,6 +28,13 @@ export function engine(on: boolean, rpm: number, gear: number, thr: number, slip
   engF.frequency.setTargetAtTime(500 + rpm * 1600 + thr * 600, t, 0.08);
   engG.gain.setTargetAtTime(on ? (0.05 + thr * 0.05 + rpm * 0.04) * m : 0, t, 0.08);
   tireG.gain.setTargetAtTime(on ? Math.min(0.16, Math.max(0, slip - 3) * 0.025) * m : 0, t, 0.06);
+}
+
+/** Police siren: a wailing tone whose volume follows the nearest pursuing car (0..1). */
+export function siren(vol: number) {
+  if (!C || !sir) return; const t = C.currentTime, w = 0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 0.42);
+  sir.frequency.setTargetAtTime(640 + w * 520, t, 0.03);
+  sirG.gain.setTargetAtTime(audio.muted ? 0 : vol * vol * 0.09, t, 0.1);
 }
 
 export function sfx(kind: 'crash' | 'door' | 'buy' | 'ui', vol = 1) {
