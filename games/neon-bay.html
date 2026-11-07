@@ -66,6 +66,9 @@ button{font-family:var(--ui)}
 .bar{height:7px;background:rgba(0,0,0,.55);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);position:relative;overflow:hidden;border-radius:2px}
 .bar i{position:absolute;inset:0 auto 0 0;width:100%;background:var(--mint);transition:width .15s}
 .bar.ar i{background:var(--cyan)}
+.bar.sp{grid-column:1/-1;height:5px}
+.bar.sp i{background:var(--amber)}
+.bar.sp.on i{background:var(--ink);box-shadow:0 0 8px var(--amber)}
 .bar i.low{background:var(--pink)}
 .touch .mm{bottom:auto;top:12px}
 .touch #tl{padding-top:calc(var(--mmh) + 22px)}
@@ -87,6 +90,7 @@ button{font-family:var(--ui)}
 .info{display:grid;gap:2px;font-variant-numeric:tabular-nums}
 #tod{font-size:14px;color:var(--ink)}
 #radio{color:var(--pink)}
+.touch #radio{pointer-events:auto;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 .btns{display:grid;grid-template-columns:repeat(3,var(--rb));gap:6px}
 .rb{display:grid;pointer-events:auto;width:var(--rb);height:var(--rb);padding:0;border-radius:50%;border:2px solid var(--cyan);background:rgba(16,12,38,.7);color:var(--ink);font-size:10px;font-weight:700;letter-spacing:.06em;place-items:center;touch-action:none;box-shadow:0 0 14px rgba(43,228,255,.35)}
 .rb.act{border-color:var(--pink);box-shadow:0 0 16px rgba(255,63,147,.45);font-size:11px}
@@ -183,12 +187,12 @@ h1{margin:0;font:400 clamp(52px,15vw,88px)/.95 var(--display);color:var(--pink);
       <div id="cash">$0</div>
       <div id="stars" role="img" aria-label="Wanted level"><b>★</b><b>★</b><b>★</b><b>★</b><b>★</b></div>
       <div class="lab" id="fol">1,204 followers</div>
-      <div class="tbtn"><button id="bPhone" type="button">Phone<span class="k"> (P)</span></button><button id="bMap" type="button">Map<span class="k"> (M)</span></button><button id="mute" type="button">Sound on</button></div>
+      <div class="tbtn"><button id="bPhone" type="button">Phone<span class="k"> (P)</span></button><button id="bMap" type="button">Map<span class="k"> (M)</span></button><button id="bGfx" type="button">Graphics: High</button><button id="mute" type="button">Sound on</button></div>
     </div>
     <div class="mm"><canvas id="map" width="208" height="132"></canvas>
-      <div class="bars"><div class="bar" title="Health"><i id="hpF"></i></div><div class="bar ar" title="Armor"><i id="arF" style="width:0%"></i></div></div>
+      <div class="bars"><div class="bar" title="Health"><i id="hpF"></i></div><div class="bar ar" title="Armor"><i id="arF" style="width:0%"></i></div><div class="bar sp" title="Special ability"><i id="spF"></i></div></div>
     </div>
-    <div class="hint">WASD move · Shift sprint · Space brake or jump · E enter · C switch hero · Q or hold Tab weapons · Click or F shoot · P phone · M map · V camera · R radio</div>
+    <div class="hint">WASD move · Shift sprint · Space brake or jump · E enter · C switch hero · X special · Q or hold Tab weapons · Click or F shoot · P phone · M map · V camera · R radio</div>
     <div id="bl">
       <div class="dpad">
         <button class="db" id="dU" type="button" aria-label="Forward">▲</button>
@@ -207,7 +211,7 @@ h1{margin:0;font:400 clamp(52px,15vw,88px)/.95 var(--display);color:var(--pink);
         <button class="rb act" id="bAct" type="button">ENTER</button>
         <button class="rb" id="bSwap" type="button">SWAP</button>
         <button class="rb" id="bBrk" type="button">BRAKE</button>
-        <button class="rb" id="bRad" type="button">RADIO</button>
+        <button class="rb" id="bSpc" type="button">SPECIAL</button>
         <button class="rb" id="bWpn" type="button">WEAPON</button>
       </div>
     </div>
@@ -238,10 +242,10 @@ h1{margin:0;font:400 clamp(52px,15vw,88px)/.95 var(--display);color:var(--pink);
       <dl class="keys">
         <dt>Move</dt><dd>W A S D or arrows, Shift to sprint, Space to jump. Walk off the pier to swim</dd>
         <dt>Drive</dt><dd>E to take a car, boat or jet ski, Space to brake, R for radio</dd>
-        <dt>Duo</dt><dd>C switches between Nova and Cal. Your partner rides along and shoots back</dd>
+        <dt>Duo</dt><dd>C switches between Nova and Cal. Your partner rides along and shoots back. X uses the hero's special: Nova slows time and steadies her aim, Cal slows time and grips the road</dd>
         <dt>Weapons</dt><dd>Click or F to shoot, drive-bys too. Q or hold Tab for the wheel, 1 to 4</dd>
         <dt>Crime</dt><dd>Hold FIRE inside a red QWIK 24 ring to rob it. Break line of sight to lose the cops</dd>
-        <dt>Phone</dt><dd>P for Buzzr, M for the map, V to change the camera</dd>
+        <dt>Phone</dt><dd>P for Buzzr, M for the map, V cycles the camera including first person</dd>
         <dt>Touch</dt><dd>Left thumb steers, right side looks, buttons for the rest</dd>
       </dl>
       <p id="glerr" hidden></p>
@@ -407,8 +411,8 @@ const JOBS=[],PNSL=[],SHOPL=[];
 })();
 let mission=null,attractCar=null;
 const HEROES=[
-  {n:'Nova',col:'#ff3f93',skin:'#c98f66',hair:[.09,.05,.06],pony:true},
-  {n:'Cal',col:'#2be4ff',skin:'#f1c9a5',hair:[.36,.22,.12],cap:true,capc:[.08,.22,.3]}
+  {n:'Nova',col:'#ff3f93',skin:'#c98f66',hair:[.09,.05,.06],pony:true,pants:[.16,.22,.42],sp:'Focus'},
+  {n:'Cal',col:'#2be4ff',skin:'#f1c9a5',hair:[.36,.22,.12],cap:true,capc:[.08,.22,.3],pants:[.5,.44,.33],sp:'Overdrive'}
 ];
 const BUD={x:P.x+20,y:P.y+20,vx:0,vy:0,face:0,walk:0,inCar:true,fireCd:1,hp:100,armor:0,swim:false,stk:0,lx:0,ly:0};
 const WPN=[
@@ -418,7 +422,7 @@ const WPN=[
   {id:'shotgun',n:'Shotgun',cd:.85,sp:.2,dmg:15,rng:300,pel:6,snd:380}
 ];
 Object.assign(G,{w:1,am:[0,48,90,12],fol:1204,hero:0,rob:0,heatT:0,lkp:null,seen:true,gray:0,story:0,storyCd:0,wheel:false,wheelT:0,wsel:1,phone:false,lineT:0,chatT:70,sayQ:[],sayT:0,stats:{rob:0,cops:0,km:0}});
-const VNAMES={sedan:'Corsa Lune',sport:'Stingline GT',van:'Haulmark',taxi:'Bay Cab',cop:'Interceptor',speed:'Sea Razor',jetski:'Wavecat'};
+const VNAMES={suv:'Tidewater',pickup:'Ranchline',bus:'Bay Transit',super:'Volta XR',sedan:'Corsa Lune',sport:'Stingline GT',van:'Haulmark',taxi:'Bay Cab',cop:'Interceptor',speed:'Sea Razor',jetski:'Wavecat'};
 const SAFE={x:rc(10)+200,y:rc(11)};
 const WB={x0:-1600,y0:-1600,x1:PIER_END+2000,y1:LAND_H+1600};
 const DOCKS=[
@@ -427,7 +431,10 @@ const DOCKS=[
   {x:LAND_W+150,y:1500,a:Math.PI/2,k:'jetski'},{x:LAND_W+150,y:6200,a:-Math.PI/2,k:'speed'},
   {x:-70,y:6500,a:Math.PI/2,k:'speed'},{x:-70,y:7150,a:Math.PI/2,k:'jetski'},{x:900,y:-70,a:0,k:'speed'}
 ];
-const animals=[];let HELI=null;
+const animals=[],offs=[];let HELI=null;
+const QUAL=[{n:'Low',sh:0,dpr:1,dens:.75},{n:'Medium',sh:1024,dpr:1.5,dens:1},{n:'High',sh:2048,dpr:2,dens:1.3}];
+G.q=2;G.sp=100;G.spOn=false;G.spFx=0;
+try{const tq=parseInt(localStorage.getItem('neonbay.q'),10);G.q=tq>=0&&tq<=2?tq:(matchMedia('(pointer:coarse)').matches?1:2)}catch(e){}
 
 /* ---------- audio ---------- */
 const AU={ctx:null,eng:null,engG:null,sir:null,sirG:null,mute:false};
@@ -449,7 +456,7 @@ function audioTick(speed,inCar,sirenOn,t){
   if(!AU.ctx)return;
   const on=!AU.mute&&G.mode==='play';
   AU.engG.gain.value=on&&inCar?.035+Math.min(.04,speed/9000):0;
-  AU.eng.frequency.value=48+speed*.28;
+  {const g=Math.min(5,Math.floor(speed/115)),r=(speed-g*115)/115;AU.eng.frequency.value=42+r*95+g*9}
   AU.sirG.gain.value=on&&sirenOn?.012:0;
   AU.sir.frequency.value=(t*2.2%2)<1?760:960;
 }
@@ -469,13 +476,17 @@ const KINDS={
   van:{l:54,w:24,max:240,acc:260,turn:2.0,hp:140,m:1.5,cols:['#d9d4ee','#6b6f93','#58c28f']},
   taxi:{l:44,w:21,max:320,acc:360,turn:2.5,hp:100,m:1,cols:['#ffc23a']},
   cop:{l:46,w:22,max:450,acc:470,turn:2.8,hp:110,m:1.15,cols:['#1b1a30']},
+  suv:{l:48,w:23,max:330,acc:340,turn:2.3,hp:130,m:1.3,cols:['#1d1f26','#e8e8f0','#5a6b7a','#7a2a2a','#2f4f3a','#c8b48a']},
+  pickup:{l:50,w:22,max:310,acc:330,turn:2.2,hp:130,m:1.35,cols:['#c94f2a','#30507a','#e0d6c0','#3a3a3a','#6b7f3a']},
+  bus:{l:88,w:26,max:210,acc:160,turn:1.4,hp:220,m:3,cols:['#f2f2f2','#2bb4e0','#ff9f2a']},
+  super:{l:46,w:22,max:650,acc:700,turn:3.1,hp:85,m:1,cols:['#ff2a2a','#ffd23a','#2be4ff','#9dff3a','#f4f4ff','#ff6a00']},
   speed:{l:56,w:20,max:440,acc:360,turn:1.8,hp:130,m:1.4,boat:1,cols:['#f4f0ff','#ff3f93','#2be4ff','#ffc03a']},
   jetski:{l:28,w:12,max:390,acc:470,turn:2.7,hp:60,m:.6,boat:1,cols:['#ffc03a','#3dffb0','#ff5a3f','#9d7bff']}
 };
 let carId=1;
 function mkCar(kind,x,y,a,ai){
   const K=KINDS[kind];
-  const c={id:carId++,kind,x,y,a,vx:0,vy:0,boat:!!K.boat,ox:x,oy:y,l:K.l,w:K.w,max:K.max,acc:K.acc,turn:K.turn,hp:K.hp,maxhp:K.hp,m:K.m,col:pick(K.cols),ai,
+  const c={id:carId++,kind,x,y,a,vx:0,vy:0,boat:!!K.boat,ox:x,oy:y,co:K.l>60?[-33,-11,11,33]:[-10,10],l:K.l,w:K.w,max:K.max,acc:K.acc,turn:K.turn,hp:K.hp,maxhp:K.hp,m:K.m,col:pick(K.cols),ai,
     dir:0,road:0,k:0,v:0,speedT:0,burn:0,stuck:0,rev:0,side:0,blocked:0,idle:0,fv:0,spd:0,hornCd:0,sirenOn:false};
   cars.push(c);return c;
 }
@@ -494,7 +505,7 @@ function spawnTraffic(x,y){
   else{road=clamp(Math.round((x-50)/PITCH),0,NR-1);dir=Math.random()<.5?1:3;along=clamp(y,30,GRID-30)}
   const q=((along%PITCH)+PITCH)%PITCH; if(q<130||q>370)along+=170;
   along=clamp(along,30,GRID-30);
-  const kind=pick(['sedan','sedan','sedan','sport','van','taxi']);
+  const kind=pick(['sedan','sedan','sedan','suv','suv','pickup','sport','van','taxi','taxi','bus','super']);
   const c=mkCar(kind,0,0,0,'traffic');
   placeOnRoad(c,dir,road,along);
   c.speedT=rnd(130,210);c.v=c.speedT;c.vx=DX[dir]*c.v;c.vy=DY[dir]*c.v;
@@ -503,7 +514,7 @@ function spawnTraffic(x,y){
 function spawnParked(x,y){
   const horiz=Math.random()<.5,k=horiz?clamp(Math.round((y-50)/PITCH),0,NR-1):clamp(Math.round((x-50)/PITCH),0,NR-1);
   const side=Math.random()<.5?-38:38;
-  const c=mkCar(pick(['sedan','sedan','van','sport','taxi']),0,0,0,'parked');
+  const c=mkCar(pick(['sedan','sedan','suv','suv','pickup','van','sport','taxi','super']),0,0,0,'parked');
   const b=Math.floor((horiz?x:y)/PITCH),along=b*PITCH+rnd(150,350);
   if(horiz){c.x=along;c.y=rc(k)+side;c.a=side<0?Math.PI:0}else{c.y=along;c.x=rc(k)+side;c.a=side<0?-Math.PI/2:Math.PI/2}
   return c;
@@ -529,14 +540,14 @@ function driveCar(c,thr,steer,brake,dt){
   else fv*=Math.pow(bt?.55:.4,dt);
   if(brake)fv*=Math.pow(bt?.3:.1,dt);
   fv=clamp(fv,-c.max*.35,c.max);
-  lv*=Math.pow(brake?.1:(bt?.3:.002),dt);
+  lv*=Math.pow(brake?.1:(bt?.3:(c===P.car&&G.spOn&&G.hero===1?.00005:.002)),dt);
   c.vx=fx*fv-fy*lv;c.vy=fy*fv+fx*lv;
   c.x+=c.vx*dt;c.y+=c.vy*dt;c.fv=fv;c.spd=Math.hypot(c.vx,c.vy);
 }
 function hurtCar(c,d){
   if(c.hp<=0||d<=0)return;
   c.hp-=d;
-  if(c.hp<=0){c.hp=0;c.burn=3.6;if(c.kind==='cop')G.stats.cops++;if(c.ai==='traffic'||c.ai==='parked')freeCar(c)}
+  if(c.hp<=0){c.hp=0;c.burn=3.6;if(c.kind==='cop'){G.stats.cops++;G.sp=Math.min(100,G.sp+8)}if(c.ai==='traffic'||c.ai==='parked')freeCar(c)}
 }
 function freeCar(c){
   if(c.ai==='traffic'||c.ai==='parked'){
@@ -560,6 +571,7 @@ function explode(x,y,src){
   G.shake=Math.max(G.shake,16);sfx(70,.7,'sawtooth',.2,.3);
   for(const c of cars){if(c===src)continue;const d=Math.hypot(c.x-x,c.y-y);if(d<110){hurtCar(c,70*(1-d/110)+12);const k=(1-d/110)*260/(d||1);c.vx+=(c.x-x)*k;c.vy+=(c.y-y)*k;if(c.ai==='parked')freeCar(c)}}
   for(const p of peds){if(p.st!==2&&Math.hypot(p.x-x,p.y-y)<100)koPed(p,x,y,false)}
+  for(const o of offs)if(o.st!==9&&Math.hypot(o.x-x,o.y-y)<100)killOff(o,x,y,200,false);
   if(!P.car&&Math.hypot(P.x-x,P.y-y)<90)hurtPlayer(70,x,y);
   for(const a of animals)if(!a.dead&&Math.hypot(a.x-x,a.y-y)<100)killAnimal(a,x,y,200);
   if(G.mode==='play'&&Math.hypot(x-P.x,y-P.y)<700)post('explode');
@@ -577,10 +589,11 @@ function boatWalls(c){
 /* ---------- pedestrians ---------- */
 const PEDCOLS=['#ff7ab6','#7ad7ff','#ffd27a','#b69cff','#8dffc4','#f4f0ff','#ff9c6b'];
 const SKINS=['#f1c9a5','#d9a47c','#a8734f','#6e4630'];
+const PANTS=[[.15,.17,.3],[.25,.22,.18],[.72,.68,.58],[.1,.1,.12],[.35,.42,.55],[.55,.25,.2],[.9,.9,.88]];
 const HAIRS=[[.1,.08,.12],[.3,.18,.1],[.62,.45,.22],[.06,.06,.07],[.55,.55,.58],[.5,.16,.12]];
 function mkPed(x,y){
   const p={x,y,a:rnd(0,TAU),sp:rnd(28,46),col:pick(PEDCOLS),skin:pick(SKINS),tx:x,ty:y,st:0,ko:0,fl:0,ph:Math.random()*10,bump:0,vx:0,vy:0,film:0};
-  p.opt={hair:pick(HAIRS)};
+  p.opt={hair:pick(HAIRS),pants:pick(PANTS),amp:1,phone:false,cap:Math.random()<.18,capc:pick(HAIRS)};
   peds.push(p);return p;
 }
 function newTarget(p){
@@ -606,9 +619,10 @@ function updPed(p,dt){
   if(p.film>0&&p.st===0){
     p.film-=dt;let flee=false;
     for(const c of cars)if(c.spd>150){const dx=p.x-c.x,dy=p.y-c.y;if(dx*dx+dy*dy<85*85){flee=true;break}}
-    if(!flee){const rf=P.car||P;p.a+=angDiff(p.a,Math.atan2(rf.y-p.y,rf.x-p.x))*Math.min(1,dt*5);return}
+    if(!flee){const rf=P.car||P;p.a+=angDiff(p.a,Math.atan2(rf.y-p.y,rf.x-p.x))*Math.min(1,dt*5);p.opt.amp=0;p.opt.phone=true;return}
     p.film=0;
   }
+  p.opt.amp=1;p.opt.phone=false;
   let sp=p.sp;
   if(p.st===1){p.fl-=dt;sp=108;if(p.fl<=0){p.st=0;newTarget(p)}}
   else{
@@ -670,8 +684,10 @@ function updTraffic(c,dt){
   for(const o of cars){
     if(o===c||o.ai==='parked'||(o.ai==='traffic'&&o.id>c.id&&o.dir===d&&false))continue;
     if(o.ai==='traffic'&&o.id>c.id&&o.dir!==d)continue;
-    const rx=o.x-c.x,ry=o.y-c.y,f=rx*dx+ry*dy;
-    if(f<0||f>90)continue;
+    const rx=o.x-c.x,ry=o.y-c.y,raw=rx*dx+ry*dy;
+    if(raw<0)continue;
+    const f=raw-Math.max(0,(o.l+c.l)/2-44);
+    if(f>90)continue;
     if(Math.abs(-rx*dy+ry*dx)<27&&f<near)near=f;
   }
   for(const q of peds){
@@ -719,6 +735,9 @@ function spawnCop(){
 }
 function updCop(c,dt){
   const rf=P.car||P;let tx=rf.x,ty=rf.y;
+  {const rd=Math.hypot(rf.x-c.x,rf.y-c.y);
+   if(c.dep){if(rd>650&&!offs.some(o=>o.car===c&&o.st!==9))c.dep=false;else{driveCar(c,0,0,true,dt);return}}
+   if(G.seen&&rd<180&&(!P.car||P.car.spd<70)&&!P.swim&&Math.floor(G.heat)>=1&&offs.length<10){driveCar(c,0,0,true,dt);if(c.spd<40)deployCops(c);return}}
   if(!G.seen&&G.lkp){const R=searchR()*.65;tx=G.lkp.x+Math.cos(G.t*.35+c.id*1.7)*R;ty=G.lkp.y+Math.sin(G.t*.35+c.id*1.7)*R}
   const dxp=tx-c.x,dyp=ty-c.y,dd=Math.hypot(dxp,dyp);
   let desired=Math.atan2(dyp,dxp);
@@ -769,9 +788,52 @@ function police(dt){
   }
   const spd=P.car?P.car.spd:0;let close=false;
   if(stars>0&&spd<45)for(const c of cl)if(Math.hypot(c.x-rf.x,c.y-rf.y)<85){close=true;break}
+  if(stars>0&&!P.car)for(const o of offs)if(o.st!==9&&Math.hypot(o.x-P.x,o.y-P.y)<30){close=true;break}
   G.bust=close?G.bust+dt:Math.max(0,G.bust-dt*1.5);
   if(G.bust>2.4)gameOver('BUSTED');
-  copGun(dt);updHeli(dt);
+  copGun(dt);updHeli(dt);updOffs(dt);
+}
+function deployCops(c){
+  if(c.dep)return;c.dep=true;
+  for(const s of[-1,1]){const a=c.a+s*Math.PI/2,x=c.x+Math.cos(a)*26,y=c.y+Math.sin(a)*26;if(bldAt(x,y)||!onLand(x,y))continue;
+    offs.push({x,y,face:c.a,walk:0,vx:0,vy:0,st:0,hp:40,car:c,cd:rnd(.9,1.8),dt:0,amp:0,skin:pick(SKINS),wa:rnd(0,TAU),opt:{cap:true,capc:[.06,.08,.18],pants:[.07,.08,.13],hair:pick(HAIRS),amp:0}})}
+  sfx(300,.15,'square',.04,.7);
+}
+function killOff(o,fx,fy,s,byP){
+  if(o.st===9)return;o.st=9;o.dt=14;const g=Math.atan2(o.y-fy,o.x-fx),v=Math.min(240,(s||150)*.7);o.vx=Math.cos(g)*v;o.vy=Math.sin(g)*v;
+  for(let i=0;i<4;i++)emit('star',o.x,o.y,rnd(-20,20),rnd(-40,-10),1.2,3,'#ffd27a');
+  if(byP){G.heat=Math.min(5.99,Math.max(G.heat,2)+.5);G.evade=0;G.heatT=2;G.stats.cops++;G.sp=Math.min(100,G.sp+10)}
+}
+const OFFC=[.12,.16,.32];
+function updOffs(dt){
+  const rf=P.car||P,stars=Math.floor(G.heat);
+  for(let i=offs.length-1;i>=0;i--){
+    const o=offs[i];
+    if(o.st===9){o.dt-=dt;o.x+=o.vx*dt;o.y+=o.vy*dt;const f=Math.pow(.05,dt);o.vx*=f;o.vy*=f;if(o.dt<=0&&offView(o.x,o.y,40))offs.splice(i,1);continue}
+    const gone=!cars.includes(o.car)||o.car.hp<=0;let tx=o.x,ty=o.y,sp=0;
+    const ret=stars===0||gone||Math.hypot(o.car.x-rf.x,o.car.y-rf.y)>650;
+    if(ret){
+      if(offView(o.x,o.y,40)&&Math.hypot(o.x-rf.x,o.y-rf.y)>260){offs.splice(i,1);continue}
+      if(gone){tx=o.x+Math.cos(o.wa)*100;ty=o.y+Math.sin(o.wa)*100;sp=80}
+      else{tx=o.car.x;ty=o.car.y;sp=150;if(Math.hypot(tx-o.x,ty-o.y)<24){offs.splice(i,1);continue}}
+    }else{
+      const d=Math.hypot(rf.x-o.x,rf.y-o.y),see=d<430&&los(o.x,o.y,rf.x,rf.y);
+      if(!see||d>240){const t=G.seen||!G.lkp?rf:G.lkp;tx=t.x;ty=t.y;sp=165}
+      else if(d>(stars>=2?90:24)&&!P.car){tx=rf.x;ty=rf.y;sp=stars>=2?55:120}
+      if(see){
+        o.face=Math.atan2(rf.y-o.y,rf.x-o.x);o.cd-=dt;
+        if(o.cd<=0&&(stars>=2||G.w!==0||P.car)){
+          o.cd=rnd(.8,1.5);o.gunT=.08;const hit=Math.random()<(P.car?.25:.3)*(G.spOn?.5:1);
+          TR.push({x0:o.x+Math.cos(o.face)*10,y0:o.y+Math.sin(o.face)*10,h0:14,h1:12,x1:rf.x+(hit?0:rnd(-26,26)),y1:rf.y+(hit?0:rnd(-26,26)),t:.12,max:.12,c:[1,.85,.45]});sfx(560,.07,'square',.035,.4);
+          if(hit){if(P.car){hurtCar(P.car,4);sparks(P.car.x,P.car.y,3)}else if(!P.swim)hurtPlayer(8,o.x,o.y)}
+        }
+      }
+    }
+    if(sp>0){const dx=tx-o.x,dy=ty-o.y,dd=Math.hypot(dx,dy)||1;o.vx=dx/dd*sp;o.vy=dy/dd*sp;if(!(o.cd<.3))o.face=Math.atan2(dy,dx);o.walk+=dt*(sp>120?13:8);o.amp=sp>120?1:.6}else{o.vx=o.vy=0;o.amp=0}
+    o.opt.amp=o.amp;o.gunT=(o.gunT||0)-dt;
+    o.x+=o.vx*dt;o.y+=o.vy*dt;bldCollide(o,6);landClamp(o,6);
+    for(const c of cars)if(c.spd>60&&Math.abs(c.x-o.x)<30&&Math.abs(c.y-o.y)<30&&Math.hypot(c.x-o.x,c.y-o.y)<17){killOff(o,c.x,c.y,c.spd,c===P.car);break}
+  }
 }
 function updHeli(dt){
   const stars=Math.floor(G.heat),rf=P.car||P;
@@ -926,7 +988,7 @@ function respawn(){
   G.mode='play';G.heat=0;G.evade=0;G.bust=0;P.hp=100;mission=null;HELI=null;G.lkp=null;G.seen=true;
   for(let i=cars.length-1;i>=0;i--)if(cars[i].ai==='cop'||cars[i]===P.car)cars.splice(i,1);
   const c=makePlayerCar(1050,1250,0);P.car=c;P.x=c.x;P.y=c.y;P.swim=false;P.z=0;P.jv=0;
-  BUD.inCar=true;BUD.x=c.x;BUD.y=c.y;BUD.hp=100;BUD.swim=false;
+  BUD.inCar=true;BUD.x=c.x;BUD.y=c.y;BUD.hp=100;BUD.swim=false;offs.length=0;G.spOn=false;
   $('flash').classList.remove('show');
 }
 
@@ -941,6 +1003,7 @@ function updPlayerFoot(dt){
   let fw,rt;
   if(IN.stick){fw=-IN.sy;rt=IN.sx}else{const k=kvec();fw=-k.y;rt=k.x}
   const cyw=cam.yaw,cfx=Math.cos(cyw),cfy=Math.sin(cyw);
+  if(cam.mode===3){cam.yaw+=rt*2.4*dt;rt=0}
   let vx=cfx*fw-cfy*rt,vy=cfy*fw+cfx*rt;
   {const q=Math.hypot(vx,vy);if(q>1){vx/=q;vy/=q}}
   const sw=P.swim,sp=sw?(sprint?88:58):(sprint?200:120),m=Math.hypot(vx,vy),f=Math.min(1,dt*(sw?4:10));
@@ -960,6 +1023,13 @@ function updPlayerFoot(dt){
     }
   }
 }
+function toggleSpecial(){
+  if(G.mode!=='play')return;
+  if(G.spOn){G.spOn=false;return}
+  if(G.sp<15){toast(HEROES[G.hero].sp+' is recharging',1400);return}
+  G.spOn=true;toast(HEROES[G.hero].n+': '+HEROES[G.hero].sp,1300);sfx(110,.6,'sine',.12,.5);
+}
+function setQuality(q){G.q=q;try{localStorage.setItem('neonbay.q',String(q))}catch(e){}$('bGfx').textContent='Graphics: '+QUAL[q].n;resize()}
 function jump(){if(G.mode!=='play'||P.car||P.swim||P.z>0)return;P.jv=175;sfx(300,.08,'triangle',.04,1.4)}
 function updPlayerCar(dt){
   const c=P.car,brake=keys[' ']||IN.brake;let thr=0,steer=0;
@@ -1019,8 +1089,8 @@ function carPairs(){
       if(Math.abs(a.x-b.x)>52||Math.abs(a.y-b.y)>52)continue;
       if(a.ai==='parked'&&b.ai==='parked')continue;
       let done=false;
-      for(const sa of[-10,10]){
-        for(const sb of[-10,10]){
+      for(const sa of a.co){
+        for(const sb of b.co){
           const ax=a.x+Math.cos(a.a)*sa,ay=a.y+Math.sin(a.a)*sa,bx=b.x+Math.cos(b.a)*sb,by=b.y+Math.sin(b.a)*sb;
           const dx=bx-ax,dy=by-ay,d2=dx*dx+dy*dy;
           if(d2>=576)continue;
@@ -1051,12 +1121,13 @@ function carPairs(){
     }
   }
 }
+const BUSP=[-36,-18,0,18,36],PEDP=[-12,0,12];
 function pedHits(){
   for(const p of peds){
     if(p.st===2)continue;
     for(const c of cars){
-      if(c.spd<45||Math.abs(c.x-p.x)>40||Math.abs(c.y-p.y)>40)continue;
-      for(const s of[-12,0,12]){
+      if(c.spd<45||Math.abs(c.x-p.x)>c.l||Math.abs(c.y-p.y)>c.l)continue;
+      for(const s of c.l>60?BUSP:PEDP){
         const cx=c.x+Math.cos(c.a)*s,cy=c.y+Math.sin(c.a)*s;
         if((cx-p.x)*(cx-p.x)+(cy-p.y)*(cy-p.y)<196){koPed(p,c.x,c.y,c===P.car,c.spd);break}
       }
@@ -1149,9 +1220,10 @@ function manage(dt){
   G.spawnT=.2;
   const a=rnd(0,TAU);
   const spot=(lo,hi)=>{const d=rnd(lo,hi);return[clamp(fx+Math.cos(a)*d,40,GRID-140),clamp(fy+Math.sin(a)*d,40,GRID-140)]};
-  if(tc<22){const s=spot(650,1250);if(offView(s[0],s[1],90))spawnTraffic(s[0],s[1])}
+  const dens=QUAL[G.q].dens;
+  if(tc<Math.round(22*dens)){const s=spot(650,1250);if(offView(s[0],s[1],90))spawnTraffic(s[0],s[1])}
   else if(pk<12){const s=spot(500,1250);if(offView(s[0],s[1],90))spawnParked(s[0],s[1])}
-  if(pc<28){
+  if(pc<Math.round(28*dens)){
     const s=spot(380,700),bi=Math.floor((s[0]-100)/PITCH),bj=Math.floor((s[1]-100)/PITCH),t=sidewalkPoint(bi,bj);
     if(offView(t[0],t[1],60)){const p=mkPed(t[0],t[1]);newTarget(p)}
   }
@@ -1247,7 +1319,8 @@ function updBuddy(dt){
   B.fireCd-=dt;
   if(Math.floor(G.heat)>=1&&B.fireCd<=0&&!B.swim){
     const ox=B.inCar?P.car.x:B.x,oy=B.inCar?P.car.y:B.y,rng=B.inCar?330:400;let best=null,bd=rng;
-    for(const c of cars)if(c.ai==='cop'&&c.hp>0){const d=Math.hypot(c.x-ox,c.y-oy);if(d<bd&&los(ox,oy,c.x,c.y)){bd=d;best=c}}
+    for(const o of offs)if(o.st!==9){const d=Math.hypot(o.x-ox,o.y-oy);if(d<bd&&los(ox,oy,o.x,o.y)){bd=d;best=o}}
+    for(const c of cars)if(c.ai==='cop'&&c.hp>0){const d=Math.hypot(c.x-ox,c.y-oy);if(d<bd*.8&&los(ox,oy,c.x,c.y)){bd=d;best=c}}
     if(best){
       const a=Math.atan2(best.y-oy,best.x-ox);if(!B.inCar)B.face=a;B.gunT=.25;B.fireCd=rnd(.35,.75);
       fireRay(ox+Math.cos(a)*14,oy+Math.sin(a)*14,a+rnd(-.07,.07),{dmg:7,rng:420},P.car,true);sfx(820,.07,'square',.04,.4);
@@ -1309,7 +1382,7 @@ function updCam(dt){
     else{
       spd=Math.hypot(P.vx,P.vy);
       cam.dragT-=dt;
-      if(spd>20&&cam.dragT<=0){const d=angDiff(cam.yaw,P.face);if(Math.abs(d)>.7)heading=cam.yaw+d*.5;}
+      if(spd>20&&cam.dragT<=0&&cam.mode!==3){const d=angDiff(cam.yaw,P.face);if(Math.abs(d)>.7)heading=cam.yaw+d*.5;}
     }
   }
   cam.x=tx;cam.y=ty;
@@ -1318,7 +1391,7 @@ function updCam(dt){
     if(cam.dragT<=0)cam.off*=Math.pow(.03,dt);
     cam.yaw+=angDiff(cam.yaw,heading+cam.off)*Math.min(1,dt*(2.6+spd/160));
   }else if(heading!==cam.yaw)cam.yaw+=angDiff(cam.yaw,heading)*Math.min(1,dt*1.4);
-  const CM=[[1,1],[1.6,1.55],[.7,.8]][cam.mode||0],boatK=P.car&&P.car.boat?1.15:1;
+  const CM=[[1,1],[1.6,1.55],[.7,.8],[1,1]][cam.mode||0],boatK=P.car&&P.car.boat?1.15:1;
   const wantD=(inCar?(G.mode==='attract'?200:(104+spd*.075)*boatK):60)*CM[0],wantH=(inCar?(G.mode==='attract'?95:42+spd*.02):32)*CM[1];
   cam.dist+=(wantD-cam.dist)*Math.min(1,dt*3);
   const yaw=cam.yaw,cs=Math.cos(yaw),sn=Math.sin(yaw);
@@ -1336,6 +1409,17 @@ function updCam(dt){
   if(cam.sw>0){
     cam.sw=Math.max(0,cam.sw-dt*1.3);const k=cam.sw*cam.sw*(3-2*cam.sw),f=cam.from,arc=Math.sin(Math.PI*cam.sw)*170;
     cam.px=lerp(cam.px,f[0],k);cam.py=lerp(cam.py,f[1],k)+arc;cam.pz=lerp(cam.pz,f[2],k);cam.tx=lerp(cam.tx,f[3],k);cam.ty=lerp(cam.ty,f[4],k);cam.tz=lerp(cam.tz,f[5],k);
+  }
+  if(cam.mode===3&&G.mode!=='attract'&&!cam.sw){
+    if(P.car){
+      const c=P.car,a=c.a,ya=a+cam.off,ch=c.boat?12:{van:19,bus:21,suv:16,pickup:15,sport:10.5,super:9.6}[c.kind]||12.6,lat=c.boat||c.kind==='jetski'?0:-4.2;
+      cam.px=c.x+Math.cos(a)*(c.boat?-4:-1)-Math.sin(a)*lat;cam.pz=c.y+Math.sin(a)*(c.boat?-4:-1)+Math.cos(a)*lat;cam.py=ch;
+      cam.tx=cam.px+Math.cos(ya)*100;cam.tz=cam.pz+Math.sin(ya)*100;cam.ty=ch-7;cam.fov=lerp(cam.fov,1.15+Math.min(.15,c.spd/3000),Math.min(1,dt*3));
+    }else{
+      const y=groundH(P.x,P.y)+18.4+P.z+(P.swim?-9:0)+Math.abs(Math.sin(P.walk))*.5;
+      cam.px=P.x+Math.cos(cam.yaw)*2.6;cam.pz=P.y+Math.sin(cam.yaw)*2.6;cam.py=y;
+      cam.tx=cam.px+Math.cos(cam.yaw)*100;cam.tz=cam.pz+Math.sin(cam.yaw)*100;cam.ty=y-8;cam.fov=lerp(cam.fov,1.2,Math.min(1,dt*4));
+    }
   }
   const fl=Math.hypot(cam.tx-cam.px,cam.tz-cam.pz)||1;cam.fx=(cam.tx-cam.px)/fl;cam.fz=(cam.tz-cam.pz)/fl;
   G.shake*=Math.pow(.02,dt);
@@ -1374,7 +1458,7 @@ let gl=null;
 try{gl=cv.getContext('webgl',{antialias:true,alpha:false,powerPreference:'high-performance'})||cv.getContext('experimental-webgl')}catch(e){}
 let W=800,H=600,DPR=1;
 function resize(){
-  DPR=Math.min(2,window.devicePixelRatio||1);
+  DPR=Math.min(QUAL[G.q].dpr,window.devicePixelRatio||1);
   W=cv.clientWidth||window.innerWidth||800;H=cv.clientHeight||window.innerHeight||600;
   cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
   if(GLOK&&PC)postResize();
@@ -1394,21 +1478,35 @@ const PREC='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\npr
 /* ---------- main (lit geometry) shader ---------- */
 const VS_MAIN=`
 attribute vec3 aPos;attribute vec3 aNrm;attribute vec3 aCol;attribute vec3 aUV;
-uniform mat4 uVP;uniform mat4 uModel;
-varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec3 vUV;
-void main(){vec4 w=uModel*vec4(aPos,1.0);vW=w.xyz;vN=(uModel*vec4(aNrm,0.0)).xyz;vC=aCol;vUV=aUV;gl_Position=uVP*w;}`;
+uniform mat4 uVP;uniform mat4 uModel;uniform mat4 uLVP;
+varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec3 vUV;varying vec4 vL;
+void main(){vec4 w=uModel*vec4(aPos,1.0);vW=w.xyz;vN=(uModel*vec4(aNrm,0.0)).xyz;vC=aCol;vUV=aUV;vL=uLVP*w;gl_Position=uVP*w;}`;
+const VS_DEP=`attribute vec3 aPos;uniform mat4 uLVP;uniform mat4 uModel;void main(){gl_Position=uLVP*(uModel*vec4(aPos,1.));}`;
+const FS_DEP=PREC+`void main(){vec4 e=fract(gl_FragCoord.z*vec4(1.,255.,65025.,16581375.));e-=e.yzww*vec4(1./255.,1./255.,1./255.,0.);gl_FragColor=e;}`;
 const FS_MAIN=PREC+`
 uniform vec3 uSunDir;uniform vec3 uSunCol;uniform vec3 uAmbT;uniform vec3 uAmbG;uniform vec3 uFog;uniform vec3 uCam;
 uniform vec3 uTint;uniform vec3 uSkyH;uniform vec3 uSkyZ;
 uniform float uNight;uniform float uTime;uniform float uFogD;uniform float uDay;uniform vec2 uLand;uniform float uWet;uniform float uFlash;
-varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec3 vUV;
+uniform sampler2D uShadow;uniform float uShOn;uniform float uShTex;
+varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec3 vUV;varying vec4 vL;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float unpk(vec4 c){return dot(c,vec4(1.,1./255.,1./65025.,1./16581375.));}
+float shadowAt(float ndl){
+  if(uShOn<.5||ndl<=0.)return 1.;
+  vec3 s=vL.xyz/vL.w*.5+.5;
+  if(s.x<.0||s.x>1.||s.y<.0||s.y>1.||s.z>1.)return 1.;
+  float b=.0009+.0022*(1.-ndl),sh=0.;
+  for(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++)sh+=step(s.z-b,unpk(texture2D(uShadow,s.xy+vec2(float(i),float(j))*uShTex)));
+  sh/=9.;
+  float e=max(abs(s.x-.5),abs(s.y-.5));
+  return mix(.22+.78*sh,1.,smoothstep(.43,.5,e));
+}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
 void main(){
   float m=vUV.z;
   vec3 n=normalize(vN);
   vec3 base=vC;
-  if((m>2.5&&m<3.5)||m>5.5)base*=uTint;
+  if((m>2.5&&m<3.5)||(m>5.5&&m<7.5))base*=uTint;
   float dist=length(vW-uCam);
   vec3 col;
   if(m>3.5&&m<4.5){
@@ -1429,7 +1527,8 @@ void main(){
     col+=vec3(.9,.95,1.)*foam*.35*(.45+uDay*.6);
   }else if(m>4.5&&m<5.5){
     vec3 V=normalize(uCam-vW);
-    vec3 L=mix(uAmbG,uAmbT,.5+.5*n.y)+uSunCol*max(dot(n,uSunDir),0.);
+    float ndl=max(dot(n,uSunDir),0.),sh=shadowAt(ndl);
+    vec3 L=mix(uAmbG,uAmbT,.5+.5*n.y)+uSunCol*ndl*sh;
     col=base*L*(.9+.2*hash(floor(vW.xz*.7)));
     float pud=smoothstep(.38,.72,vn(vW.xz*.018)*.65+vn(vW.xz*.07)*.35);
     float wet=uWet*(.4+.6*pud);
@@ -1437,12 +1536,22 @@ void main(){
     float fr=.05+.95*pow(1.-max(V.y,0.),4.);
     vec3 refl=mix(uSkyH,uSkyZ,clamp(R.y,0.,1.))*.9+vec3(.3,.1,.35)*uNight*.5;
     col=mix(col*(1.-.45*wet),refl,clamp(wet*fr*1.3,0.,.85));
-    col+=uSunCol*pow(max(dot(R,uSunDir),0.),50.)*wet*.8;
-  }else if((m>1.5&&m<2.5)||m>5.5){
+    col+=uSunCol*pow(max(dot(R,uSunDir),0.),50.)*wet*.8*sh;
+  }else if((m>1.5&&m<2.5)||(m>5.5&&m<6.5)){
     col=base;
   }else{
-    vec3 L=mix(uAmbG,uAmbT,n.y*.5+.5)+uSunCol*max(dot(n,uSunDir),0.);
+    float ndl=max(dot(n,uSunDir),0.),sh=shadowAt(ndl);
+    vec3 L=mix(uAmbG,uAmbT,n.y*.5+.5)+uSunCol*ndl*sh;
     col=base*L;
+    if(m>6.5){
+      vec3 V=normalize(uCam-vW),R=reflect(-V,n);
+      float fr=.05+.95*pow(1.-max(dot(n,V),0.),5.);
+      vec3 env=mix(uSkyH*.95,uSkyZ,clamp(R.y*1.3,0.,1.));
+      env=mix(env*.3+vec3(.02,.02,.03),env,smoothstep(-.15,.2,R.y))+vec3(.35,.12,.42)*uNight*.35;
+      float spec=pow(max(dot(R,uSunDir),0.),m>7.5?180.:70.)*sh;
+      if(m>7.5)col=base*L*.45+env*(.16+.6*fr)+uSunCol*spec*1.8;
+      else col=mix(col,env,clamp(fr*.8,0.,.8))+env*.05+uSunCol*spec*1.1;
+    }
     if(m>.5&&m<1.5){
       col*=.74+.26*smoothstep(2.,80.,vW.y);
       vec2 g=vec2(vUV.x/13.,vUV.y/19.);vec2 id=floor(g);vec2 f=fract(g);
@@ -1519,7 +1628,8 @@ function mkTex(w,h,fn){
 function glInit(){
   if(!gl){glError='WebGL is not available in this browser';return}
   try{
-    PM=compile(VS_MAIN,FS_MAIN);PS=compile(VS_SKY,FS_SKY);PP=compile(VS_SPR,FS_SPR);
+    PM=compile(VS_MAIN,FS_MAIN);PS=compile(VS_SKY,FS_SKY);PP=compile(VS_SPR,FS_SPR);CP=PM;
+    try{PD=compile(VS_DEP,FS_DEP)}catch(e){PD=null}
     // sky dome
     const a=[],seg=20,rings=10;
     const pt=(i,j)=>{const t=i/seg*TAU,u=j/rings*Math.PI,s=Math.sin(u);return[Math.cos(t)*s*10,Math.cos(u)*10,Math.sin(t)*s*10]};
@@ -1537,6 +1647,7 @@ function glInit(){
 
 /* ---------- matrices ---------- */
 const M4={
+  ortho(l,r,b,t,n,f){return new Float32Array([2/(r-l),0,0,0,0,2/(t-b),0,0,0,0,-2/(f-n),0,-(r+l)/(r-l),-(t+b)/(t-b),-(f+n)/(f-n),1])},
   persp(f,asp,n,fa){const t=1/Math.tan(f/2),r=1/(n-fa);return new Float32Array([t/asp,0,0,0,0,t,0,0,0,0,(n+fa)*r,-1,0,0,2*n*fa*r,0])},
   look(e,c,u){
     let zx=e[0]-c[0],zy=e[1]-c[1],zz=e[2]-c[2],l=Math.hypot(zx,zy,zz)||1;zx/=l;zy/=l;zz/=l;
@@ -1553,7 +1664,7 @@ function setModel(x,y,z,yaw,pitch,sx,sy,sz){
   MM[4]=-sp*ct*sy;MM[5]=cp*sy;MM[6]=sp*st*sy;MM[7]=0;
   MM[8]=st*sz;MM[9]=0;MM[10]=ct*sz;MM[11]=0;
   MM[12]=x;MM[13]=y;MM[14]=z;MM[15]=1;
-  gl.uniformMatrix4fv(PM.u.uModel,false,MM);
+  gl.uniformMatrix4fv(CP.u.uModel,false,MM);
 }
 
 /* ---------- geometry batches ---------- */
@@ -1611,13 +1722,14 @@ class Batch{
   }
 }
 const Z2=[0,0];
+let CP=null;
 function drawMesh(mesh){
-  gl.bindBuffer(gl.ARRAY_BUFFER,mesh.b);const a=PM.a;
-  gl.vertexAttribPointer(a.aPos,3,gl.FLOAT,false,48,0);gl.vertexAttribPointer(a.aNrm,3,gl.FLOAT,false,48,12);
-  gl.vertexAttribPointer(a.aCol,3,gl.FLOAT,false,48,24);gl.vertexAttribPointer(a.aUV,3,gl.FLOAT,false,48,36);
+  gl.bindBuffer(gl.ARRAY_BUFFER,mesh.b);const a=CP.a;
+  gl.vertexAttribPointer(a.aPos,3,gl.FLOAT,false,48,0);
+  if(CP===PM){gl.vertexAttribPointer(a.aNrm,3,gl.FLOAT,false,48,12);gl.vertexAttribPointer(a.aCol,3,gl.FLOAT,false,48,24);gl.vertexAttribPointer(a.aUV,3,gl.FLOAT,false,48,36)}
   gl.drawArrays(gl.TRIANGLES,0,mesh.n);
 }
-function tint(c){gl.uniform3f(PM.u.uTint,c[0],c[1],c[2])}
+function tint(c){if(CP===PM)gl.uniform3f(PM.u.uTint,c[0],c[1],c[2])}
 
 /* ---------- sprite buckets ---------- */
 const CAM={rx:1,ry:0,rz:0,ux:0,uy:1,uz:0};
@@ -1652,7 +1764,7 @@ void main(){
   c+=(texture2D(uTex,vUv+uDir*3.231).rgb+texture2D(uTex,vUv-uDir*3.231).rgb)*.07;
   gl_FragColor=vec4(c,1.);
 }`;
-const FS_COMP=PREC+`uniform sampler2D uScene;uniform sampler2D uBloom;uniform vec2 uPx;uniform float uTime;uniform float uBK;uniform float uGray;varying vec2 vUv;
+const FS_COMP=PREC+`uniform sampler2D uScene;uniform sampler2D uBloom;uniform vec2 uPx;uniform float uTime;uniform float uBK;uniform float uGray;uniform float uSpec;uniform vec3 uSpecC;varying vec2 vUv;
 float lum(vec3 c){return dot(c,vec3(.299,.587,.114));}
 float hh(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){
@@ -1667,7 +1779,9 @@ void main(){
   c=mix(vec3(L),c,1.14);
   c*=mix(vec3(.95,1.,1.06),vec3(1.05,1.,.93),smoothstep(.12,.85,L));
   c=mix(c,vec3(L)*vec3(1.03,.98,.94)*.8,uGray);
-  vec2 q=vUv-.5;c*=1.-dot(q,q)*(.8+uGray*.6);
+  vec2 q=vUv-.5;
+  c=mix(c,(vec3(L)*.75+c*.35)*uSpecC,uSpec*.55);
+  c*=1.-dot(q,q)*(.8+uGray*.6+uSpec*1.4);
   c+=(hh(vUv*vec2(1731.,977.)+uTime)-.5)*.03;
   gl_FragColor=vec4(c,1.);
 }`;
@@ -1715,7 +1829,7 @@ function postRender(bk){
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);
   gl.useProgram(PC.p);
   bindTex(0,SC.t);gl.uniform1i(PC.u.uScene,0);bindTex(1,B1.t);gl.uniform1i(PC.u.uBloom,1);
-  gl.uniform2f(PC.u.uPx,1/SC.w,1/SC.h);gl.uniform1f(PC.u.uTime,G.t%100);gl.uniform1f(PC.u.uBK,bk);gl.uniform1f(PC.u.uGray,G.gray);
+  gl.uniform2f(PC.u.uPx,1/SC.w,1/SC.h);gl.uniform1f(PC.u.uTime,G.t%100);gl.uniform1f(PC.u.uBK,bk);gl.uniform1f(PC.u.uGray,G.gray);gl.uniform1f(PC.u.uSpec,G.spFx);if(G.hero)gl.uniform3f(PC.u.uSpecC,1.15,.95,.7);else gl.uniform3f(PC.u.uSpecC,.75,.95,1.2);
   drawFS(PC);
   bindTex(1,null);bindTex(0,null);
 }
@@ -1988,27 +2102,60 @@ function buildWorld(){
 /* ================= vehicles, pedestrians, frame renderer ================= */
 const CARM={},PEDM={};let UNITBOX=null,NEONL=[],WHEELM=null;
 const WHT=[1,1,1];
+function fr4(B,a,b,c,d,ex,col,mat){let n=qn(a,b,c);if(n[0]*ex[0]+n[1]*ex[1]+n[2]*ex[2]<0)n=[-n[0],-n[1],-n[2]];B.quad(a,b,c,d,n,col,mat,null)}
+function frustum(B,bx0,bx1,by,bz,tx0,tx1,ty0,ty1,tz,F,Bk,S,T){
+  const b0=[bx0,by,-bz],b1=[bx1,by,-bz],b2=[bx1,by,bz],b3=[bx0,by,bz],t0=[tx0,ty0,-tz],t1=[tx1,ty1,-tz],t2=[tx1,ty1,tz],t3=[tx0,ty0,tz];
+  fr4(B,b0,b1,t1,t0,[0,0,-1],S[0],S[1]);fr4(B,b3,b2,t2,t3,[0,0,1],S[0],S[1]);
+  fr4(B,b1,b2,t2,t1,[1,0,0],F[0],F[1]);fr4(B,b0,b3,t3,t0,[-1,0,0],Bk[0],Bk[1]);
+  if(T)fr4(B,t0,t1,t2,t3,[0,1,0],T[0],T[1]);
+}
+const CSPEC={sedan:[9.2,8,8.6,-.5,.34,-.3,.1,16],taxi:[9.2,8,8.6,-.5,.34,-.3,.1,16],cop:[9.4,8.2,8.8,-.5,.34,-.3,.1,16.4],
+  sport:[7.8,6.4,7.8,-.42,.26,-.22,0,12.8],super:[7,5.4,7.4,-.3,.22,-.14,.02,11.6],suv:[10.8,10,10.6,-.66,.34,-.6,.14,19.6],pickup:[10.2,9.4,9.8,-.18,.36,-.12,.2,18.4]};
 function buildCar(kind){
-  const K=KINDS[kind],hl=K.l/2,hw=K.w/2,B=new Batch(),Lg=new Batch(),bA=new Batch(),bB=new Batch();
-  const glass=[.07,.09,.16],dark=[.05,.05,.08];
-  const tall=kind==='van'?25:kind==='sport'?13.5:16.5;
-  B.box(-hl,2.8,-hw,hl,9.6,hw,WHT,3,WHT,3);
-  const c0=kind==='van'?-hl*.78:-hl*.42,c1=kind==='van'?hl*.58:hl*.26;
-  B.box(c0,9.6,-hw+1.6,c1,tall,hw-1.6,glass,0,WHT,3);
-  B.box(hl-.8,3.2,-hw+.8,hl+.6,6.6,hw-.8,dark,0);B.box(-hl-.6,3.2,-hw+.8,-hl+.8,6.6,hw-.8,dark,0);
-  // wheel arches (dark patches over the wheels)
-  for(const sx of[-1,1])for(const sz of[-1,1]){const cx=sx*hl*.6,cz=sz*(hw+.05);B.box(cx-4.8,2.9,cz-.2,cx+4.8,8.4,cz+.2,[.03,.03,.05],0)}
-  if(kind==='sport'){B.box(-hl,13,-hw+2,-hl+5,14.2,hw-2,WHT,3);B.box(-hl+1,9.6,-hw+4,-hl+3,13,-hw+5.4,dark,0);B.box(-hl+1,9.6,hw-5.4,-hl+3,13,hw-4,dark,0)}
+  const K=KINDS[kind],hl=K.l/2,hw=K.w/2,B=new Batch(),Cb=new Batch(),Lg=new Batch(),bA=new Batch(),bB=new Batch();
+  const P7=[WHT,7],GL=[[.05,.07,.1],8],DK=[[.04,.04,.06],0],TRM=[[.13,.13,.15],0],CHR=[[.75,.76,.8],7];
+  B.box(-hl+2,2.4,-hw+1,hl-2,4,hw-1,DK[0],0);
+  let lightY=7.2,tailY=7.2,roof=16;
+  if(kind==='van'||kind==='bus'){
+    const bus=kind==='bus',top=bus?27:23;roof=top;
+    frustum(B,-hl,hl*.8,3.6,hw,-hl,hl*.74,top,top,hw-.3,P7,P7,P7,P7);
+    frustum(B,hl*.8,hl,3.6,hw,hl*.74,hl*.98,top,bus?top-2:12,hw-.6,P7,P7,P7,P7);
+    if(bus){for(const s of[-1,1])Cb.box(-hl+5,13.5,s>0?hw-.25:-hw-.05,hl*.78,22,s>0?hw+.05:-hw+.25,GL[0],8);Cb.box(hl*.97,9,-hw+2,hl+.3,24,hw-2,GL[0],8);Lg.box(hl+.1,24.2,-hw*.55,hl+.4,26.2,hw*.55,[1,.65,.15],2);B.box(-hl+2,top,-hw*.4,-hl+14,top+2.5,hw*.4,[.6,.6,.65],0)}
+    else{Cb.quad([hl*.77,top-.2,-hw+1.4],[hl*.77,top-.2,hw-1.4],[hl*.92,14.6,hw-1.4],[hl*.92,14.6,-hw+1.4],qn([hl*.77,top,-1],[hl*.77,top,1],[hl*.92,14.6,1]).map(v=>-v),GL[0],8);
+      for(const s of[-1,1])Cb.box(hl*.4,14,s>0?hw-.2:-hw-.1,hl*.76,21,s>0?hw+.1:-hw+.2,GL[0],8)}
+    lightY=bus?9:8;tailY=bus?10:9;
+  }else{
+    const [yb,yh,yt,c0,c1,t0,t1,ytop]=CSPEC[kind];roof=ytop;
+    const z1=hw-.5;
+    if(kind==='pickup'){
+      frustum(B,-hl,c0*hl,3.6,hw,-hl,c0*hl,yt,yt,z1,P7,P7,P7,null);
+      B.box(-hl+1.5,yt-1.4,-hw+2,c0*hl-1,yt-.6,hw-2,[.12,.12,.14],0);
+      B.box(-hl+1.5,yt-.6,-hw+2,c0*hl-1,yt-.4,hw-2,DK[0],0);
+    }else frustum(B,-hl,c0*hl,3.6,hw,-hl+1.2,c0*hl,yt,yb,z1,P7,P7,P7,P7);
+    frustum(B,c0*hl,c1*hl,3.6,hw,c0*hl,c1*hl,yb,yb,z1,P7,P7,P7,P7);
+    frustum(B,c1*hl,hl,3.6,hw,c1*hl,hl-1.6,yb,yh,z1,P7,P7,P7,P7);
+    frustum(Cb,c0*hl,c1*hl,yb,z1-.3,t0*hl,t1*hl,ytop,ytop,z1-2.4,GL,GL,GL,P7);
+    for(const s of[-1,1]){Cb.box(t0*hl+1,ytop-.1,s*(z1-3.4)-.5,t1*hl-1,ytop+.25,s*(z1-3.4)+.5,TRM[0],0)}
+    if(kind==='suv')for(const s of[-1,1])B.box(t0*hl+2,ytop+.2,s*(z1-3)-.5,t1*hl-2,ytop+1.4,s*(z1-3)+.5,CHR[0],7);
+    for(const s of[-1,1])B.box(c1*hl-2.4,yb+.4,s>0?hw:-hw-1.6,c1*hl-.4,yb+2.3,s>0?hw+1.6:-hw,WHT,7);
+    if(kind==='sport'||kind==='super'){B.box(-hl,yt+.8,-hw+1.6,-hl+4,yt+1.6,hw-1.6,WHT,7);for(const s of[-1,1])B.box(-hl+1.2,yt,s*(hw-3)-.4,-hl+2.2,yt+.9,s*(hw-3)+.4,DK[0],0)}
+    if(kind==='super')for(const s of[-1,1])B.box(-hl*.15,4.6,s>0?hw-.2:-hw-.3,hl*.05,7.4,s>0?hw+.3:-hw+.2,DK[0],0);
+    lightY=yh-1.4;tailY=yt-1.6;
+  }
+  B.box(hl-1.4,3.2,-hw+.4,hl+1,5.8,hw-.4,TRM[0],0);B.box(-hl-1,3.2,-hw+.4,-hl+1.4,5.8,hw-.4,TRM[0],0);
+  B.box(hl+.2,lightY-3.6,-hw*.42,hl+.5,lightY-.9,hw*.42,DK[0],0);
+  B.box(hl+1,3.8,-2.6,hl+1.25,5.4,2.6,[.92,.9,.82],0);B.box(-hl-1.25,3.8,-2.6,-hl-1,5.4,2.6,[.92,.9,.82],0);
+  for(const sx of[-1,1])for(const sz of[-1,1]){const cx=sx*hl*.6,cz=sz*(hw+.05);B.box(cx-5,3,cz-.25,cx+5,8.8,cz+.25,[.03,.03,.05],0)}
   if(kind==='cop'){
-    for(const s of[-1,1])B.box(-hl*.4,3,s*hw-.4,hl*.22,9.5,s*hw+.4,[.92,.92,.97],0);
-    bA.box(-3,tall,-hw+2.6,2.5,tall+2.8,-.6,WHT,6);bB.box(-3,tall,.6,2.5,tall+2.8,hw-2.6,WHT,6);
+    for(const s of[-1,1])B.box(-hl*.4,4,s*hw-.4,hl*.22,9.2,s*hw+.4,[.94,.94,.97],7);
+    bA.box(-3,roof,-hw+3,2.5,roof+2.4,-.6,WHT,6);bB.box(-3,roof,.6,2.5,roof+2.4,hw-3,WHT,6);B.box(-3.4,roof,-hw+2.6,2.9,roof+.5,hw-2.6,DK[0],0);
   }
-  if(kind==='taxi')Lg.box(-3,tall,-4,3,tall+3,4,[1,.78,.28],2);
+  if(kind==='taxi')Lg.box(-3,roof,-4,3,roof+3,4,[1,.78,.28],2);
   for(const s of[-1,1]){
-    Lg.box(hl-.5,5.8,s*(hw-1.2)-(s>0?3.4:0),hl+.5,8.2,s*(hw-1.2)+(s>0?0:3.4),[1,.95,.78],2);
-    Lg.box(-hl-.5,5.8,s*(hw-1.2)-(s>0?3.4:0),-hl+.5,8.2,s*(hw-1.2)+(s>0?0:3.4),[1,.12,.15],2);
+    Lg.box(hl-.6,lightY-1,s>0?hw-4.6:-hw+1.2,hl+.4,lightY+.6,s>0?hw-1.2:-hw+4.6,[1,.96,.82],2);
+    Lg.box(-hl-.4,tailY-1.2,s>0?hw-4.4:-hw+1,-hl+.6,tailY+.6,s>0?hw-1:-hw+4.4,[1,.1,.14],2);
   }
-  CARM[kind]={body:B.build(),lights:Lg.build(),barA:bA.n>0?bA.build():null,barB:bB.n>0?bB.build():null};
+  CARM[kind]={body:B.build(),cab:Cb.n>0?Cb.build():null,lights:Lg.build(),barA:bA.n>0?bA.build():null,barB:bB.n>0?bB.build():null,roof};
 }
 const qn=(p,q,r)=>{const ux=q[0]-p[0],uy=q[1]-p[1],uz=q[2]-p[2],vx=r[0]-p[0],vy=r[1]-p[1],vz=r[2]-p[2];const x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx,l=Math.hypot(x,y,z)||1;return[x/l,y/l,z/l]};
 function buildBoat(kind){
@@ -2062,15 +2209,24 @@ function buildMeshes(){
   for(const k in KINDS)KINDS[k].boat?buildBoat(k):buildCar(k);
   buildCritters();
   WHEELM=wheelMesh();
-  const T=new Batch(),Hd=new Batch(),Hr=new Batch(),Lg=new Batch(),Gn=new Batch(),U=new Batch();
-  T.box(-2.4,8,-4,2.4,15.6,4,WHT,3,WHT,3);T.box(-1.5,8.4,-5.7,1.5,14.6,-4,WHT,3);T.box(-1.5,8.4,4,1.5,14.6,5.7,WHT,3);
-  Hd.sphere(0,18.3,0,2.8,3.1,2.8,WHT,3,6,4);Hr.sphere(-.5,19.3,0,2.9,2.3,2.9,WHT,3,6,4);
-  const Po=new Batch(),Cp=new Batch();Po.box(-4.8,13.5,-1.1,-2.4,19.5,1.1,WHT,3);Cp.box(-3,20.4,-3,3,21.8,3,WHT,3);Cp.box(2.2,20.4,-2.5,5.8,21,2.5,WHT,3);
+  const T=new Batch(),Hd=new Batch(),Hr=new Batch(),Lg=new Batch(),Gn=new Batch(),Rf=new Batch(),U=new Batch(),Am=new Batch(),LK=new Batch(),AK=new Batch();
+  const W3=[WHT,3],gd=[.09,.09,.11];
+  frustum(T,-1.5,1.5,7.8,2.4,-1.8,1.8,15.6,15.6,3.3,W3,W3,W3,W3);
+  T.box(-1.6,13.4,3,1.6,15.7,4.7,WHT,3);T.box(-1.6,13.4,-4.7,1.6,15.7,-3,WHT,3);
+  T.box(-1.65,7.5,-2.5,1.65,8.5,2.5,[.12,.1,.1],0);T.box(-1,15.4,-1,1,16.2,1,WHT,3);
+  Hd.sphere(0,18.3,0,2.6,3,2.6,WHT,3,7,5);Hd.box(2.2,17.4,-.45,3.1,18.6,.45,WHT,3);
+  Hr.sphere(-.5,19.3,0,2.8,2.2,2.8,WHT,3,7,4);
+  const Po=new Batch(),Cp=new Batch();Po.box(-4.6,13.5,-1.1,-2.3,19.5,1.1,WHT,3);Cp.box(-3,20.4,-3,3,21.8,3,WHT,3);Cp.box(2.2,20.4,-2.5,5.8,21,2.5,WHT,3);
   PEDM.pony=Po.build();PEDM.cap=Cp.build();
-  Lg.box(-1.5,0,-1.3,1.5,8.2,1.3,[.13,.12,.2],0);
-  Gn.box(2,11.2,-.8,10,13.2,.8,[.1,.1,.13],0);Gn.box(2,9.6,-.8,4.4,11.2,.8,[.1,.1,.13],0);
+  Lg.box(-1.25,-7.4,-1.15,1.25,.3,1.15,WHT,3);Lg.box(-1.4,-8.2,-1.3,2.8,-7.1,1.3,[.08,.08,.1],0);
+  Am.box(-.85,-6.4,-.85,.85,.2,.85,WHT,3);Am.box(-1,-7.6,-.95,1,-6.2,.95,WHT,3);
+  Gn.box(-.45,-11.6,-.42,.9,-6.6,.42,gd,0);Gn.box(-2.6,-8,-.38,-.4,-6.9,.38,gd,0);
+  Rf.box(-.55,-17.5,-.5,1,-5.5,.5,gd,0);Rf.box(-2.8,-9,-.42,-.5,-7.6,.42,gd,0);Rf.box(-.6,-5.5,-.55,1.3,-2.5,.55,[.25,.18,.12],0);
+  LK.box(-1.25,0,-2.5,1.25,8.2,-.1,WHT,3);LK.box(-1.25,0,.1,1.25,8.2,2.5,WHT,3);
+  AK.box(-.85,8.4,-4.6,.85,15.2,-2.9,WHT,3);AK.box(-.85,8.4,2.9,.85,15.2,4.6,WHT,3);
   U.box(-.5,0,-.5,.5,1,.5,WHT,3,WHT,3);
-  PEDM.torso=T.build();PEDM.head=Hd.build();PEDM.hair=Hr.build();PEDM.leg=Lg.build();PEDM.gun=Gn.build();UNITBOX=U.build();
+  PEDM.torso=T.build();PEDM.head=Hd.build();PEDM.hair=Hr.build();PEDM.leg=Lg.build();PEDM.arm=Am.build();PEDM.gun=Gn.build();PEDM.rifle=Rf.build();
+  PEDM.legsKO=LK.build();PEDM.armsKO=AK.build();UNITBOX=U.build();
   WORLD=buildWorld();
   for(const K of blocks)for(const b of K.blds){
     if(!b.neon)continue;
@@ -2083,38 +2239,53 @@ function buildMeshes(){
 const inView=(x,y,m,r)=>{const dx=x-cam.px,dy=y-cam.pz;if(dx*dx+dy*dy>r*r)return false;return dx*cam.fx+dy*cam.fz>-m-60};
 const DARK=[.1,.1,.12];
 const NOOPT={},DHAIR=[.1,.08,.12];
+const DPANTS=[.15,.17,.3];
 function drawPedModel(p,col,skin,ko,walk,face,gun,o){
   o=o||NOOPT;
-  const sw=o.swim,gh=o.y!==undefined?o.y:groundH(p.x,p.y),bob=ko||sw?0:Math.abs(Math.sin(walk))*.7,yaw=-face,pitch=ko?Math.PI/2:0,y0=(ko?4.2:bob)+gh+(sw?-9:0)+(o.z||0);
-  setModel(p.x,y0,p.y,yaw,pitch,1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);
-  tint(o.hair||DHAIR);drawMesh(PEDM.hair);if(o.pony)drawMesh(PEDM.pony);
+  const sw=o.swim,gh=o.y!==undefined?o.y:groundH(p.x,p.y),amp=o.amp===undefined?1:o.amp,bob=ko||sw?0:Math.abs(Math.sin(walk))*.6*amp,yaw=-face,y0=(ko?4.2:bob)+gh+(sw?-9:0)+(o.z||0);
+  const pants=o.pants||DPANTS,hair=o.hair||DHAIR;
+  if(ko){
+    setModel(p.x,y0,p.y,yaw,Math.PI/2,1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);drawMesh(PEDM.armsKO);
+    tint(hair);drawMesh(PEDM.hair);tint(pants);drawMesh(PEDM.legsKO);return;
+  }
+  setModel(p.x,y0,p.y,yaw,0,1,1,1);tint(col);drawMesh(PEDM.torso);tint(skin);drawMesh(PEDM.head);
+  tint(hair);drawMesh(PEDM.hair);if(o.pony)drawMesh(PEDM.pony);
   if(o.cap){tint(o.capc||DHAIR);drawMesh(PEDM.cap)}
-  tint(WHT);
-  if(gun&&!ko&&!sw){setModel(p.x,y0,p.y,yaw,0,1,1,1);drawMesh(PEDM.gun)}
-  if(ko){setModel(p.x,y0,p.y,yaw,pitch,1,1,1);drawMesh(PEDM.leg);return}
-  if(sw||o.nolegs)return;
-  const swg=Math.sin(walk)*3.2,cf=Math.cos(face),sf=Math.sin(face);
+  const cf=Math.cos(face),sf=Math.sin(face),sw0=Math.sin(walk);
+  tint(skin);
   for(const s of[-1,1]){
-    const fw=swg*s,lat=s*2.1;
-    setModel(p.x+cf*fw-sf*lat,y0,p.y+sf*fw+cf*lat,yaw,0,1,1,1);drawMesh(PEDM.leg);
+    let ap=-s*sw0*.55*amp;
+    if(sw)ap=walk*1.3+(s>0?Math.PI:0);
+    else if(o.seat)ap=1.15;
+    else if(s>0&&gun&&(o.aim||amp<.2))ap=Math.PI/2;
+    else if(s>0&&o.phone)ap=1.9;
+    const lz=s*3.75,px=p.x-sf*lz,pz=p.y+cf*lz;
+    setModel(px,y0+14.9,pz,yaw,ap,1,1,1);drawMesh(PEDM.arm);
+    if(s>0&&gun&&!sw){tint(WHT);drawMesh(gun===1?PEDM.gun:PEDM.rifle);tint(skin)}
+  }
+  if(sw)return;
+  tint(pants);
+  for(const s of[-1,1]){
+    const lp=o.seat?1.35:s*sw0*.6*amp,lz=s*1.3;
+    setModel(p.x-sf*lz,y0+8.2,p.y+cf*lz,yaw,lp,1,1,1);drawMesh(PEDM.leg);
   }
 }
-function heroOpt(H,extra){return Object.assign({hair:H.hair,pony:H.pony,cap:H.cap,capc:H.capc},extra||NOOPT)}
+function heroOpt(H,extra){return Object.assign({hair:H.hair,pony:H.pony,cap:H.cap,capc:H.capc,pants:H.pants},extra||NOOPT)}
 function drawBoat(c){
   const m=CARM[c.kind],K=KINDS[c.kind],t=G.t;
   let col=hex(c.col);col=c.hp<=0?DARK:mulc(col,.45+.55*clamp(c.hp/c.maxhp,0,1));
   const pl=clamp(c.spd/K.max,0,1),bob=Math.sin(t*2.1+c.x*.013)*.6+Math.sin(t*1.4+c.y*.011)*.4;
   const pitch=pl*.075+Math.sin(t*1.9+c.x*.02)*.02,roll=clamp(-(c.yr||0)*(c.fv||0)*.0003,-.18,.18)+Math.sin(t*1.6+c.y*.02)*.025,y=-1.6+bob*.5+pl*1.2;
-  gl.uniformMatrix4fv(PM.u.uModel,false,matRPY(c.x,y,c.y,-c.a,pitch,roll));
+  gl.uniformMatrix4fv(CP.u.uModel,false,matRPY(c.x,y,c.y,-c.a,pitch,roll));
   tint(col);drawMesh(m.body);tint(WHT);drawMesh(m.lights);
   if(c===P.car&&G.mode!=='attract'){
     const js=c.kind==='jetski',cs=Math.cos(c.a),sn=Math.sin(c.a);
-    const seat=(lx,lz,h,H)=>{const q={x:c.x+cs*lx-sn*lz,y:c.y+sn*lx+cs*lz};drawPedModel(q,hex(H.col),hex(H.skin),false,0,c.a,false,heroOpt(H,{y:y+h,nolegs:js}))};
-    if(js){seat(-1,0,1,HEROES[G.hero]);if(BUD.inCar)seat(-8,0,1.6,HEROES[G.hero^1])}
-    else{seat(-5,-4,4.5,HEROES[G.hero]);if(BUD.inCar)seat(-5,5,4.5,HEROES[G.hero^1])}
+    const seat=(lx,lz,h,H)=>{const q={x:c.x+cs*lx-sn*lz,y:c.y+sn*lx+cs*lz};drawPedModel(q,hex(H.col),hex(H.skin),false,0,c.a,false,heroOpt(H,{y:y+h,seat:js,amp:0}))};
+    if(js){if(!(cam.mode===3&&CP===PM))seat(-1,0,1,HEROES[G.hero]);if(BUD.inCar)seat(-8,0,1.6,HEROES[G.hero^1])}
+    else{if(!(cam.mode===3&&CP===PM))seat(-5,-4,4.5,HEROES[G.hero]);if(BUD.inCar)seat(-5,5,4.5,HEROES[G.hero^1])}
   }
 }
-function drawCar(c){
+function drawCar(c,noCab){
   if(c.boat){drawBoat(c);return}
   const m=CARM[c.kind],dm=clamp(c.hp/c.maxhp,0,1),dt=G.dtR||.016;
   let col=hex(c.col);col=c.hp<=0?DARK:mulc(col,.4+.6*dm);
@@ -2122,8 +2293,8 @@ function drawCar(c){
   const fv=c.fv||0,acc=((fv-(c.pfv===undefined?fv:c.pfv))/Math.max(dt,.004));c.pfv=fv;
   const tp=clamp(acc*.00009,-.045,.045),tr=clamp(-(c.yr||0)*fv*.00016,-.06,.06),k=Math.min(1,dt*7);
   c.rp=(c.rp||0)+(tp-(c.rp||0))*k;c.rr=(c.rr||0)+(tr-(c.rr||0))*k;
-  gl.uniformMatrix4fv(PM.u.uModel,false,matRPY(c.x,0,c.y,-c.a,c.rp,c.rr));
-  tint(col);drawMesh(m.body);tint(WHT);drawMesh(m.lights);
+  gl.uniformMatrix4fv(CP.u.uModel,false,matRPY(c.x,0,c.y,-c.a,c.rp,c.rr));
+  tint(col);drawMesh(m.body);if(m.cab&&!noCab)drawMesh(m.cab);tint(WHT);drawMesh(m.lights);
   if(m.barA){
     const on=c.ai==='cop',f=Math.floor(G.t*8)%2;
     tint(on?(f?[1,.12,.2]:[.12,.2,1]):[.12,.12,.2]);drawMesh(m.barA);
@@ -2138,20 +2309,22 @@ function drawCar(c){
     setModel(c.x+cs*lx-sn*lz,3.9,c.y+sn*lx+cs*lz,-(c.a+(sx>0?st:0)),-c.wr,1,1,1);drawMesh(WHEELM);
   }
 }
-function drawDynamic(E,L){
-  gl.uniformMatrix4fv(PM.u.uModel,false,IDM);
+function drawDynamic(E,L,shd){
+  gl.uniformMatrix4fv(CP.u.uModel,false,IDM);
+  const fp=cam.mode===3&&G.mode==='play'&&!shd;
   for(const c of cars){
-    if(!inView(c.x,c.y,80,1250))continue;
-    drawCar(c);
+    if(shd?Math.hypot(c.x-cam.tx,c.y-cam.tz)>900:!inView(c.x,c.y,80,1250))continue;
+    drawCar(c,fp&&c===P.car);
   }
+  for(const o of offs){if(!inView(o.x,o.y,40,900))continue;drawPedModel(o,OFFC,hex(o.skin),o.st===9,o.walk,o.face,o.st!==9?1:0,o.opt)}
   for(const p of peds){
     if(!inView(p.x,p.y,40,900))continue;
     drawPedModel(p,hex(p.col),hex(p.skin),p.st===2,p.ph,p.a,false,p.opt);
   }
   if(G.mode!=='attract'){
     const H=HEROES[G.hero],B2=HEROES[G.hero^1];
-    if(!P.car)drawPedModel(P,hex(H.col),hex(H.skin),false,P.walk,P.face,G.w!==0,heroOpt(H,{swim:P.swim,z:P.z}));
-    if(!BUD.inCar&&inView(BUD.x,BUD.y,40,900))drawPedModel(BUD,hex(B2.col),hex(B2.skin),false,BUD.walk,BUD.face,G.heat>=1,heroOpt(B2,{swim:BUD.swim}));
+    if(!P.car&&!fp)drawPedModel(P,hex(H.col),hex(H.skin),false,P.walk,P.face,G.w===0?0:G.w===1?1:2,heroOpt(H,{swim:P.swim,z:P.z,amp:Math.min(1,Math.hypot(P.vx,P.vy)/110),aim:G.gunT>-.6||!!G.aim}));
+    if(!BUD.inCar&&inView(BUD.x,BUD.y,40,900))drawPedModel(BUD,hex(B2.col),hex(B2.skin),false,BUD.walk,BUD.face,G.heat>=1?1:0,heroOpt(B2,{swim:BUD.swim,amp:Math.min(1,Math.hypot(BUD.vx,BUD.vy)/110),aim:BUD.gunT>-.6}));
   }
   for(const a of animals){
     if(!inView(a.x,a.y,40,800))continue;
@@ -2242,7 +2415,7 @@ function addDynSprites(E,L){
   for(let i=TR.length-1;i>=0;i--){
     const t=TR[i];t.t-=1/60;
     if(t.t<=0){TR.splice(i,1);continue}
-    const ns=t.h0?16:9;for(let s=0;s<ns;s++){const u=s/(ns-1);spr('glow',lerp(t.x0,t.x1,u),t.h0?lerp(t.h0,t.h1,u):12,lerp(t.y0,t.y1,u),2.6,t.c[0],t.c[1],t.c[2],t.t/t.max)}
+    const k=t.t/t.max,h0=t.h0||12,h1=t.h0?t.h1:12,u0=Math.max(0,1-k*1.6);ribbon('glow',lerp(t.x0,t.x1,u0),lerp(h0,h1,u0),lerp(t.y0,t.y1,u0),t.x1,h1,t.y1,1.1,1.1,t.c[0],t.c[1],t.c[2],.9*k);spr('glow',t.x1,h1,t.y1,4*k+1,t.c[0],t.c[1],t.c[2],.6*k)
   }
   if(G.gunT>0&&!P.car&&G.mode==='play'&&G.w!==0){const a=P.face,gh=groundH(P.x,P.y)+P.z;spr('glow',P.x+Math.cos(a)*13,12+gh,P.y+Math.sin(a)*13,15,1,.85,.5,.9)}
   if(BUD.gunT>0&&!BUD.inCar&&G.mode==='play'){const a=BUD.face;spr('glow',BUD.x+Math.cos(a)*13,14,BUD.y+Math.sin(a)*13,14,1,.85,.5,.9)}
@@ -2324,10 +2497,32 @@ function updLabels(VP){
   for(let i=n;i<LBL.length;i++)if(LBL[i]&&!LBL[i].hidden)LBL[i].hidden=true;
 }
 
+/* ---------- sun shadow map ---------- */
+let PD=null,SHT=null,LVP=new Float32Array(16),SHON=false;
+function shadowPass(){
+  SHON=false;const q=QUAL[G.q];
+  if(!q.sh||!PD||ENV.sunDir[1]<.06)return;
+  if(!SHT||SHT.w!==q.sh){freeTarget(SHT);SHT=mkTarget(q.sh,q.sh,true);if(!SHT.ok){freeTarget(SHT);SHT=null;QUAL[G.q].sh=0;return}}
+  const S=q.sh>1500?700:560,tx=2*S/q.sh;
+  let fx=cam.tx+cam.fx*S*.4,fz=cam.tz+cam.fz*S*.4;fx=Math.round(fx/tx)*tx;fz=Math.round(fz/tx)*tx;
+  const sd=ENV.sunDir,V=M4.look([fx+sd[0]*1700,sd[1]*1700,fz+sd[2]*1700],[fx,0,fz],Math.abs(sd[1])>.97?[1,0,0]:[0,1,0]);
+  LVP=M4.mul(M4.ortho(-S,S,-S,S,20,3800),V);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,SHT.f);gl.viewport(0,0,SHT.w,SHT.h);
+  gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.BLEND);gl.depthMask(true);
+  gl.useProgram(PD.p);CP=PD;gl.uniformMatrix4fv(PD.u.uLVP,false,LVP);gl.uniformMatrix4fv(PD.u.uModel,false,IDM);
+  gl.enableVertexAttribArray(PD.a.aPos);
+  for(const ch of WORLD)if(Math.abs(ch.x-fx)<S+800&&Math.abs(ch.z-fz)<S+800)drawMesh(ch.m);
+  drawDynamic(ENV,0,true);
+  gl.disableVertexAttribArray(PD.a.aPos);
+  CP=PM;SHON=true;
+}
+
 /* ---------- frame ---------- */
 let drawnTris=0;
 function renderGL(){
   const E=ENV,post=POSTOK;
+  shadowPass();
   gl.bindFramebuffer(gl.FRAMEBUFFER,post?SC.f:null);
   gl.viewport(0,0,cv.width,cv.height);
   gl.depthMask(true);
@@ -2354,6 +2549,9 @@ function renderGL(){
   gl.uniform3fv(U.uFog,E.fog);gl.uniform3f(U.uCam,cam.px,cam.py,cam.pz);gl.uniform3fv(U.uSkyH,E.H);gl.uniform3fv(U.uSkyZ,E.Z);
   gl.uniform1f(U.uNight,E.night);gl.uniform1f(U.uDay,E.day);gl.uniform1f(U.uTime,G.t);gl.uniform1f(U.uFogD,E.fogD);
   gl.uniform2f(U.uLand,LAND_W+110,GRID);gl.uniform1f(U.uWet,E.wet);gl.uniform1f(U.uFlash,E.flash);
+  gl.uniformMatrix4fv(U.uLVP,false,LVP);gl.uniform1f(U.uShOn,SHON?1:0);
+  if(SHON){gl.uniform1f(U.uShTex,1/SHT.w);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,SHT.t);gl.uniform1i(U.uShadow,2);gl.activeTexture(gl.TEXTURE0)}
+  else{gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,TEX.soft);gl.uniform1i(U.uShadow,2);gl.activeTexture(gl.TEXTURE0)}
   for(const k of['aPos','aNrm','aCol','aUV'])gl.enableVertexAttribArray(PM.a[k]);
   gl.uniformMatrix4fv(U.uModel,false,IDM);tint(WHT);
   drawMesh(OCEAN);
@@ -2365,8 +2563,9 @@ function renderGL(){
     drawMesh(ch.m);tri+=ch.m.n;
   }
   drawnTris=tri/3;
-  drawDynamic(E,L);
+  drawDynamic(E,L,false);
   for(const k of['aPos','aNrm','aCol','aUV'])gl.disableVertexAttribArray(PM.a[k]);
+  gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,null);gl.activeTexture(gl.TEXTURE0);
   // transparent pass
   addMarkers();addDynSprites(E,L);
   gl.useProgram(PP.p);gl.uniformMatrix4fv(PP.u.uVP,false,VP);gl.uniform3f(PP.u.uCam,cam.px,cam.py,cam.pz);gl.uniform1f(PP.u.uFogD,E.fogD);
@@ -2545,9 +2744,11 @@ function fireRay(ox,oy,a,w,self,bud){
   const test=(x,y,r,o,k)=>{const rx=x-ox,ry=y-oy,tt=rx*dx+ry*dy;if(tt<0||tt>L)return;if(Math.abs(-rx*dy+ry*dx)<r){L=tt;hit=o;hk=k}};
   if(!bud)for(const p of peds)if(p.st!==2)test(p.x,p.y,9,p,'ped');
   for(const an of animals)if(!an.dead)test(an.x,an.y,an.k==='gator'?11:8,an,'ani');
+  for(const of of offs)if(of.st!==9)test(of.x,of.y,9,of,'off');
   for(const c of cars)if(c.hp>0&&c!==self&&(!bud||c.ai==='cop'))test(c.x,c.y,c.boat?16:20,c,'car');
   TR.push({x0:ox,y0:oy,x1:ox+dx*L,y1:oy+dy*L,t:.12,max:.12,c:[1,.9,.55]});
   if(hk==='ped')koPed(hit,ox,oy,true,380,true);
+  else if(hk==='off'){hit.hp-=w.dmg*(bud?1:1.3);sparks(hit.x,hit.y,2,'#ff3f5a');if(hit.hp<=0)killOff(hit,ox,oy,380,!bud);else if(!bud){G.heat=Math.min(5.99,Math.max(G.heat,2)+.1);G.evade=0;G.heatT=2}}
   else if(hk==='ani')killAnimal(hit,ox,oy,300);
   else if(hk==='car'){
     hurtCar(hit,w.dmg);sparks(hit.x,hit.y,4);
@@ -2561,7 +2762,8 @@ function shoot(t,wi){
   const a=t?Math.atan2(t.y-oy0,t.x-ox0):(car?cam.yaw:P.face);
   if(!car)P.face=a;
   const ox=ox0+Math.cos(a)*(car?16:10),oy=oy0+Math.sin(a)*(car?16:10);
-  for(let k=0;k<w.pel;k++)fireRay(ox,oy,a+rnd(-w.sp,w.sp),w,car,false);
+  const acc=G.spOn&&G.hero===0?.25:1;
+  for(let k=0;k<w.pel;k++)fireRay(ox,oy,a+rnd(-w.sp,w.sp)*acc,w,car,false);
   sfx(w.snd,w.id==='shotgun'?.22:.09,'square',w.id==='shotgun'?.11:.07,.3);G.shake=Math.max(G.shake,w.id==='shotgun'?3:1.2);
   addHeat(.08,P.x,P.y);
 }
@@ -2582,6 +2784,7 @@ function updWeapon(dt){
   let best=null,bs=1e9;
   const scan=(x,y,k,o)=>{const dx=x-ox,dy=y-oy,d=Math.hypot(dx,dy);if(d>520||d<8)return;const ang=Math.abs(angDiff(dirA,Math.atan2(dy,dx)));if(ang>.6)return;const sc=d*(1+ang*3);if(sc<bs){bs=sc;best={x,y,k,o}}};
   if(!P.car)for(const p of peds)if(p.st!==2)scan(p.x,p.y,'ped',p);
+  for(const o of offs)if(o.st!==9)scan(o.x,o.y,'off',o);
   for(const c of cars)if(c.ai==='cop'&&c.hp>0)scan(c.x,c.y,'car',c);
   for(const a of animals)if(!a.dead&&a.k==='gator')scan(a.x,a.y,'ani',a);
   G.aim=best;
@@ -2770,6 +2973,7 @@ function drawMap(){
   for(const c of cars)if(c.ai==='cop')dot(c.x,c.y,2.8,f?'#ff2a4a':'#4a6bff');
   if(HELI)dot(HELI.x,HELI.y,3.4,f?'#ff2a4a':'#ffffff');
   if(!BUD.inCar)dot(BUD.x,BUD.y,3,HEROES[G.hero^1].col);
+  for(const o of offs)if(o.st!==9)dot(o.x,o.y,2.2,f?'#ff5a6a':'#7a9bff');
   const hd=P.car?P.car.a:P.face;
   m.save();m.translate(ox,oy);m.rotate(hd+rot+Math.PI/2);
   m.fillStyle=HEROES[G.hero].col;m.strokeStyle='#000';m.lineWidth=1;m.beginPath();m.moveTo(0,-7);m.lineTo(-5,5);m.lineTo(0,2);m.lineTo(5,5);m.closePath();m.fill();m.stroke();m.restore();
@@ -2877,6 +3081,8 @@ function updHud(){
   if(brk!==hud.brk){hud.brk=brk;$('bBrk').textContent=brk}
   const hp=Math.round(P.car?P.car.hp/P.car.maxhp*100:P.hp);
   if(hp!==hud.hp){hud.hp=hp;$('hpF').style.width=clamp(hp,0,100)+'%';$('hpF').classList.toggle('low',hp<30)}
+  const spv=Math.round(G.sp)+(G.spOn?'o':'');
+  if(spv!==hud.spv){hud.spv=spv;$('spF').style.width=clamp(G.sp,0,100)+'%';$('spF').parentNode.classList.toggle('on',G.spOn)}
   const ar=Math.round(P.armor);
   if(ar!==hud.ar){hud.ar=ar;$('arF').style.width=clamp(ar,0,100)+'%'}
   let wi=G.w;if(P.car&&(wi===0||wi===3))wi=G.am[1]>0?1:2;
@@ -2920,7 +3126,8 @@ addEventListener('keydown',e=>{
     else if(k==='q')cycW(1);
     else if(k==='tab')openWheel();
     else if(k==='p')togglePhone();
-    else if(k==='v'){cam.mode=((cam.mode||0)+1)%3;toast('Camera: '+['Standard','Far','Close'][cam.mode],1200)}
+    else if(k==='v'){cam.mode=((cam.mode||0)+1)%4;toast('Camera: '+['Standard','Far','Close','First person'][cam.mode],1200)}
+    else if(k==='x')toggleSpecial();
     else if(k===' '&&!P.car)jump();
     else if(k>='1'&&k<='4'){const i=+k-1;if(G.wheel){if(hasW(i)){G.wsel=i;updWheel()}}else selW(i)}
   }
@@ -2982,7 +3189,10 @@ const hold=(el,key)=>{
 hold($('bBrk'),'brake');hold($('bFire'),'fire');
 hold($('dU'),'up');hold($('dD'),'dn');hold($('dL'),'l');hold($('dR'),'r');
 $('bAct').addEventListener('pointerdown',e=>{e.preventDefault();doAction()});
-$('bRad').addEventListener('pointerdown',e=>{e.preventDefault();if(G.mode==='play')nextStation()});
+$('bSpc').addEventListener('pointerdown',e=>{e.preventDefault();toggleSpecial()});
+$('radio').addEventListener('click',()=>{if(G.mode==='play')nextStation()});
+$('bGfx').addEventListener('click',()=>setQuality((G.q+2)%3));
+$('bGfx').textContent='Graphics: '+QUAL[G.q].n;
 $('bSwap').addEventListener('pointerdown',e=>{e.preventDefault();doSwitch()});
 $('bWpn').addEventListener('pointerdown',e=>{e.preventDefault();if(G.mode==='play')cycW(1)});
 $('bPhone').addEventListener('click',togglePhone);
@@ -3003,14 +3213,17 @@ let last=performance.now(),saveT=0;
 function frame(now){
   const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;
   if(!G.paused&&!G.mapOpen){
-    step(dt*(G.mode==='over'?.4:G.wheel?.25:1));
+    if(G.spOn){G.sp-=dt*15;if(G.sp<=0||G.mode!=='play'){G.sp=Math.max(0,G.sp);G.spOn=false}G.spPulse=(G.spPulse||0)-dt;if(G.spPulse<=0){G.spPulse=.85;sfx(62,.3,'sine',.12,.6)}}
+    else if(G.mode==='play')G.sp=Math.min(100,G.sp+dt*2.2);
+    G.spFx+=((G.spOn?1:0)-G.spFx)*Math.min(1,dt*6);
+    step(dt*(G.mode==='over'?.4:G.wheel?.25:G.spOn?.42:1));
     saveT+=dt;
     if(saveT>5){saveT=0;try{localStorage.setItem('neonbay.cash',String(G.cash));localStorage.setItem('neonbay.fol',String(G.fol))}catch(e){}}
   }
   render();drawMap();if(G.mapOpen)drawBig();updHud();
   requestAnimationFrame(frame);
 }
-window.__nb={BUD,HEROES,STORES,STORY,DOCKS,animals,get heli(){return HELI},get mission(){return mission},doSwitch,cycW,selW,openWheel,closeWheel,post,FEED,togglePhone,startStory,SAFE,jump,openMap,closeMap,setWaypointAt,updWeather,SK,SIGS,WORLD,get tris(){return drawnTris},step,render,updHud,drawMap,G,P,cars,peds,doAction,keys,IN,cam,startJob,JOBS,gameOver,ENV,shoot,nextStation,say,get glerr(){return glError}};
+window.__nb={get shon(){return SHON},get sht(){return SHT},ENVx:ENV,mk:mkCar,offs,toggleSpecial,setQuality,BUD,HEROES,STORES,STORY,DOCKS,animals,get heli(){return HELI},get mission(){return mission},doSwitch,cycW,selW,openWheel,closeWheel,post,FEED,togglePhone,startStory,SAFE,jump,openMap,closeMap,setWaypointAt,updWeather,SK,SIGS,WORLD,get tris(){return drawnTris},step,render,updHud,drawMap,G,P,cars,peds,doAction,keys,IN,cam,startJob,JOBS,gameOver,ENV,shoot,nextStation,say,get glerr(){return glError}};
 resize();addEventListener('resize',resize);
 try{G.cash=parseInt(localStorage.getItem('neonbay.cash')||'0',10)||0;G.fol=parseInt(localStorage.getItem('neonbay.fol')||'1204',10)||1204;G.story=clamp(parseInt(localStorage.getItem('neonbay.story')||'0',10)||0,0,STORY.length)}catch(e){}
 glInit();
