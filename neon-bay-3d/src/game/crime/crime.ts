@@ -6,6 +6,8 @@ import { roadC, N, POLICE_HQ, HOSPITAL, EXPORT_DOCK, TRIALS, Trial, HALF, ground
 import { INTERIORS } from '../world/Interiors';
 import { releaseDrive } from '../input';
 import { sfx, siren } from '../audio';
+import { cruise, panic } from '../ai/traffic';
+import { flash } from '../combat/fx';
 import { clamp } from '../world/rng';
 
 /* =====================================================================
@@ -24,6 +26,16 @@ export function setWanted(n: number, why?: string) {
   if (n <= game.wanted) return;
   game.wanted = n; law.spawnT = Math.min(law.spawnT, 2.5);
   if (why) toast(why + '　手配度 ' + '★'.repeat(n), 2.6);
+}
+
+/** Is a police car (patrolling or chasing) close enough with a clear view of (x,z)? */
+export function copSees(x: number, z: number, r: number): boolean {
+  for (const c of vehicles) if (c.role === 'police' && c.ai && !c.dead && Math.hypot(c.x - x, c.z - z) < r && clearLine(c.x, c.z, x, z, 1.5)) return true;
+  return false;
+}
+/** Damage to the player: body armour soaks it up first. */
+export function damagePlayer(dmg: number) {
+  if (law.over) return; const A = game.arms, a = Math.min(A.armor, dmg * 0.8); A.armor -= a; game.health = Math.max(0, game.health - (dmg - a)); law.hurtT = 0;
 }
 
 function spawnCop(px: number, pz: number) {
@@ -66,6 +78,7 @@ function updatePolice(dt: number) {
     const d = Math.hypot(c.x - p.x, c.z - p.z);
     if (!c.ai) { if (d > 380) remove(c); continue; } // a police car the player abandoned
     if (c.dead) { c.ai.ctl = null; if (d > 160) remove(c); continue; }
+    if (c.ai.mode === 'patrol') { if (game.wanted > 0) { c.ai.mode = 'chase'; c.ai.direct = 0; } else { c.ai.ctl = cruise(c, dt, 12); if (d > 300) remove(c); continue; } }
     if (game.wanted === 0 && c.ai.mode === 'chase') { c.ai.mode = 'leave'; c.ai.t = 0; }
     if (c.ai.mode === 'leave') { c.ai.ctl = steer(c, null, dt, { speed: 13, lane: 3.2 }); if (d > 140 || c.ai.t > 40) remove(c); continue; }
     if (d > 420) { remove(c); continue; }
@@ -77,10 +90,20 @@ function updatePolice(dt: number) {
     } else if (me) tgt = { x: me.x + me.vx * 0.5, z: me.z + me.vz * 0.5 };
     c.ai.ctl = steer(c, out ? tgt : game.outsidePos, dt, { speed: 36, stopAt: !out ? 12 : me ? 0 : 7, ram: !!me && law.seen });
     if (out && law.seen && d < (me ? 8 : 9) && Math.hypot(c.vx, c.vz) < 5) busting = true;
+    // from two stars up, officers shoot from slow or stopped cars
+    if (out && law.seen && game.wanted >= 2 && d < 40 && Math.hypot(c.vx, c.vz) < 7) {
+      c.ai.shootT = (c.ai.shootT ?? 0.8) - dt;
+      if (c.ai.shootT <= 0 && clearLine(c.x, c.z, p.x, p.z, 1.4)) {
+        c.ai.shootT = 1.25 - game.wanted * 0.1 + Math.random() * 0.5;
+        const side = Math.cos(c.yaw), sz = -Math.sin(c.yaw); flash(c.x + side * 1.1, c.y + 1.3, c.z + sz * 1.1, 0.8); sfx('shot', clamp(1 - d / 60, 0.15, 0.7));
+        const fast = me ? Math.hypot(me.vx, me.vz) > 12 : game.player.speed > 4;
+        if (Math.random() < 0.6 - d / 100 - (fast ? 0.25 : 0) + game.wanted * 0.03) { if (me) { me.hp -= 2.5; if (Math.random() < 0.45) damagePlayer(4 + game.wanted); } else damagePlayer(5 + game.wanted * 1.5); }
+      }
+    }
   }
   // busted: stopped next to a police car while it can see you
   const slow = me ? Math.hypot(me.vx, me.vz) < 2 : game.player.speed < 3.2;
-  if (busting && game.wanted > 0) law.bust += dt * (slow ? 1 : 0.35); else law.bust = Math.max(0, law.bust - dt * 0.6);
+  if (busting && game.wanted > 0 && game.wanted <= 3) law.bust += dt * (slow ? 1 : 0.35); else law.bust = Math.max(0, law.bust - dt * 0.6);
   if (law.bust > 2.6 && !law.over) over('busted');
   siren(game.wanted > 0 && nearest < 1e9 ? clamp(1 - nearest / 170, 0, 1) : 0);
 }
@@ -91,7 +114,7 @@ function over(kind: 'busted' | 'wasted') {
 }
 function respawn(kind: 'busted' | 'wasted', fine: number) {
   const L = kind === 'busted' ? POLICE_HQ : HOSPITAL, p = game.player;
-  game.money -= fine; game.inCar = 0; game.where = 'out'; game.wanted = 0; law.bust = 0; law.unseen = 0; game.health = 100;
+  game.money -= fine; game.inCar = 0; if (kind === 'wasted') game.arms.armor = 0; game.ui = ''; game.where = 'out'; game.wanted = 0; law.bust = 0; law.unseen = 0; game.health = 100;
   for (const v of [...vehicles]) if (v.role === 'police' && v.ai) remove(v);
   rob.phase = ''; armored.pry = 0; if (trial.id) { trial.id = ''; game.waypoint = null; }
   p.x = L.spawn.x; p.z = L.spawn.z; p.y = groundAt(p.x, p.z); p.vy = 0; p.yaw = L.spawn.yaw; game.cam.yaw = p.yaw + Math.PI;
@@ -216,6 +239,7 @@ export function jobNear(): Near | null {
     }
     return null;
   }
+  if (game.where === 'arms' && !me) { const l = local(); return Math.hypot(l.x, l.z + 1.1) < 2.2 ? { kind: 'job', id: 'gunshop', label: 'BAY ARMS で買い物', btn: '買う' } : null; }
   if (game.where !== 'out') return null;
   if (!me) {
     if (armored.v && (armored.state === 'stopped') && nearArmoredRear()) return { kind: 'job', id: 'pry', label: armored.pry > 0 ? 'こじ開け中…' : '後部ドアをこじ開ける', btn: 'こじ開け' };
@@ -233,10 +257,11 @@ export function jobNear(): Near | null {
 
 export function jobAction(id: string) {
   const me = playerCar();
+  if (id === 'rob' && game.arms.cur === 'fist') { toast(game.arms.owned.pistol || game.arms.owned.smg ? '銃を構えろ（武器ボタンで切替）' : '強盗には銃が必要（BAY ARMSで購入）', 2.2); return; }
   if (id === 'rob') {
-    rob.door = game.lastDoor; rob.phase = 'fill'; rob.t = 0; rob.dur = 6.5; rob.cash = (game.where === 'gas' ? 500 : 700) + Math.round(Math.random() * 12) * 100;
+    rob.door = game.lastDoor; rob.phase = 'fill'; rob.t = 0; rob.dur = 6; rob.cash = (game.where === 'gas' ? 600 : 800) + Math.round(Math.random() * 14) * 100;
     sfx('crash', 0.25); toast('「金を出せ！」 店員がレジを開けた', 2.2); setWanted(1, '店員が通報した');
-  } else if (id === 'robcd') toast('このレジはさっき強盗された。時間をおこう', 2);
+  } else if (id === 'gunshop') { game.ui = 'arms'; sfx('ui'); } else if (id === 'robcd') toast('このレジはさっき強盗された。時間をおこう', 2);
   else if (id === 'bag') { game.money += rob.cash; robbedAt[rob.door] = game.clock; sfx('buy'); toast('+$' + rob.cash.toLocaleString('en-US') + '　店を出て警察から逃げろ！', 2.8); rob.phase = ''; setWanted(2, '強盗成功'); save(); }
   else if (id === 'pry') { if (armored.pry <= 0) { armored.pry = 0.001; toast('ドアをこじ開けている…離れるな', 1.8); } }
   else if (id === 'export' && me) {
@@ -256,13 +281,14 @@ export function onEnterCar(v: Veh) { if (v.role === 'police') { v.ai = null; set
 hooks.carHit = (a, b, imp) => {
   const me = a.id === game.inCar ? a : b.id === game.inCar ? b : null; if (!me) return;
   const o = me === a ? b : a;
+  if (o.role === 'traffic' && imp > 3) panic(o);
   if (o.role === 'police' && imp > 4 && game.wanted === 0 && law.hitT <= 0) { law.hitT = 3; setWanted(1, 'パトカーに衝突'); }
   if (o.role === 'armored' && o === armored.v && imp > 2.5 && (armored.state === 'drive' || armored.state === 'alert')) {
     if (armored.hitT <= 0) { armored.dmg += Math.min(imp, 20); armored.hitT = 0.4; }
     if (armored.state === 'drive') { armored.state = 'alert'; setWanted(1, '現金輸送車を襲撃'); }
   }
 };
-hooks.hurtPlayer = (dmg) => { if (law.over) return; game.health = Math.max(0, game.health - dmg); law.hurtT = 0; };
+hooks.hurtPlayer = (dmg) => damagePlayer(dmg);
 
 export function updateCrime(dt: number) {
   if (!game.started) return;

@@ -11,6 +11,10 @@ import { collide, groundAt, doors, pointBlocked, districtAt, isWater } from '../
 import { INTERIORS, FLOOR, interiorCollide } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
+import { combat, fire, findLock, cycleWeapon, armed } from '../combat/weapons';
+import { peds, nearestPed, mug, ejectPed, scare } from '../ai/peds';
+import { copSees, setWanted } from '../crime/crime';
+import { STATIONS } from '../radio';
 
 const R = 0.38, H = 1.8, WALK = 2.3, RUN = 5.2, SPRINT = 8.2, CROUCH = 1.6, GRAV = 22, JUMP = 6.4;
 const angDiff = (a: number, b: number) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
@@ -29,11 +33,19 @@ function pushOutOfCars(p: { x: number; y: number; z: number }) {
   }
 }
 
+const inside2a = () => game.where !== 'out';
+
 export default function Player() {
   const C = useMemo(() => makeCharacter(), []);
+  const guns = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ color: '#1b1c20', metalness: 0.7, roughness: 0.35 });
+    const pistol = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.11), m); pistol.position.set(0, -0.36, 0.03);
+    const smg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.13), m); smg.position.set(0, -0.4, 0.03);
+    C.arms[0].mid.add(pistol, smg); return { pistol, smg };
+  }, [C]);
   const grp = useRef<THREE.Group>(null!);
   const { camera } = useThree();
-  const st = useMemo(() => ({ phase: 0, vx: 0, vz: 0, lean: 0, saveT: 0, crouchK: 0, landT: 0, carYaw: 0, look: 0, lookP: 0, lookT: 0, fov: 62 }), []);
+  const st = useMemo(() => ({ phase: 0, vx: 0, vz: 0, lean: 0, saveT: 0, crouchK: 0, landT: 0, carYaw: 0, look: 0, lookP: 0, lookT: 0, fov: 62, aimK: 0 }), []);
   const camPos = useMemo(() => new THREE.Vector3(), []), camTgt = useMemo(() => new THREE.Vector3(), []), want = useMemo(() => new THREE.Vector3(), []);
 
   const exitCar = (me: Veh) => {
@@ -67,7 +79,8 @@ export default function Player() {
       st.look -= input.lookDX * 0.0055; st.lookP = clamp(st.lookP + input.lookDY * 0.004, -0.15, 0.9); input.lookDX = 0; input.lookDY = 0;
       st.lookT -= dt; if (st.lookT <= 0 && game.speed > 3) { st.look *= 1 - Math.min(1, dt * 2.5); st.lookP *= 1 - Math.min(1, dt * 2.5); }
       if (input.camCycle) { input.camCycle = false; game.cam.carMode = (game.cam.carMode + 1) % 3; toast(['追従カメラ', '遠景カメラ', 'ボンネットカメラ'][game.cam.carMode], 1.2); }
-      input.jump = false; input.crouchToggle = false;
+      input.jump = false; input.crouchToggle = false; input.fire = false; input.wcycle = false; combat.lock = null;
+      if (input.radio) { input.radio = false; game.radio = (game.radio + 1) % (STATIONS.length + 1); toast(game.radio ? '📻 ' + STATIONS[game.radio - 1].name + '（' + STATIONS[game.radio - 1].genre + '）' : '📻 ラジオ オフ', 1.6); }
       p.x = me.x; p.z = me.z; p.y = me.y; p.yaw = me.yaw; p.speed = 0; p.vy = 0; p.grounded = true; p.crouch = false; st.vx = st.vz = 0;
       game.stamina = clamp(game.stamina + 12 * dt, 0, 100);
       game.near = jobNear();
@@ -83,6 +96,10 @@ export default function Player() {
       input.lookDX = 0; input.lookDY = 0;
       if (input.camCycle) { input.camCycle = false; game.cam.mode = (game.cam.mode + 1) % 3; toast(['標準カメラ', '遠景カメラ', '一人称カメラ'][game.cam.mode], 1.2); }
       if (input.crouchToggle) { input.crouchToggle = false; p.crouch = !p.crouch; }
+      if (input.wcycle) { input.wcycle = false; cycleWeapon(); }
+      input.radio = false;
+      const aiming = !inside && !law.over && (input.aim || input.aimHold) && armed();
+      if (aiming) game.cam.pitch = clamp(game.cam.pitch, -0.55, 0.85);
       // ----- move (camera-relative, PC style: the camera never auto-swings) -----
       const [mx, my] = law.over ? [0, 0] : moveVector(), mag = Math.min(1, Math.hypot(mx, my));
       if (law.over) { input.action = false; input.jump = false; }
@@ -90,7 +107,7 @@ export default function Player() {
       let dx = fx * my + rx * mx, dz = fz * my + rz * mx; const dl = Math.hypot(dx, dz); if (dl > 1e-3) { dx /= dl; dz /= dl; }
       const wantSprint = input.dash && mag > 0.3 && !p.crouch && game.stamina > 1;
       const top = p.crouch ? CROUCH : wantSprint ? SPRINT : mag > 0.65 || game.isTouch === false ? RUN * (input.joyActive ? mag : 1) : WALK + (RUN - WALK) * mag;
-      const sp = top * (input.joyActive ? Math.max(mag, 0.35) : mag > 0 ? 1 : 0) * (inside ? 0.6 : 1);
+      const sp = Math.min(aiming ? WALK * 1.15 : 99, top * (input.joyActive ? Math.max(mag, 0.35) : mag > 0 ? 1 : 0) * (inside ? 0.6 : 1));
       const acc = p.grounded ? 14 : 3;
       st.vx = lerp(st.vx, dx * sp, Math.min(1, acc * dt)); st.vz = lerp(st.vz, dz * sp, Math.min(1, acc * dt));
       p.sprinting = wantSprint && Math.hypot(st.vx, st.vz) > RUN;
@@ -110,21 +127,43 @@ export default function Player() {
         if (p.y <= g + 0.02 || (p.grounded && p.y - g < 0.45 && p.vy <= 0)) { if (!p.grounded && p.vy < -8) st.landT = 0.25; p.y = g; p.vy = 0; p.grounded = true; } else p.grounded = false;
       }
       p.speed = Math.hypot(st.vx, st.vz);
-      if (p.speed > 0.2) p.yaw += angDiff(p.yaw, Math.atan2(st.vx, st.vz)) * Math.min(1, dt * 12);
+      if (aiming) p.yaw += angDiff(p.yaw, game.cam.yaw + Math.PI) * Math.min(1, dt * 20);
+      else if (p.speed > 0.2) p.yaw += angDiff(p.yaw, Math.atan2(st.vx, st.vz)) * Math.min(1, dt * 12);
+      // ----- combat -----
+      combat.cool -= dt; combat.punchT -= dt; combat.recoil = Math.max(0, combat.recoil - dt * 8);
+      {
+        const cy = game.cam.yaw, cp = game.cam.pitch - 0.12, rx = Math.cos(cy), rz = -Math.sin(cy);
+        const hx = p.x + Math.sin(p.yaw) * 0.45 - Math.cos(p.yaw) * 0.25, hy = p.y + 1.42, hz = p.z + Math.cos(p.yaw) * 0.45 + Math.sin(p.yaw) * 0.25;
+        let dx2 = -Math.sin(cy) * Math.cos(cp), dy2 = -Math.sin(cp), dz2 = -Math.cos(cy) * Math.cos(cp);
+        void rx; void rz;
+        if (aiming) combat.lock = findLock(hx, hy, hz, dx2, dy2, dz2, 55);
+        else combat.lock = null;
+        if (input.fire && !inside && !law.over) {
+          if (!aiming) { // hip fire / punch along the facing direction, auto-aimed at the nearest target in front
+            dx2 = Math.sin(p.yaw); dy2 = 0; dz2 = Math.cos(p.yaw);
+            if (armed()) { const L = findLock(hx, hy, hz, dx2, -0.05, dz2, 32); if (L) { combat.lock = L; const t = 'ped' in L ? L.ped : L.veh; p.yaw = Math.atan2(t.x - p.x, t.z - p.z); dx2 = Math.sin(p.yaw); dz2 = Math.cos(p.yaw); } }
+          }
+          fire(hx, hy, hz, dx2, dy2, dz2, p.speed > 0.5);
+          if (!aiming && game.arms.cur === 'fist') { /* punch handled in fire() */ }
+        }
+      }
       // ----- interaction -----
       game.near = null;
       if (inside && def) { if (Math.hypot(p.x - def.ox - def.exit.x, p.z - def.oz - def.exit.z) < 1.6) game.near = { kind: 'exit', label: '外へ出る', id: def.id }; }
       else for (const d of doors) if (Math.hypot(p.x - d.x, p.z - d.z) < 1.8) { game.near = { kind: 'door', label: d.label + 'に入る', id: d.id }; break; }
       { const j = jobNear(); if (j && (!game.near || game.near.kind !== 'door')) game.near = j; }
+      if (!inside && !game.near && armed()) { const q = nearestPed(p.x, p.z, 2.4); if (q && q.state !== 'hands' && q.state !== 'flee') game.near = { kind: 'job', id: 'mug:' + q.id, label: 'カツアゲする（銃で脅す）', btn: '脅す' }; }
       if (!inside && !game.near) {
         let best: Veh | null = null, bd = 1e9;
         for (const v of vehicles) { if (v.dead || v.role === 'armored') continue; const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 8 || Math.abs(dz) > 8) continue; const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), d = Math.hypot(Math.max(0, Math.abs(dx * fx + dz * fz) - v.def.len / 2), Math.max(0, Math.abs(dx * fz - dz * fx) - v.def.wid / 2)); if (d < 1.7 && d < bd) { bd = d; best = v; } }
-        if (best) game.near = { kind: 'car', label: best.def.name + (best.owned >= 0 ? '（自分の車）' : '') + 'に乗る', id: String(best.id) };
+        if (best) game.near = { kind: 'car', label: best.def.name + (best.owned >= 0 ? '（自分の車）' : best.role === 'traffic' && best.ai ? 'を奪う' : '') + (best.role === 'traffic' && best.ai ? '' : 'に乗る'), id: String(best.id), btn: best.role === 'traffic' && best.ai ? '奪う' : '乗る' };
       }
       if (input.action) {
         input.action = false;
         const n = game.near;
-        if (n && n.kind === 'job') jobAction(n.id);
+        if (n && n.kind === 'job' && n.id.startsWith('mug:')) {
+          const q = peds.find((o) => 'mug:' + o.id === n.id); if (q) { mug(q); scare(q.x, q.z, 12); sfx('ui'); if (copSees(q.x, q.z, 60)) setWanted(1, 'カツアゲを見られた'); }
+        } else if (n && n.kind === 'job') jobAction(n.id);
         else if (n && n.kind === 'door') {
           const d = doors.find((q) => q.id === n.id)!, I = INTERIORS[d.interior]; game.lastDoor = d.id;
           game.outsidePos = { x: d.x + Math.sin(d.ang) * 2.2, z: d.z + Math.cos(d.ang) * 2.2, yaw: d.ang };
@@ -133,6 +172,11 @@ export default function Player() {
         } else if (n && n.kind === 'car') {
           const v = vehicles.find((q) => String(q.id) === n.id);
           if (v && !v.dead) {
+            if (v.role === 'traffic' && v.ai) { // carjack: the driver is thrown out and runs
+              const lx = Math.cos(v.yaw), lz = -Math.sin(v.yaw); ejectPed(v.x + lx * (v.def.wid / 2 + 0.9), v.z + lz * (v.def.wid / 2 + 0.9), p.x, p.z);
+              v.role = ''; v.ai = null; v.vx *= 0.2; v.vz *= 0.2; sfx('crash', 0.25);
+              if (copSees(v.x, v.z, 60)) setWanted(1, '車を強奪');
+            }
             game.inCar = v.id; v.touched = true; releaseDrive(); sfx('door'); onEnterCar(v);
             st.carYaw = v.yaw; st.look = 0; st.lookP = 0; st.lookT = 0; game.near = null;
             toast(v.def.name + (v.owned < 0 ? '' : ''), 1.2);
@@ -170,6 +214,16 @@ export default function Player() {
       a.top.rotation.z = sg * (0.08 + run * 0.06);
       a.mid.rotation.x = -(0.25 + amp * (0.35 + run * 0.6));
     });
+    const aimNow = !me && game.started && !inside2a() && (input.aim || input.aimHold) && armed() && !law.over;
+    st.aimK = lerp(st.aimK, aimNow ? 1 : 0, Math.min(1, dt * 10));
+    guns.pistol.visible = !me && game.arms.cur === 'pistol'; guns.smg.visible = !me && game.arms.cur === 'smg';
+    if (!me && (aimNow || (armed() && performance.now() - combat.lastShot < 600))) {
+      const pa = clamp(game.cam.pitch - 0.12, -0.6, 0.9), kick = combat.recoil * 0.25;
+      C.arms[0].top.rotation.set(-1.52 + pa * 0.9 - kick, 0, -0.05); C.arms[0].mid.rotation.x = 0;
+      C.arms[1].top.rotation.set(-1.35 + pa * 0.9 - kick, 0, -0.5); C.arms[1].mid.rotation.x = -0.35;
+      C.spine.rotation.y = 0.15;
+    } else if (!me && combat.punchT > 0) { C.arms[0].top.rotation.x = -1.6; C.arms[0].mid.rotation.x = -0.1; C.spine.rotation.y = -0.3; }
+    else if (!me && armed()) C.arms[0].mid.rotation.x = -0.7;
     C.root.rotation.z = 0; C.root.position.set(0, 0, 0);
     if (me && me.def.kind === 'bike') { // seated rider, leaning with the bike
       C.hips.position.y = 1.0; C.spine.rotation.x = 0.55; C.spine.rotation.y = 0; C.head.rotation.x = -0.45;
@@ -185,15 +239,15 @@ export default function Player() {
 
     // ----- camera -----
     const P = game.player, mode = game.cam.mode, inside2 = game.where !== 'out';
-    const dist = [4.6, 8.5, 0][mode] * (inside2 ? 0.7 : 1), height = (P.crouch ? 1.05 : 1.55);
+    const dist = lerp([4.6, 8.5, 0][mode] * (inside2 ? 0.7 : 1), 2.8, mode === 2 ? 0 : st.aimK), height = (P.crouch ? 1.05 : 1.55);
     const yaw = game.cam.yaw, pitch = game.cam.pitch;
-    camTgt.set(P.x, P.y + height, P.z);
+    camTgt.set(P.x + Math.cos(yaw) * 0.85 * st.aimK, P.y + height + 0.1 * st.aimK, P.z - Math.sin(yaw) * 0.85 * st.aimK);
     if (!game.started) { // attract orbit over the city
       const t = performance.now() / 12000; camera.position.set(P.x + Math.sin(t) * 60, 45, P.z + Math.cos(t) * 60); camera.lookAt(P.x, 10, P.z); return;
     }
     const cam = camera as THREE.PerspectiveCamera;
-    const wantFov = me ? 60 + Math.min(16, game.speed * 0.22) : 62;
-    if (Math.abs(st.fov - wantFov) > 0.05) { st.fov += (wantFov - st.fov) * Math.min(1, dt * 3); cam.fov = st.fov; cam.updateProjectionMatrix(); }
+    const wantFov = me ? 60 + Math.min(16, game.speed * 0.22) : 62 - st.aimK * 12;
+    if (Math.abs(st.fov - wantFov) > 0.05) { st.fov += (wantFov - st.fov) * Math.min(1, dt * (st.aimK > 0.05 ? 10 : 3)); cam.fov = st.fov; cam.updateProjectionMatrix(); }
     game.shake = Math.max(0, game.shake - dt * 2.2);
     if (me) {
       st.carYaw += angDiff(st.carYaw, me.yaw) * Math.min(1, dt * (3.5 + game.speed * 0.06));
@@ -229,7 +283,7 @@ export default function Player() {
     }
     want.set(camTgt.x + cx * d, camTgt.y + cy * d, camTgt.z + cz * d);
     camPos.lerp(want, Math.min(1, dt * 14)); if (camPos.distanceTo(want) > 6) camPos.copy(want);
-    camera.position.copy(camPos); camera.lookAt(camTgt.x, camTgt.y + 0.1, camTgt.z);
+    camera.position.copy(camPos); camera.lookAt(camTgt.x - cx * 0.0, camTgt.y + 0.1, camTgt.z);
   });
 
   return <group ref={grp}><primitive object={C.root} /></group>;

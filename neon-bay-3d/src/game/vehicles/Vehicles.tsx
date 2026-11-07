@@ -9,6 +9,10 @@ import { engine } from '../audio';
 import { getTextures, labelTexture } from '../world/textures';
 import { GARAGE } from '../world/cityGen';
 import { updateCrime, law } from '../crime/crime';
+import { updateTraffic } from '../ai/traffic';
+import { updatePeds } from '../ai/peds';
+import { tickFx } from '../combat/fx';
+import { radioTick } from '../radio';
 
 const models = new Map<number, CarModel>();
 
@@ -71,7 +75,9 @@ function GarageSign() {
 
 function VehicleView({ v }: { v: Veh }) {
   const m = useMemo(() => { const mm = buildCarModel(v.def, v.color); models.set(v.id, mm); return mm; }, [v]);
-  useFrame(() => {
+  useFrame(({ camera }) => {
+    m.root.visible = Math.abs(v.x - camera.position.x) < 220 && Math.abs(v.z - camera.position.z) < 220;
+    if (!m.root.visible) return;
     m.root.position.set(v.x, v.y, v.z); m.root.rotation.y = v.yaw;
     m.tilt.rotation.x = -v.pitch; m.tilt.rotation.z = v.def.kind === 'bike' ? v.lean : v.roll;
     if (m.paint.color.getHexString() !== v.color.slice(1)) m.paint.color.set(v.color);
@@ -99,6 +105,7 @@ export default function Vehicles() {
     const fx = me ? me.x : game.where === 'out' ? p.x : game.outsidePos.x, fz = me ? me.z : game.where === 'out' ? p.z : game.outsidePos.z;
     stream(fx, fz, dt);
     updateCrime(dt); // wanted level, police + cash-truck AI decide their controls here
+    updateTraffic(dt);
     // physics: player car is driven, others coast and settle
     const sub = 2, h = dt / sub;
     for (let s = 0; s < sub; s++) {
@@ -110,6 +117,7 @@ export default function Vehicles() {
       const hit = collisions(h);
       if (hit > 4 && me) { game.shake = Math.min(1.2, hit / 18); }
     }
+    updatePeds(dt); tickFx(dt); radioTick(!!me && game.started, game.radio);
     for (const v of vehicles) if (v.dead && v.burn > 0) v.burn -= dt;
     // burnt-out owned cars are towed back to the garage (repaired) once you walk away
     for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && v.owned >= 0 && v.id !== game.inCar && Math.hypot(v.x - fx, v.z - fz) > 45) { remove(v); toast(v.def.name + 'はガレージで修理された', 2.4); }

@@ -81,7 +81,7 @@ const SHOP_T: [number, number, number][] = [[0.95, 0.9, 0.82], [0.88, 0.8, 0.9],
 
 function addB(b: Building) { buildings.push(b); solids.push({ x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, y0: b.y0, y1: b.y0 + b.h + (b.gable ? 4 : 0) }); }
 
-const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', 'BAY DINER', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store']];
+const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', 'BAY DINER', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store'], ['arms', 'BAY ARMS', '#ff5a36', 'arms']];
 let shopDoorsLeft = SHOP_LABELS.length;
 
 for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {

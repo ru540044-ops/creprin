@@ -20,6 +20,8 @@ export function initAudio() {
   } catch { C = null; }
 }
 
+export const audioCtx = () => (C ? { C, master, noise } : null);
+
 export function engine(on: boolean, rpm: number, gear: number, thr: number, slip: number, kind: string) {
   if (!C) return; const t = C.currentTime, m = audio.muted ? 0 : 1;
   const base = kind === 'truck' ? 28 : kind === 'bike' ? 70 : kind === 'super' ? 48 : 38, span = kind === 'bike' ? 230 : kind === 'truck' ? 70 : 150;
@@ -37,8 +39,11 @@ export function siren(vol: number) {
   sirG.gain.setTargetAtTime(audio.muted ? 0 : vol * vol * 0.09, t, 0.1);
 }
 
-export function sfx(kind: 'crash' | 'door' | 'buy' | 'ui', vol = 1) {
+export function sfx(kind: 'crash' | 'door' | 'buy' | 'ui' | 'shot', vol = 1) {
   if (!C || audio.muted) return; const t = C.currentTime;
+  if (kind === 'shot') { // sharp crack + body thump
+    const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.7; const g = C.createGain(); g.gain.setValueAtTime(0.55 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18); s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + 0.2);
+    const o = C.createOscillator(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); const g2 = C.createGain(); g2.gain.setValueAtTime(0.5 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.14); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.15); return; }
   if (kind === 'crash') { const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; const g = C.createGain(); g.gain.setValueAtTime(0.5 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45); s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.5);
     const o = C.createOscillator(); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.3); const g2 = C.createGain(); g2.gain.setValueAtTime(0.4 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.35); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.4); return; }
   const o = C.createOscillator(), g = C.createGain(); o.type = kind === 'door' ? 'square' : 'triangle';

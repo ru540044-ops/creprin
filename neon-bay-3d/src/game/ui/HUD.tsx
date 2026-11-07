@@ -1,6 +1,9 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { game, toast, save, Quality } from '../state/store';
 import Phone from './Phone';
+import GunShop from './GunShop';
+import { WEAPONS, combat } from '../combat/weapons';
+import { STATIONS } from '../radio';
 import { playerCar, vehicles } from '../vehicles/sim';
 import { law, jobStatus, armored, searchRadius } from '../crime/crime';
 import { input, releaseDrive } from '../input';
@@ -159,7 +162,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           <div className="card who">
             <div className="av">N</div>
             <div className="whoT"><b>NOVA</b><span>{inside ? INTERIORS[game.where]?.name : game.district}</span></div>
-            <div className="bars"><i className="hp" style={{ width: game.health + '%' }} /><i className="st" style={{ width: game.stamina + '%' }} /></div>
+            <div className="bars"><i className="hp" style={{ width: game.health + '%' }} />{game.arms.armor > 0 && <i className="ar" style={{ width: game.arms.armor + '%' }} />}<i className="st" style={{ width: game.stamina + '%' }} /></div>
           </div>
           {js ? (
             <div className={'card mis' + (game.wanted > 0 ? ' hot' : '')}><span className="lab">ミッション</span><b>{js.title}</b><span>{js.text}</span>{js.prog !== undefined && <i className="prog"><b style={{ width: Math.min(100, js.prog * 100) + '%' }} /></i>}</div>
@@ -170,9 +173,13 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
         <div className="tr">
           <Minimap onOpen={() => setMap(true)} />
           <div className="money">${game.money.toLocaleString('en-US')}</div>
+          {!driving && game.arms.cur !== 'fist' && <div className="weap">{WEAPONS[game.arms.cur as 'pistol'].name} <b>{game.arms.ammo[game.arms.cur as 'pistol']}</b></div>}
           <div className={'stars' + (game.wanted > 0 && !law.seen ? ' search' : '')} aria-label={'手配度 ' + game.wanted}>{[0, 1, 2, 3, 4].map((i) => <b key={i} className={i < game.wanted ? 'on' : ''}>★</b>)}</div>
           <div className="small">{String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} · {game.fps} FPS</div>
-          <button type="button" className="chip phoneChip" onClick={() => setPhone(true)} aria-label="スマホを開く">📱 スマホ</button>
+          <div className="chips">
+            <button type="button" className="chip phoneChip" onClick={() => setPhone(true)} aria-label="スマホを開く">📱 スマホ</button>
+            {driving && <button type="button" className="chip phoneChip" onClick={() => { input.radio = true; }}>📻 {game.radio ? STATIONS[game.radio - 1].name : 'ラジオ'}</button>}
+          </div>
         </div>
       </div>
       {law.over && <div className={'over ' + law.over.kind}><b>{law.over.kind === 'busted' ? 'BUSTED' : 'WASTED'}</b><span>{law.over.kind === 'busted' ? '逮捕' : '死亡'}　-${law.over.fine.toLocaleString('en-US')}</span></div>}
@@ -198,7 +205,10 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
         <>
           <Joystick />
           <div className="btns">
-            <HoldBtn label={near ? (near.kind === 'exit' ? '出る' : near.kind === 'car' ? '乗る' : near.kind === 'job' ? near.btn || '決定' : '入る') : 'アクション'} cls="act" disabled={!near} onDown={() => { input.action = true; }} />
+            <HoldBtn label={({ fist: '素手', pistol: 'ピストル', smg: 'SMG' } as Record<string, string>)[game.arms.cur]} cls="wpn" onDown={() => { input.wcycle = true; }} />
+            <HoldBtn label="狙う" cls="aim" active={input.aim} onDown={() => { if (game.arms.cur === 'fist') { toast('銃がない（BAY ARMSで購入）', 1.4); return; } input.aim = !input.aim; }} />
+            <HoldBtn label={game.arms.cur === 'fist' ? 'パンチ' : '撃つ'} cls="fire" active={input.fire} onDown={() => { input.fire = true; }} onUp={() => { input.fire = false; }} />
+            <HoldBtn label={near ? (near.kind === 'exit' ? '出る' : near.kind === 'car' ? near.btn || '乗る' : near.kind === 'job' ? near.btn || '決定' : '入る') : 'アクション'} cls="act" disabled={!near} onDown={() => { input.action = true; }} />
             <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
             <HoldBtn label={p.crouch ? '立つ' : 'しゃがむ'} active={p.crouch} onDown={() => { input.crouchToggle = true; }} />
             <HoldBtn label="ダッシュ" cls="dash" active={p.sprinting} onDown={() => { input.dash = true; }} onUp={() => { input.dash = false; }} />
@@ -206,8 +216,10 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           </div>
         </>
       ) : (
-        <div className="keys">{driving ? 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイドブレーキ · E 降りる · V 視点 · P スマホ' : 'WASD 移動 · Shift ダッシュ · Space ジャンプ · C しゃがむ · E 入る/乗る · V 視点 · P スマホ · ドラッグで視点'}</div>
+        <div className="keys">{driving ? 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイド · E 降りる · V 視点 · R ラジオ · P スマホ' : 'WASD 移動 · Shift ダッシュ · Space ジャンプ · E 入る/乗る · X 武器 · 右クリック/Q 狙う · 左クリック/F 撃つ · P スマホ'}</div>
       )}
+      {!driving && (input.aim || input.aimHold) && game.arms.cur !== 'fist' && game.where === 'out' && <div className={'xhair' + (combat.lock ? ' lock' : '')} />}
+      {game.ui === 'arms' && <GunShop onClose={() => { game.ui = ''; }} />}
       {map && <FullMap onClose={() => setMap(false)} />}
       {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} setQuality={setQuality} />}
     </>

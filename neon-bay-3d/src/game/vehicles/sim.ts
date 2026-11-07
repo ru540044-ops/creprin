@@ -8,7 +8,7 @@ export interface Veh {
   id: number; def: VDef; color: string; x: number; z: number; y: number; yaw: number; vx: number; vz: number; yr: number;
   steer: number; hp: number; slot: number; owned: number; touched: boolean; drift: boolean; gear: number; rpm: number;
   braking: boolean; reversing: boolean; spin: number; pitch: number; roll: number; slip: number; dead: boolean; burn: number; lean: number;
-  role: '' | 'police' | 'armored'; ai: AI | null; // AI-driven cars carry their driver state
+  role: '' | 'police' | 'armored' | 'traffic'; ai: AI | null; // AI-driven cars carry their driver state
 }
 /** Per-car AI driver: route on the road grid plus the controls it decided on this frame. */
 export interface AI { ctl: Drive | null; ni: number; nj: number; pi: number; pj: number; stuck: number; rev: number; revSteer: number; direct: number; t: number; [k: string]: any }
