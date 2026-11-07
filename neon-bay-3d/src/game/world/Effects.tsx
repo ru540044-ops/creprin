@@ -38,7 +38,7 @@ export default function Effects({ quality }: { quality: Quality }) {
     if (!fx) return;
     // stronger glow at night (lamps, neon, headlights), subtle by day
     const night = game.hour > 18.8 || game.hour < 5.8 ? 1 : game.hour > 17.5 ? (game.hour - 17.5) / 1.3 : game.hour < 7 ? (7 - game.hour) / 1.2 : 0;
-    fx.bloom.strength = 0.22 + night * 0.3 + game.weather.flash * 0.5; fx.bloom.threshold = 1.15 - night * 0.1;
+    fx.bloom.strength = 0.14 + night * 0.38 + game.weather.flash * 0.5; fx.bloom.threshold = 2.6 - night * 1.55; // by day only very hot highlights bloom
     fx.composer.render(dt);
   }, 1);
   return null;

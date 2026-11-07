@@ -27,7 +27,7 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
     const c = cv.getContext('2d')!, last = { h: -99, cl: -1 };
     const mix = (a: THREE.Color, b: THREE.Color, t: number) => a.clone().lerp(b, t);
     const C = (h: string) => new THREE.Color(h);
-    const P = { zDay: C('#2f6fd0'), hDay: C('#d3e3f3'), zDusk: C('#2b335e'), hDusk: C('#ff9a60'), zNight: C('#03050b'), hNight: C('#1b2440'), gDay: C('#5a554c'), gNight: C('#0c0b10'), cloud: C('#8c939c') };
+    const P = { zDay: C('#2f6fd0'), hDay: C('#a9c4e2'), zDusk: C('#2b335e'), hDusk: C('#ff9a60'), zNight: C('#03050b'), hNight: C('#1b2440'), gDay: C('#5a554c'), gNight: C('#0c0b10'), cloud: C('#8c939c') };
     return (h: number, day: number, dusk: number, night: number, sun: THREE.Vector3, cloud: number) => {
       if (Math.abs(h - last.h) < 0.06 && Math.abs(cloud - last.cl) < 0.04) return;
       last.h = h; last.cl = cloud;

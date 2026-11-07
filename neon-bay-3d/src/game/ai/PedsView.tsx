@@ -5,6 +5,7 @@ import { peds, pickups, PED_MAX, Ped } from './peds';
 import { vehicles } from '../vehicles/sim';
 import { game } from '../state/store';
 import * as A from '../anim/pose';
+import { faceTexture } from '../player/character';
 import { fx } from '../combat/fx';
 import { combat } from '../combat/weapons';
 import { booms, grenades } from '../combat/explode';
@@ -79,12 +80,13 @@ export function PedsView() {
     const mk = (g: THREE.BufferGeometry, n: number, shadow = true) => { const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ roughness: 0.75 }), n); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.castShadow = shadow; m.frustumCulled = false; for (let i = 0; i < n; i++) { m.setMatrixAt(i, ZERO); m.setColorAt(i, new THREE.Color(1, 1, 1)); } return m; };
     return {
       pelvis: mk(new THREE.CapsuleGeometry(0.17, 0.12, 3, 8), SLOTS), torso: mk(new THREE.CapsuleGeometry(0.2, 0.32, 4, 10), SLOTS),
-      head: mk(new THREE.SphereGeometry(0.13, 12, 10), SLOTS), hair: mk(new THREE.SphereGeometry(0.138, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), SLOTS, false),
+      head: mk(new THREE.SphereGeometry(0.13, 16, 12), SLOTS), hair: mk(new THREE.SphereGeometry(0.138, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), SLOTS, false),
       uarm: mk(new THREE.CapsuleGeometry(0.055, 0.19, 3, 8), SLOTS * 2), farm: mk(new THREE.CapsuleGeometry(0.047, 0.19, 3, 8), SLOTS * 2, false),
       thigh: mk(new THREE.CapsuleGeometry(0.075, 0.31, 3, 8), SLOTS * 2), shin: mk(new THREE.CapsuleGeometry(0.064, 0.32, 3, 8), SLOTS * 2),
       foot: mk(new THREE.BoxGeometry(0.11, 0.08, 0.26), SLOTS * 2, false),
     } as Parts;
   }, []);
+  useMemo(() => { const m = parts.head.material as THREE.MeshStandardMaterial; m.map = faceTexture(true); m.needsUpdate = true; }, [parts]);
   const colored = useRef(new Map<number, number>());
   const pose = useMemo(() => A.newPose(), []), tmp = useMemo(() => A.newPose(), []);
   const paint = (i: number, h: number, police: boolean) => {

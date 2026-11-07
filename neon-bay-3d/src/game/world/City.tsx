@@ -296,9 +296,23 @@ function Terrain({ mats }: { mats: Mats }) {
   return <mesh geometry={geo} material={mats.dirt} receiveShadow />;
 }
 
+/** Ocean: three scrolling wave layers at different scales and directions, crisp sun glints, deep blue-green. */
+const waterTime = { value: 0 };
 function Water({ mats }: { mats: Mats }) {
-  useFrame((_, dt) => { const t = mats.water.normalMap!; t.offset.x += dt * 0.004; t.offset.y += dt * 0.002; });
-  useMemo(() => { const t = mats.water.normalMap!; t.repeat.set(260, 260); }, [mats]);
+  useFrame((_, dt) => { waterTime.value += dt; });
+  useMemo(() => {
+    const m = mats.water, t = m.normalMap!; t.repeat.set(260, 260);
+    m.color.set('#0b3a52'); m.roughness = 0.12; m.metalness = 0.0; m.normalScale.set(0.5, 0.5); m.envMapIntensity = 0.55; m.opacity = 0.96;
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uWaterT = waterTime;
+      sh.fragmentShader = 'uniform float uWaterT;\n' + sh.fragmentShader.replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',
+        `vec3 n1 = texture2D( normalMap, vNormalMapUv + vec2( uWaterT * 0.0040, uWaterT * 0.0021 ) ).xyz * 2.0 - 1.0;
+        vec3 n2 = texture2D( normalMap, vNormalMapUv * 0.31 + vec2( -uWaterT * 0.0016, uWaterT * 0.0024 ) ).xyz * 2.0 - 1.0;
+        vec3 n3 = texture2D( normalMap, vNormalMapUv * 2.7 + vec2( uWaterT * 0.0090, -uWaterT * 0.0060 ) ).xyz * 2.0 - 1.0;
+        vec3 mapN = vec3( n1.xy * 0.8 + n2.xy * 1.3 + n3.xy * 0.45, 1.0 );`);
+    };
+    m.needsUpdate = true;
+  }, [mats]);
   return <mesh rotation-x={-Math.PI / 2} position={[0, WATER_Y, 0]} material={mats.water}><planeGeometry args={[12000, 12000]} /></mesh>;
 }
 
@@ -332,8 +346,8 @@ export default function City({ shadows }: { shadows: boolean }) {
   return (
     <group>
       {/* base land + city asphalt */}
-      <mesh rotation-x={-Math.PI / 2} position={[(LAND.x0 + LAND.x1) / 2, -0.05, (-HALF - 40 + LAND.z1) / 2]} material={mats.grass} receiveShadow>
-        <planeGeometry args={[LAND.x1 - LAND.x0, LAND.z1 + HALF + 40]} />
+      <mesh rotation-x={-Math.PI / 2} position={[(LAND.x0 + BEACH_X - 10) / 2, -0.05, (-HALF - 40 + LAND.z1) / 2]} material={mats.grass} receiveShadow>
+        <planeGeometry args={[BEACH_X - 10 - LAND.x0, LAND.z1 + HALF + 40]} />
       </mesh>
       <mesh geometry={cityPlane} material={mats.asphalt} receiveShadow />
       {ground.map(({ k, geo }) => <mesh key={k} geometry={geo} material={groundMat(k)} receiveShadow castShadow={k === 'misc' && shadows} />)}

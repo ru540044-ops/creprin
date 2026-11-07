@@ -12,6 +12,8 @@ import Birds from './game/world/Birds';
 import Weather from './game/world/Weather';
 import Effects from './game/world/Effects';
 import LightFX from './game/world/LightFX';
+import Detail from './game/world/Detail';
+import Clouds from './game/world/Clouds';
 import { wind } from './game/world/City';
 import { look } from './game/world/Environment';
 import { PedsView, FXView } from './game/ai/PedsView';
@@ -80,6 +82,8 @@ function Scene({ quality }: { quality: Quality }) {
       <Birds />
       <Weather />
       <LightFX />
+      <Detail />
+      <Clouds />
       <Effects quality={quality} />
       <Waypoint />
       <Ticker />
@@ -110,7 +114,7 @@ export default function App() {
         dpr={[1, Math.min(q.dpr, window.devicePixelRatio || 1)]}
         gl={{ antialias: quality !== 'low', powerPreference: 'high-performance' }}
         camera={{ fov: 62, near: 0.15, far: 2600, position: [0, 40, 60] }}
-        onCreated={({ gl }) => { gl.toneMapping = THREE.NeutralToneMapping; gl.outputColorSpace = THREE.SRGBColorSpace; try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3dGL = gl; } catch { /* ignore */ } }}
+        onCreated={({ gl, scene, camera }) => { gl.toneMapping = THREE.NeutralToneMapping; gl.outputColorSpace = THREE.SRGBColorSpace; try { if (localStorage.getItem('nb3d.debug') === '1') Object.assign(window as any, { __nb3dGL: gl, __nb3dScene: scene, __nb3dCam: camera }); } catch { /* ignore */ } }}
       >
         <Suspense fallback={null}><Scene quality={quality} /></Suspense>
       </Canvas>
