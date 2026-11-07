@@ -146,3 +146,16 @@ button.armed{background:#ff4b4b !important;color:#fff}
 @media (max-height:500px){.chips{position:fixed;top:calc(12px + var(--sat));right:calc(max(14px,var(--sar)) + 106px);display:flex;gap:6px;z-index:3}.small{display:none}}
 
 .hurt{position:fixed;inset:0;z-index:2;pointer-events:none;box-shadow:inset 0 0 120px 30px rgba(255,20,40,.75)}
+
+/* ---------- admin ---------- */
+.adWarn{color:#ff8a9a}
+.adH{margin:6px 0 0;font-size:12px;letter-spacing:.14em;color:var(--cyan)}
+.adGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.adTog{display:grid;grid-template-columns:1fr auto;gap:2px 8px;text-align:left;background:rgba(255,255,255,.06);border:0;border-radius:12px;padding:9px 10px;color:var(--ink)}
+.adTog b{font-size:13px}.adTog span{grid-column:1;font-size:10px;color:var(--dim)}.adTog i{grid-row:1/3;grid-column:2;align-self:center;font-style:normal;font-size:11px;font-weight:900;color:var(--dim)}
+.adTog.on{background:rgba(122,0,255,.35);box-shadow:inset 0 0 0 1px #b07aff}.adTog.on i{color:#3dffb0}
+.adRow{display:flex;flex-wrap:wrap;gap:6px}.adRow button{background:rgba(255,255,255,.09);color:var(--ink);border:0;border-radius:10px;padding:9px 10px;font-size:12px;font-weight:700}.adRow button.sel{background:#7a00ff}
+.adSlider{display:grid;gap:4px;font-size:12px}.adSlider input{width:100%;accent-color:#b07aff}
+.adBadge{position:fixed;left:50%;top:calc(6px + var(--sat));transform:translateX(-50%);z-index:4;pointer-events:none;background:linear-gradient(90deg,#ff2a40,#7a00ff);color:#fff;font-size:10px;font-weight:900;letter-spacing:.12em;border-radius:999px;padding:3px 10px}
+.adDebug{position:fixed;left:max(14px,var(--sal));bottom:calc(150px + var(--sab));z-index:4;pointer-events:none;font:11px/1.4 ui-monospace,monospace;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:8px}
+@media (max-height:500px){.adBadge{left:48%;top:calc(4px + var(--sat))}}

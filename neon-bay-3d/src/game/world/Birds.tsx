@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { blocks, BEACH_X, PORT, HALF, groundAt } from './cityGen';
 import { game } from '../state/store';
 import { vehicles } from '../vehicles/sim';
+import { tdt } from '../admin';
 
 /** Seagull flocks circling the coast (glide + flap) and park pigeons that peck, hop and scatter when you come close. */
 const GULLS = 24, PIGEONS = 30, N = GULLS + PIGEONS;
@@ -27,7 +28,7 @@ export default function Birds() {
   }, [birds]);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), w: new THREE.Matrix4(), q: new THREE.Quaternion(), e: new THREE.Euler(), p: new THREE.Vector3(), s: new THREE.Vector3(1, 1, 1), r: new THREE.Matrix4() }), []);
   useFrame(({ camera }, rawDt) => {
-    const dt = Math.min(rawDt, 0.05), t = performance.now() / 1000, pl = game.player, out = game.where === 'out';
+    const dt = tdt(Math.min(rawDt, 0.05)), t = performance.now() / 1000, pl = game.player, out = game.where === 'out';
     birds.forEach((b, i) => {
       let flapAmp = 0.9, pitch = 0, roll = 0, scale = b.gull ? 1.6 : 1;
       if (b.gull) {

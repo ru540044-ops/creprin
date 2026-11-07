@@ -7,6 +7,7 @@ import { clearLine } from '../ai/driver';
 import { setWanted, copSees, armored } from '../crime/crime';
 import { flash, tracer, impact } from './fx';
 import { sfx } from '../audio';
+import { admin } from '../admin';
 
 export type WeaponId = 'fist' | 'pistol' | 'smg';
 export const WEAPONS: Record<WeaponId, { name: string; dmg: number; rate: number; range: number; carDmg: number; acc: number; pack: number; price: number; ammoPrice: number }> = {
@@ -78,7 +79,7 @@ export function fire(ox: number, oy: number, oz: number, dx: number, dy: number,
   if (combat.reload > 0) return false;
   const gid = id as 'pistol' | 'smg';
   if (game.arms.mag[gid] <= 0) { if (game.arms.ammo[gid] > 0) startReload(); else { combat.cool = 0.4; sfx('ui'); toast('弾切れ（BAY ARMSで購入）', 1.2); } return false; }
-  game.arms.mag[gid] -= 1; if (game.arms.mag[gid] === 0 && game.arms.ammo[gid] > 0) setTimeout(startReload, 150);
+  if (!(admin.is && admin.infAmmo)) game.arms.mag[gid] -= 1; if (game.arms.mag[gid] === 0 && game.arms.ammo[gid] > 0) setTimeout(startReload, 150);
   combat.recoil = 1; combat.lastShot = performance.now();
   flash(ox + dx * 0.4, oy + dy * 0.4, oz + dz * 0.4, id === 'smg' ? 0.8 : 1); sfx('shot', id === 'smg' ? 0.55 : 0.8);
   scare(ox, oz, 55);

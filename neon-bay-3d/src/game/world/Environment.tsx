@@ -1,3 +1,4 @@
+import { admin, tdt } from '../admin';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -22,7 +23,7 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
   const moonDir = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((_, dt) => {
-    if (game.started) game.hour = (game.hour + (dt * 24) / game.dayLen) % 24;
+    if (game.started && !(admin.is && admin.freezeTime)) game.hour = (game.hour + (tdt(dt) * 24) / game.dayLen) % 24;
     const h = game.hour, ang = ((h - 6) / 12) * Math.PI; // 6h sunrise, 18h sunset
     const elev = Math.sin(ang), az = Math.cos(ang);
     sunPos.set(az * 0.75, elev, 0.45).normalize();

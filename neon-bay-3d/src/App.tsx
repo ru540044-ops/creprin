@@ -17,13 +17,15 @@ import * as traffic from './game/ai/traffic';
 import * as weapons from './game/combat/weapons';
 import { vehicles, playerCar, owned, spawn, remove, drive, collisions } from './game/vehicles/sim';
 import { initAudio } from './game/audio';
+import { checkAdmin, tdt } from './game/admin';
+import * as adminMod from './game/admin';
 import { game, load, save, clearSave, Quality } from './game/state/store';
 import { bindKeyboard, input } from './game/input';
 import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ } from './game/world/cityGen';
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-(window as any).__nb3d = { peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions };
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -46,7 +48,7 @@ function Ticker() {
     acc.current.t += dt; acc.current.n++; if (acc.current.t > 0.5) { game.fps = Math.round(acc.current.n / acc.current.t); acc.current.t = 0; acc.current.n = 0; }
     if (game.toastT > 0) game.toastT -= dt;
     if (game.hurtT > 0) game.hurtT -= dt;
-    if (game.started) game.clock += dt;
+    if (game.started) game.clock += tdt(dt);
     wind.value += dt;
   });
   return null;
@@ -77,7 +79,7 @@ export default function App() {
   const hadSave = useMemo(() => load(), []);
   const [started, setStarted] = useState(false);
   const [quality, setQuality] = useState<Quality>(game.quality);
-  useEffect(() => { bindKeyboard(); }, []);
+  useEffect(() => { bindKeyboard(); checkAdmin(); }, []);
   useEffect(() => { game.quality = quality; save(); }, [quality]);
   useEffect(() => {
     const vis = () => { if (document.hidden) save(); };

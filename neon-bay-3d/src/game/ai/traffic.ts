@@ -5,11 +5,12 @@ import { roadC, N, HALF } from '../world/cityGen';
 import { signalState } from '../world/City';
 import { steer, newAI, nodeIdx } from './driver';
 import { clamp } from '../world/rng';
+import { admin } from '../admin';
 
 /** Civilian traffic: cars wander the street grid in the right-hand lane, stop at red lights and keep their distance. */
 const KINDS: VKind[] = ['sedan', 'sedan', 'sedan', 'sedan', 'suv', 'suv', 'suv', 'truck', 'truck', 'sport', 'sport', 'bike', 'super'];
 const LANE = 3.3;
-export const trafficCap = () => (game.quality === 'low' ? 7 : game.quality === 'medium' ? 11 : 15);
+export const trafficCap = () => Math.round((game.quality === 'low' ? 7 : game.quality === 'medium' ? 11 : 15) * (admin.is ? admin.density : 1));
 let spawnT = 0, patrolT = 20;
 
 /** Obstacles (cars, the player, pedestrians) directly ahead limit the speed. */

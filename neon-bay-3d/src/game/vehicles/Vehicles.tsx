@@ -16,6 +16,7 @@ import { radioTick } from '../radio';
 import { tickWeapons } from '../combat/weapons';
 import { flash } from '../combat/fx';
 import { sfx } from '../audio';
+import { tdt } from '../admin';
 
 const models = new Map<number, CarModel>();
 
@@ -142,7 +143,7 @@ export default function Vehicles() {
   const [, setTick] = useMemoState();
   force.current = setTick;
   useFrame((_, rawDt) => {
-    const dt = Math.min(0.05, rawDt), p = game.player, me = playerCar();
+    const dt = tdt(Math.min(0.05, rawDt)), p = game.player, me = playerCar();
     const fx = me ? me.x : game.where === 'out' ? p.x : game.outsidePos.x, fz = me ? me.z : game.where === 'out' ? p.z : game.outsidePos.z;
     stream(fx, fz, dt);
     updateCrime(dt); // wanted level, police + cash-truck AI decide their controls here

@@ -3,6 +3,7 @@ import { parkSlots, GARAGE, collide, groundAt, isWater } from '../world/cityGen'
 import { clamp } from '../world/rng';
 import { game, toast, ownedCars } from '../state/store';
 import { sfx } from '../audio';
+import { admin } from '../admin';
 
 export interface Veh {
   id: number; def: VDef; color: string; x: number; z: number; y: number; yaw: number; vx: number; vz: number; yr: number;
@@ -72,9 +73,10 @@ export function drive(v: Veh, c: Drive | null, dt: number) {
   const nx = Math.sin(v.yaw), nz = Math.cos(v.yaw);
   fv = v.vx * nx + v.vz * nz; lv = v.vx * nz - v.vz * nx;
   // longitudinal
-  const top = d.top * health;
+  const boost = admin.is && admin.carBoost && v.id === game.inCar ? 1 : 0;
+  const top = d.top * health * (1 + boost * 0.45);
   v.braking = false; v.reversing = false;
-  if (thr > 0) { if (fv < -0.5) { fv += 9 * thr * dt; v.braking = true; } else { const f = clamp(fv / top, 0, 1); fv += d.accel * thr * Math.max(0, 1.25 - 0.95 * Math.pow(f, 1.7)) * health * dt; } }
+  if (thr > 0) { if (fv < -0.5) { fv += 9 * thr * dt; v.braking = true; } else { const f = clamp(fv / top, 0, 1); fv += d.accel * (1 + boost * 0.8) * thr * Math.max(0, 1.25 - 0.95 * Math.pow(f, 1.7)) * health * dt; } }
   if (br > 0) { if (fv > 1) { fv -= d.brake * d.grip * br * dt; v.braking = true; } else { fv -= d.accel * 0.45 * br * dt; v.reversing = true; } }
   if (hb) fv -= Math.sign(fv) * Math.min(Math.abs(fv), 5 * dt);
   // slope (hills)
@@ -135,6 +137,7 @@ export function collisions(dt: number): number {
 
 export function hurt(v: Veh, imp: number) {
   if (imp < 3.5 || v.dead) return;
+  if (admin.is && admin.carGod && v.id === game.inCar) return;
   v.hp -= (imp - 3) * 3.2 * (100 / v.def.hp) * 0.8;
   if (imp > 6) sfx('crash', Math.min(1, imp / 25));
   if (v.hp <= 0) { v.hp = 0; v.dead = true; v.burn = 8; if (v.id === game.inCar) toast('車が大破した。降りよう！', 3); }

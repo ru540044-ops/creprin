@@ -5,6 +5,7 @@ import { pedsAhead } from './traffic';
 import { setWanted, copSees } from '../crime/crime';
 import { sfx } from '../audio';
 import { clamp } from '../world/rng';
+import { admin } from '../admin';
 import { gaitFor, Gait, IDLE_VARIANTS, IdleVariant } from '../anim/pose';
 import { signalState } from '../world/City';
 import { combat } from '../combat/weapons';
@@ -21,7 +22,7 @@ export const peds: Ped[] = [];
 export const pickups: { x: number; z: number; y: number; amount: number; t: number }[] = [];
 let nextId = 1, spawnT = 0;
 const INSET = 2.6;
-export const pedCap = () => (game.quality === 'low' ? 12 : game.quality === 'medium' ? 20 : 28);
+export const pedCap = () => Math.min(PED_MAX - 4, Math.round((game.quality === 'low' ? 12 : game.quality === 'medium' ? 20 : 28) * (admin.is ? admin.density : 1)));
 export const PED_MAX = 40;
 
 const corner = (b: number, c: number) => { const B = blocks[b]; return { x: c === 0 || c === 3 ? B.x0 + INSET : B.x1 - INSET, z: c < 2 ? B.z0 + INSET : B.z1 - INSET }; };

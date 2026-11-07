@@ -9,6 +9,7 @@ import { sfx, siren } from '../audio';
 import { cruise, panic } from '../ai/traffic';
 import { flash } from '../combat/fx';
 import { clamp } from '../world/rng';
+import { admin } from '../admin';
 
 /* =====================================================================
    Wanted level + police
@@ -21,6 +22,7 @@ export const ppos = () => (game.where === 'out' ? game.player : game.outsidePos)
 export const searchRadius = () => 70 + game.wanted * 35;
 
 export function setWanted(n: number, why?: string) {
+  if (admin.is && admin.noWanted) return;
   n = Math.min(5, n); const p = ppos();
   if (n > 0) { law.lastSeen = { x: p.x, z: p.z }; law.unseen = 0; }
   if (n <= game.wanted) return;
@@ -35,6 +37,7 @@ export function copSees(x: number, z: number, r: number): boolean {
 }
 /** Damage to the player: body armour soaks it up first. */
 export function damagePlayer(dmg: number) {
+  if (admin.is && admin.god) return;
   if (law.over) return; const A = game.arms, a = Math.min(A.armor, dmg * 0.8); A.armor -= a; game.health = Math.max(0, game.health - (dmg - a)); law.hurtT = 0;
 }
 
@@ -109,6 +112,7 @@ function updatePolice(dt: number) {
 }
 
 function over(kind: 'busted' | 'wasted') {
+  if (admin.is && admin.god) { law.bust = 0; if (kind === 'wasted') game.health = 100; return; }
   const fine = Math.min(game.money, kind === 'busted' ? 1000 : 1500);
   law.over = { kind, t: 3.4, fine }; releaseDrive(); sfx('crash', 0.6);
 }
@@ -127,6 +131,7 @@ function respawn(kind: 'busted' | 'wasted', fine: number) {
 export const ROB_SPOT = { x: 6.2, z: 2.5 }, CLERK = { x: 5, z: 4.75 }, BAG = { x: 5, z: 3.5 };
 export const rob = { door: '', phase: '' as '' | 'fill' | 'bag', t: 0, dur: 7, cash: 0 };
 const robbedAt: Record<string, number> = {};
+export function resetRobberies() { for (const k of Object.keys(robbedAt)) delete robbedAt[k]; }
 export const ROB_COOLDOWN = 480;
 export const robCooldown = (door: string) => (robbedAt[door] === undefined ? 0 : Math.max(0, robbedAt[door] + ROB_COOLDOWN - game.clock));
 export const robbable = () => game.where === 'store' || game.where === 'gas';
@@ -292,6 +297,7 @@ hooks.hurtPlayer = (dmg) => damagePlayer(dmg);
 
 export function updateCrime(dt: number) {
   if (!game.started) return;
+  if (admin.is && admin.noWanted && game.wanted) { game.wanted = 0; law.bust = 0; }
   if (law.over) { law.over.t -= dt; siren(0); if (law.over.t <= 0) { const o = law.over; law.over = null; respawn(o.kind, o.fine); } return; }
   if (game.health <= 0) { over('wasted'); return; }
   law.hurtT += dt; if (law.hurtT > 6 && game.health < 100) game.health = Math.min(100, game.health + dt * 4);

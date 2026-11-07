@@ -16,6 +16,7 @@ import { peds, nearestPed, mug, ejectPed, scare } from '../ai/peds';
 import { copSees, setWanted } from '../crime/crime';
 import { STATIONS } from '../radio';
 import * as A from '../anim/pose';
+import { admin, tdt } from '../admin';
 
 const R = 0.38, H = 1.8, WALK = 2.3, RUN = 5.2, SPRINT = 8.2, CROUCH = 1.6, GRAV = 22, JUMP = 6.4;
 const angDiff = (a: number, b: number) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
@@ -73,7 +74,7 @@ export default function Player() {
   };
 
   useFrame((_, rawDt) => {
-    const dt = Math.min(rawDt, 0.05), p = game.player, inside = game.where !== 'out', def = INTERIORS[game.where];
+    const dt = tdt(Math.min(rawDt, 0.05)), p = game.player, inside = game.where !== 'out', def = INTERIORS[game.where];
     const me = playerCar();
     if (game.inCar && !me) game.inCar = 0;
     if (!game.started) { st.phase += dt; }
@@ -113,7 +114,8 @@ export default function Player() {
       let dx = fx * my + rx * mx, dz = fz * my + rz * mx; const dl = Math.hypot(dx, dz); if (dl > 1e-3) { dx /= dl; dz /= dl; }
       const wantSprint = input.dash && mag > 0.3 && !p.crouch && game.stamina > 1;
       const top = p.crouch ? CROUCH : wantSprint ? SPRINT : mag > 0.65 || game.isTouch === false ? RUN * (input.joyActive ? mag : 1) : WALK + (RUN - WALK) * mag;
-      const sp = Math.min(aiming ? WALK * 1.15 : 99, top * (input.joyActive ? Math.max(mag, 0.35) : mag > 0 ? 1 : 0) * (inside ? 0.6 : 1));
+      const fast = admin.is && admin.fastRun ? 2.2 : 1;
+      const sp = fast * Math.min(aiming ? WALK * 1.15 : 99, top * (input.joyActive ? Math.max(mag, 0.35) : mag > 0 ? 1 : 0) * (inside ? 0.6 : 1));
       const acc = p.grounded ? 14 : 3;
       st.vx = lerp(st.vx, dx * sp, Math.min(1, acc * dt)); st.vz = lerp(st.vz, dz * sp, Math.min(1, acc * dt));
       p.sprinting = wantSprint && Math.hypot(st.vx, st.vz) > RUN;
@@ -121,7 +123,7 @@ export default function Player() {
       const ox = p.x, oz = p.z;
       p.x += st.vx * dt; p.z += st.vz * dt;
       // vertical
-      if (input.jump) { input.jump = false; if (p.grounded && !p.crouch) { p.vy = JUMP; p.grounded = false; } else if (p.crouch) p.crouch = false; }
+      if (input.jump) { input.jump = false; if (p.grounded && !p.crouch) { p.vy = JUMP * (admin.is && admin.superJump ? 2.6 : 1); p.grounded = false; } else if (p.crouch) p.crouch = false; }
       p.vy -= GRAV * dt; p.y += p.vy * dt;
       // collisions
       if (inside && def) { interiorCollide(def, p, R); const g = FLOOR; if (p.y <= g) { if (!p.grounded && p.vy < -8) st.landT = 0.25; p.y = g; p.vy = 0; p.grounded = true; } }
