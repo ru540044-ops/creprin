@@ -3,7 +3,8 @@ import * as THREE from 'three';
 /** Accumulates triangles with world-space UVs and vertex colors, then builds one BufferGeometry. */
 export class Geo {
   pos: number[] = []; nor: number[] = []; uv: number[] = []; col: number[] = [];
-  get empty() { return this.pos.length === 0; }
+  private built: THREE.BufferGeometry | null = null;
+  get empty() { return this.built ? this.built.attributes.position.count === 0 : this.pos.length === 0; }
   private v(x: number, y: number, z: number, n: number[], u: number, w: number, c: number[]) {
     this.pos.push(x, y, z); this.nor.push(n[0], n[1], n[2]); this.uv.push(u, w); this.col.push(c[0], c[1], c[2]);
   }
@@ -53,13 +54,16 @@ export class Geo {
       ends.tri([x1, y, z1], [x0, y, z1], [xm, y + rise, z1], [0, 0, 1], [[0, 0], [1, 0], [0.5, 0.4]], endCol);
     }
   }
+  /** Typed GPU-ready geometry. Built once; the JS arrays are released afterwards (they are 2-3x the size of the typed ones). */
   build(): THREE.BufferGeometry {
+    if (this.built) return this.built;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.computeBoundingSphere(); g.computeBoundingBox();
+    this.built = g; this.pos = []; this.nor = []; this.uv = []; this.col = [];
     return g;
   }
 }

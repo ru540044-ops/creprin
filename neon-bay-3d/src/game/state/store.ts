@@ -1,4 +1,4 @@
-import { SPAWN } from '../world/cityGen';
+import { SPAWN, pointBlocked, isWater } from '../world/cityGen';
 import type { VKind, Mods } from '../vehicles/defs';
 import { audio } from '../audio';
 
@@ -45,7 +45,7 @@ export const game = {
 
 /** Persistent progress: best time-trial times. */
 export const progress = { trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
-  gift: { last: '', streak: 0, boxes: [] as number[], claimed: [] as string[], made: [] as string[], used: [] as string[] } };
+  gift: { bv: 2, last: '', streak: 0, boxes: [] as number[], claimed: [] as string[], made: [] as string[], used: [] as string[] } };
 
 /** Cars the player owns; index = garage bay. */
 export const ownedCars: { kind: VKind; color: string; mods?: Mods }[] = [];
@@ -74,10 +74,12 @@ export function load(): boolean {
     if (s.st && typeof s.st === 'object') Object.assign(progress.stunts, s.st);
     if (typeof s.story === 'number') progress.story = s.story;
     if (s.gift && typeof s.gift === 'object') { const g = s.gift, G = progress.gift, arr = (a: unknown, t: string) => (Array.isArray(a) ? a.filter((x) => typeof x === t) : []);
-      G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = arr(g.boxes, 'number') as number[]; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
+      G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = g.bv === 2 ? (arr(g.boxes, 'number') as number[]) : [] /* box layout changed with the bigger city */; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
     if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
     if (typeof s.ccam === 'number') game.cam.carMode = s.ccam; if (s.mute) audio.muted = true;
-    if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI; }
+    if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI;
+      // the city grew around the old one: a saved spot that is now inside a building or the sea goes back to the safehouse
+      if (!Number.isFinite(s.p.x) || pointBlocked(s.p.x, 0.9, s.p.z) || pointBlocked(s.p.x, 1.6, s.p.z) || isWater(s.p.x, s.p.z)) { game.player.x = SPAWN.x; game.player.z = SPAWN.z; } }
     if (s.q) game.quality = s.q; if (s.wp) game.waypoint = s.wp; if (typeof s.cam === 'number') game.cam.mode = s.cam;
     return true;
   } catch { return false; }

@@ -4,7 +4,7 @@ import { VDEFS, VKind, DEALER, isBoat } from './vehicles/defs';
 import { hasRoom } from './crime/gifts';
 import { peds, scare } from './ai/peds';
 import { law, armored, exportJob, newExport, resetRobberies } from './crime/crime';
-import { groundAt, floorAt, doors, GARAGE, AIRPORT, PORT, BEACH_X, POLICE_HQ, HOSPITAL, EXPORT_DOCK, CUSTOMS, HELIPADS, RAMPS, isWater } from './world/cityGen';
+import { HALF, groundAt, floorAt, doors, GARAGE, AIRPORT, PORT, BEACH_X, POLICE_HQ, HOSPITAL, EXPORT_DOCK, CUSTOMS, HELIPADS, RAMPS, isWater } from './world/cityGen';
 import { WEAPONS, MAG } from './combat/weapons';
 import { releaseDrive } from './input';
 import { sfx } from './audio';
@@ -85,6 +85,8 @@ export const WARPS: { name: string; at: () => { x: number; z: number } }[] = [
   { name: '港', at: () => ({ x: PORT.x0 + 80, z: PORT.z0 + 20 }) },
   { name: 'ビーチ', at: () => ({ x: BEACH_X + 30, z: 0 }) },
   { name: 'ダウンタウン', at: () => ({ x: 0, z: -50 }) },
+  { name: 'アップタウン', at: () => ({ x: HALF - 150, z: -HALF + 150 }) },
+  { name: 'ベイフロント', at: () => ({ x: HALF - 157, z: 50 }) },
   { name: 'BAY CUSTOMS', at: () => CUSTOMS.spawn },
   ...(['danchi', 'house', 'tower', 'villa'] as const).map((id) => ({ name: { danchi: '団地', house: '一軒家', tower: 'タワマン', villa: '豪邸' }[id], at: () => { const d = doors.find((q) => q.id === 'h_' + id)!; return { x: d.x + Math.sin(d.ang) * 2.5, z: d.z + Math.cos(d.ang) * 2.5 }; } })),
   { name: '屋上ヘリパッド', at: () => { const h = HELIPADS[HELIPADS.length - 1]; return { x: h.x + 9, z: h.z }; } },

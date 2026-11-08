@@ -252,3 +252,42 @@ export function applyRig(C: Character, P: Pose) {
   C.root.position.set(0, P.oy + 0.18 * P.fall, P.oz);
   C.root.rotation.set(P.fall * (P.fdir > 0 ? -Math.PI / 2 : Math.PI / 2), 0, P.fall * P.fside * 0.6);
 }
+
+/* ------------------------------------------------------------------ ambient life (benches, beach, park, pier) */
+/** Sitting on a bench: hands on the knees, the odd shift of weight; v picks a variant (relaxed / phone / arms crossed / leaning back). */
+export function benchSit(P: Pose, t: number, v: number) {
+  neutral(P); P.hy = 0.5; P.sx = v === 3 ? -0.18 : 0.06; P.nx = v === 1 ? 0.45 : 0.02 + Math.sin(t * 0.4) * 0.05; P.ny = v === 1 ? 0 : Math.sin(t * 0.23 + v) * 0.5;
+  for (let i = 0; i < 2; i++) { const sg = i ? 1 : -1; P.lx[i] = -1.5; P.lk[i] = 1.45 + (v === 2 && i ? -0.25 : 0); P.lz[i] = sg * 0.08; P.ax[i] = -0.45; P.ae[i] = -0.85; P.az[i] = -sg * 0.05; }
+  if (v === 1) texting(P);
+  if (v === 2) for (let i = 0; i < 2; i++) { const sg = i ? 1 : -1; P.ax[i] = -0.55; P.az[i] = -sg * 0.38; P.ae[i] = -1.95; }
+  if (v === 3) for (let i = 0; i < 2; i++) { const sg = i ? 1 : -1; P.ax[i] = -0.2; P.az[i] = sg * 0.55; P.ae[i] = -0.25; }
+  return P;
+}
+/** Sunbathing on the back, hands behind the head or along the sides, one knee up now and then. */
+export function sunbathe(P: Pose, t: number, v: number) {
+  neutral(P); P.fall = 1; P.fdir = 1; P.fside = 0; P.nx = -0.15;
+  for (let i = 0; i < 2; i++) { const sg = i ? 1 : -1; if (v === 0) { P.ax[i] = -2.9; P.az[i] = sg * 0.65; P.ae[i] = -2.0; } else { P.ax[i] = 0.05; P.az[i] = sg * 0.22; P.ae[i] = -0.1; } P.lx[i] = 0; P.lk[i] = 0; }
+  if (v === 2) { P.lx[0] = -0.7; P.lk[0] = 1.3; }
+  P.ny = Math.sin(t * 0.2 + v) * 0.3;
+  return P;
+}
+/** Street dance: bouncing knees, swaying hips and three arm styles. */
+export function dance(P: Pose, t: number, style: number) {
+  neutral(P); const b = Math.sin(t * 8.4), s = Math.sin(t * 4.2);
+  P.hy = 0.92 - 0.05 * (b * 0.5 + 0.5); P.hz = s * 0.08; P.sz = -s * 0.1; P.sy = s * 0.25; P.nx = -0.05 + b * 0.06; P.ny = s * 0.3;
+  for (let i = 0; i < 2; i++) {
+    const sg = i ? 1 : -1, ph = t * 4.2 + i * Math.PI;
+    if (style === 0) { P.ax[i] = -1.4 + Math.sin(ph) * 0.9; P.az[i] = sg * 0.4; P.ae[i] = -1.2; }
+    else if (style === 1) { P.ax[i] = -2.6 + Math.sin(ph * 2) * 0.3; P.az[i] = sg * (0.5 + Math.sin(ph) * 0.3); P.ae[i] = -0.4; }
+    else { P.ax[i] = -0.6 + Math.sin(ph) * 0.5; P.az[i] = sg * (0.9 + Math.sin(ph * 2) * 0.3); P.ae[i] = -1.6; }
+    P.lk[i] = 0.2 + Math.max(0, Math.sin(ph)) * 0.35 + (b * 0.5 + 0.5) * 0.15; P.lx[i] = -P.lk[i] * 0.5;
+  }
+  return P;
+}
+/** Holding a fishing rod out over the rail, the tip twitching now and then. */
+export function fishing(P: Pose, t: number) {
+  idle(P, t, 'breathe', 0); const tw = Math.max(0, Math.sin(t * 0.9)) ** 8 * 0.25;
+  for (let i = 0; i < 2; i++) { const sg = i ? 1 : -1; P.ax[i] = -0.95 - tw; P.az[i] = -sg * 0.28; P.ae[i] = -0.75 + (i ? 0.2 : 0); }
+  P.nx = 0.15; P.sx = 0.06;
+  return P;
+}

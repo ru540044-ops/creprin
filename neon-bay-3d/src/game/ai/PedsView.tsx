@@ -10,6 +10,7 @@ import { fx } from '../combat/fx';
 import { combat } from '../combat/weapons';
 import { booms, grenades } from '../combat/explode';
 import { getTextures } from '../world/textures';
+import { spots, towels, rods } from './ambient';
 
 const SHIRT = ['#e84a5f', '#2a9d8f', '#264653', '#f4a261', '#e9c46a', '#6c5ce7', '#dfe6e9', '#2d3436', '#00b894', '#fd79a8', '#0984e3', '#b2bec3'].map((c) => new THREE.Color(c));
 const PANTS = ['#2d3436', '#34495e', '#5d4037', '#1e3799', '#636e72', '#2c2c54', '#c8b48a'].map((c) => new THREE.Color(c));
@@ -23,6 +24,9 @@ const rot = (m: THREE.Matrix4, x: number, y: number, z: number) => m.makeRotatio
 const MAXD = 22; // drivers drawn inside AI cars
 const SLOTS = PED_MAX + MAXD;
 const POLICE = { shirt: new THREE.Color('#1d2c4d'), pants: new THREE.Color('#151a26') };
+const SWIM = ['#ff3f6e', '#2be4ff', '#ffd23a', '#3dffb0', '#ff8a2a', '#1e3799', '#c07aff'].map((c) => new THREE.Color(c));
+const HIVIS = new THREE.Color('#ff7a1a'), HARDHAT = new THREE.Color('#ffd23a'), WORKPANTS = new THREE.Color('#2b3440'), BLACK = new THREE.Color('#16161a');
+const SPORT = ['#3dffb0', '#ff3f93', '#2be4ff', '#ffd23a'].map((c) => new THREE.Color(c));
 type Parts = Record<'pelvis' | 'torso' | 'head' | 'hair' | 'uarm' | 'farm' | 'thigh' | 'shin' | 'foot', THREE.InstancedMesh>;
 
 /** Write one character's matrices from a pose (same skeleton as player/character.ts). */
@@ -58,6 +62,13 @@ function pedPose(p: Ped, out: A.Pose, tmp: A.Pose, t: number) {
     case 'down': A.lying(out, p.fdir, p.fside * 0.5, p.look % 89); out.fall = p.fall; break;
     case 'getup': A.getUp(out, p.fdir, 1 - Math.max(0, p.t)); break;
     case 'cower': A.cower(out, tt); break;
+    case 'sit': A.benchSit(out, tt, p.look % 4); break;
+    case 'lie': A.sunbathe(out, tt, p.look % 3); break;
+    case 'chat': A.idle(out, tt, (['chat', 'chat', 'crossed', 'hips', 'phone'] as const)[p.look % 5], 1, p.gait); break;
+    case 'watch': A.idle(out, tt, (['crossed', 'watch', 'look', 'hips', 'breathe'] as const)[p.look % 5], 1, p.gait); break;
+    case 'work': A.idle(out, tt, (['hips', 'look', 'watch', 'crossed'] as const)[p.look % 4], 1, p.gait); break;
+    case 'fish': A.fishing(out, tt); break;
+    case 'dance': A.dance(out, tt, p.look % 3); break;
     case 'hands': case 'handsup': A.idle(out, tt, 'breathe', 0, p.gait); A.handsUp(out, tt); break;
     case 'idle': case 'wait': {
       const k = p.state === 'idle' ? A.env(1 - Math.max(0, p.t) / Math.max(1, p.idleDur), 0.15, 0.2) : 0.8;
@@ -89,10 +100,15 @@ export function PedsView() {
   useMemo(() => { const m = parts.head.material as THREE.MeshStandardMaterial; m.map = faceTexture(true); m.needsUpdate = true; }, [parts]);
   const colored = useRef(new Map<number, number>());
   const pose = useMemo(() => A.newPose(), []), tmp = useMemo(() => A.newPose(), []);
-  const paint = (i: number, h: number, police: boolean) => {
-    const P = parts, shirt = police ? POLICE.shirt : SHIRT[h % SHIRT.length], pants = police ? POLICE.pants : PANTS[(h >> 12) % PANTS.length], skin = SKIN[(h >> 4) % SKIN.length];
-    P.torso.setColorAt(i, shirt); P.pelvis.setColorAt(i, pants); P.head.setColorAt(i, skin); P.hair.setColorAt(i, HAIR[(h >> 8) % HAIR.length]);
-    for (const k of [0, 1]) { const j = i * 2 + k; P.uarm.setColorAt(j, shirt); P.farm.setColorAt(j, (h >> 3) % 3 ? skin : shirt); P.thigh.setColorAt(j, pants); P.shin.setColorAt(j, pants); P.foot.setColorAt(j, SHOE[(h >> 6) % SHOE.length]); }
+  const paint = (i: number, h: number, police: boolean, outfit = 0) => {
+    const P = parts, skin = SKIN[(h >> 4) % SKIN.length];
+    let shirt = police ? POLICE.shirt : SHIRT[h % SHIRT.length], pants = police ? POLICE.pants : PANTS[(h >> 12) % PANTS.length], hair = HAIR[(h >> 8) % HAIR.length];
+    let uarm = shirt, farm = (h >> 3) % 3 ? skin : shirt, thigh = pants, shin = pants, foot = SHOE[(h >> 6) % SHOE.length];
+    if (outfit === 1) { const sw = SWIM[(h >> 5) % SWIM.length]; shirt = h % 2 ? skin : sw; pants = sw; uarm = farm = thigh = shin = foot = skin; } // swimwear, barefoot
+    else if (outfit === 2) { shirt = uarm = HIVIS; farm = skin; pants = thigh = shin = WORKPANTS; hair = HARDHAT; foot = BLACK; } // hi-vis and a hard hat
+    else if (outfit === 3) { shirt = uarm = SPORT[(h >> 5) % SPORT.length]; farm = skin; pants = thigh = BLACK; shin = skin; } // running kit
+    P.torso.setColorAt(i, shirt); P.pelvis.setColorAt(i, pants); P.head.setColorAt(i, skin); P.hair.setColorAt(i, hair);
+    for (const k of [0, 1]) { const j = i * 2 + k; P.uarm.setColorAt(j, uarm); P.farm.setColorAt(j, farm); P.thigh.setColorAt(j, thigh); P.shin.setColorAt(j, shin); P.foot.setColorAt(j, foot); }
     for (const m of Object.values(P)) m.instanceColor!.needsUpdate = true;
   };
   useFrame(({ camera }) => {
@@ -100,7 +116,7 @@ export function PedsView() {
     for (let i = 0; i < PED_MAX; i++) {
       const p = peds[i];
       if (!p || Math.abs(p.x - camera.position.x) > 160 || Math.abs(p.z - camera.position.z) > 160) { hide(P, i); continue; }
-      if (colored.current.get(i) !== p.id) { colored.current.set(i, p.id); paint(i, p.look, false); }
+      if (colored.current.get(i) !== p.id) { colored.current.set(i, p.id); paint(i, p.look, false, p.outfit); }
       Q.setFromAxisAngle(UP, p.yaw); V.set(p.x, p.y, p.z); S.setScalar(p.scale); B.compose(V, Q, S);
       pedPose(p, pose, tmp, t); writeRig(P, i, B, pose);
     }
@@ -166,4 +182,21 @@ export function FXView() {
       <mesh ref={lock} visible={false}><ringGeometry args={[0.22, 0.3, 24]} /><meshBasicMaterial color="#ff3a4a" toneMapped={false} depthTest={false} transparent /></mesh>
     </>
   );
+}
+
+/** Beach towels under the sunbathers and fishing rods over the pier rail. */
+export function AmbientProps() {
+  const built = useMemo(() => {
+    spots(); // fills towels / rods
+    const TC = ['#ff3f6e', '#2be4ff', '#ffd23a', '#3dffb0', '#ffffff', '#c07aff'].map((c) => new THREE.Color(c));
+    const tw = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.95, 1.9).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ roughness: 0.95 }), Math.max(1, towels.length));
+    towels.forEach((t, i) => { Q.setFromAxisAngle(UP, t.yaw); V.set(t.x, t.y, t.z); S.setScalar(1); M.compose(V, Q, S); tw.setMatrixAt(i, M); tw.setColorAt(i, TC[t.c % TC.length]); });
+    tw.count = towels.length; tw.receiveShadow = true;
+    const rd = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.022, 3.4, 5), new THREE.MeshStandardMaterial({ color: '#2a2a2e', roughness: 0.4, metalness: 0.5 }), Math.max(1, rods.length));
+    const dir = new THREE.Vector3(), from = new THREE.Vector3(0, 1, 0);
+    rods.forEach((r, i) => { const fx = Math.sin(r.yaw), fz = Math.cos(r.yaw); dir.set(fx * 0.82, 0.57, fz * 0.82).normalize(); Q.setFromUnitVectors(from, dir); V.set(r.x + fx * (0.35 + 1.4), r.y + 0.95 + 0.97, r.z + fz * (0.35 + 1.4)); S.setScalar(1); M.compose(V, Q, S); rd.setMatrixAt(i, M); });
+    rd.count = rods.length;
+    return { tw, rd };
+  }, []);
+  return <><primitive object={built.tw} /><primitive object={built.rd} /></>;
 }

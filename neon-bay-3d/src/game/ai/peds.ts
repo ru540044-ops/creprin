@@ -1,6 +1,6 @@
 import { game, toast } from '../state/store';
 import { vehicles, playerCar, Veh } from '../vehicles/sim';
-import { blocks, N, collide, groundAt, HALF, isWater } from '../world/cityGen';
+import { blocks, N, collide, groundAt, floorAt, HALF, isWater, WATER_Y } from '../world/cityGen';
 import { pedsAhead } from './traffic';
 import { setWanted, copSees } from '../crime/crime';
 import { sfx } from '../audio';
@@ -9,21 +9,25 @@ import { admin } from '../admin';
 import { gaitFor, Gait, IDLE_VARIANTS, IdleVariant } from '../anim/pose';
 import { signalState } from '../world/City';
 import { combat } from '../combat/weapons';
+import { spots, AMBIENT_STATES, Spot } from './ambient';
 
 /** Pedestrians walk the sidewalk ring of each block, cross at corners, and react to danger. */
-export type PedState = 'walk' | 'idle' | 'cross' | 'flee' | 'down' | 'dead' | 'hands' | 'wait' | 'cower' | 'handsup' | 'getup';
+export type PedState = 'walk' | 'idle' | 'cross' | 'flee' | 'down' | 'dead' | 'hands' | 'wait' | 'cower' | 'handsup' | 'getup' | 'sit' | 'lie' | 'chat' | 'fish' | 'dance' | 'jog' | 'work' | 'watch';
 export interface Ped {
   id: number; x: number; z: number; y: number; yaw: number; vx: number; vz: number; vy: number;
   state: PedState; t: number; blk: number; corner: number; dir: number; tx: number; tz: number;
   hp: number; look: number; phase: number; speed: number; fall: number; scale: number; callT: number; fx: number; fz: number; cash: number;
   gait: Gait; idleV: IdleVariant; idleDur: number; fdir: number; fside: number; head: number; flail: boolean; aimedT: number; crossBlk: number; crossCorner: number;
+  spot: number; outfit: number; // ambient spot index (-1 = walker) and clothing set (see ambient.ts)
 }
 export const peds: Ped[] = [];
 export const pickups: { x: number; z: number; y: number; amount: number; t: number }[] = [];
 let nextId = 1, spawnT = 0;
 const INSET = 2.6;
-export const pedCap = () => Math.min(PED_MAX - 4, Math.round((game.quality === 'low' ? 12 : game.quality === 'medium' ? 20 : 28) * (admin.is ? admin.density : 1)));
-export const PED_MAX = 40;
+export const pedCap = () => Math.min(PED_MAX - 26, Math.round((game.quality === 'low' ? 18 : game.quality === 'medium' ? 30 : 42) * (admin.is ? admin.density : 1)));
+/** People doing something in place (benches, beach, park, pier, port...), on top of the walkers. */
+export const ambientCap = () => Math.min(24, Math.round((game.quality === 'low' ? 9 : game.quality === 'medium' ? 16 : 24) * (admin.is ? Math.min(1.5, admin.density) : 1)));
+export const PED_MAX = 72;
 
 const corner = (b: number, c: number) => { const B = blocks[b]; return { x: c === 0 || c === 3 ? B.x0 + INSET : B.x1 - INSET, z: c < 2 ? B.z0 + INSET : B.z1 - INSET }; };
 function setTarget(p: Ped) { const c = corner(p.blk, p.corner); p.tx = c.x; p.tz = c.z; }
@@ -40,12 +44,12 @@ function spawnPed(px: number, pz: number) {
   for (let k = 0; k < 16; k++) {
     const bi = clamp(Math.floor((px + HALF) / 100) + Math.round((Math.random() - 0.5) * 4), 0, N - 1), bj = clamp(Math.floor((pz + HALF) / 100) + Math.round((Math.random() - 0.5) * 4), 0, N - 1);
     const b = bj * N + bi, B = blocks[b];
-    const cx = (B.x0 + B.x1) / 2, cz = (B.z0 + B.z1) / 2; if (Math.hypot(cx - px, cz - pz) > 170) continue;
+    const cx = (B.x0 + B.x1) / 2, cz = (B.z0 + B.z1) / 2; if (Math.hypot(cx - px, cz - pz) > 150) continue;
     const c = Math.floor(Math.random() * 4), a = corner(b, c), e = corner(b, (c + 1) & 3), t = Math.random();
     const x = a.x + (e.x - a.x) * t, z = a.z + (e.z - a.z) * t, d = Math.hypot(x - px, z - pz);
-    if (d < 40 || d > 140) continue;
-    if (k < 10 && (x - px) * bx + (z - pz) * bz < 0 && d < 90) continue; // do not pop in right in front of the camera
-    const p: Ped = { id: nextId++, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'walk', t: 0, blk: b, corner: (c + 1) & 3, dir: 1, tx: 0, tz: 0, hp: 100, look: Math.floor(Math.random() * 1e6), phase: Math.random() * 6, speed: 1.2 + Math.random() * 0.5, fall: 0, scale: 0.92 + Math.random() * 0.16, callT: 0, fx: 0, fz: 0, cash: 10 + Math.floor(Math.random() * 60), gait: gaitFor(0), idleV: 'look' as IdleVariant, idleDur: 1, fdir: 1, fside: 0, head: 0, flail: false, aimedT: 0, crossBlk: 0, crossCorner: 0 };
+    if (d < 32 || d > 115) continue;
+    if (k < 12 && (x - px) * bx + (z - pz) * bz < 0 && d < 60) continue; // do not pop in right in front of the camera
+    const p: Ped = { id: nextId++, spot: -1, outfit: 0, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'walk', t: 0, blk: b, corner: (c + 1) & 3, dir: 1, tx: 0, tz: 0, hp: 100, look: Math.floor(Math.random() * 1e6), phase: Math.random() * 6, speed: 1.2 + Math.random() * 0.5, fall: 0, scale: 0.92 + Math.random() * 0.16, callT: 0, fx: 0, fz: 0, cash: 10 + Math.floor(Math.random() * 60), gait: gaitFor(0), idleV: 'look' as IdleVariant, idleDur: 1, fdir: 1, fside: 0, head: 0, flail: false, aimedT: 0, crossBlk: 0, crossCorner: 0 };
     p.gait = gaitFor(p.look); p.speed = p.gait.speed; p.flail = Math.random() < 0.5;
     if (Math.random() < 0.5) { p.dir = -1; p.corner = c; }
     setTarget(p); peds.push(p); return p;
@@ -53,18 +57,44 @@ function spawnPed(px: number, pz: number) {
   return null;
 }
 
+/** An ambient person leaves their spot for good (the spot rests for a while before someone new takes it). */
+export function leaveSpot(p: Ped) { if (p.spot >= 0) { const S = spots()[p.spot]; if (S) S.cool = performance.now() / 1000 + 90; p.spot = -1; } }
+
+let ambT = 0;
+function spawnAmbient(px: number, pz: number) {
+  const all = spots(), used = new Set<number>(), now = performance.now() / 1000, bx = Math.sin(game.cam.yaw), bz = Math.cos(game.cam.yaw);
+  let n = 0; for (const p of peds) if (p.spot >= 0) { used.add(p.spot); n++; }
+  if (n >= ambientCap()) return;
+  let best: Spot | null = null, bd = 1e9;
+  for (const S of all) {
+    const dx = S.x - px, dz = S.z - pz; if (Math.abs(dx) > 140 || Math.abs(dz) > 140) continue;
+    const d = Math.hypot(dx, dz); if (d > 140 || d < 22 || used.has(S.id) || S.cool > now) continue;
+    if (d < 70 && dx * bx + dz * bz < 0 && S.kind !== 'jog') continue; // do not pop in right in front of the camera
+    if (d < bd) { bd = d; best = S; }
+  }
+  if (!best) return;
+  const S = best, look = Math.floor(Math.random() * 1e6);
+  const p: Ped = { id: nextId++, spot: S.id, outfit: S.outfit, x: S.x, z: S.z, y: S.y, yaw: S.yaw, vx: 0, vz: 0, vy: 0, state: S.kind, t: 0, blk: 0, corner: 0, dir: 1, tx: S.x2, tz: S.z2, hp: 100, look, phase: Math.random() * 6, speed: 1.4, fall: 0, scale: 0.92 + Math.random() * 0.16, callT: 0, fx: 0, fz: 0, cash: 20 + Math.floor(Math.random() * 120),
+    gait: gaitFor(look), idleV: 'breathe', idleDur: 1, fdir: 1, fside: 0, head: 0, flail: Math.random() < 0.5, aimedT: 0, crossBlk: 0, crossCorner: 0 };
+  if (S.kind === 'jog') { p.gait = { ...gaitFor(look), kind: 'jogger', speed: 2.9 + Math.random() * 0.7 }; p.speed = p.gait.speed; }
+  if (S.kind === 'lie') p.fall = 1;
+  peds.push(p);
+}
+
 /** A ped who just got out of a car (carjacked driver): runs away. */
 export function ejectPed(x: number, z: number, fromX: number, fromZ: number) {
   if (peds.length >= PED_MAX) peds.shift();
-  const p: Ped = { id: nextId++, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'flee', t: 7, blk: 0, corner: 0, dir: 1, tx: x, tz: z, hp: 100, look: Math.floor(Math.random() * 1e6), phase: 0, speed: 1.4, fall: 0, scale: 1, callT: Math.random() < 0.6 ? 6 : 0, fx: fromX, fz: fromZ, cash: 40, gait: gaitFor(0), idleV: 'look' as IdleVariant, idleDur: 1, fdir: 1, fside: 0, head: 0, flail: false, aimedT: 0, crossBlk: 0, crossCorner: 0 };
+  const p: Ped = { id: nextId++, spot: -1, outfit: 0, x, z, y: groundAt(x, z), yaw: 0, vx: 0, vz: 0, vy: 0, state: 'flee', t: 7, blk: 0, corner: 0, dir: 1, tx: x, tz: z, hp: 100, look: Math.floor(Math.random() * 1e6), phase: 0, speed: 1.4, fall: 0, scale: 1, callT: Math.random() < 0.6 ? 6 : 0, fx: fromX, fz: fromZ, cash: 40, gait: gaitFor(0), idleV: 'look' as IdleVariant, idleDur: 1, fdir: 1, fside: 0, head: 0, flail: false, aimedT: 0, crossBlk: 0, crossCorner: 0 };
   p.gait = gaitFor(p.look); p.flail = true;
   peds.push(p); return p;
 }
 
 /** Everyone within r runs away from (x,z). */
 export function scare(x: number, z: number, r: number) {
-  for (const p of peds) if ((p.state === 'walk' || p.state === 'idle' || p.state === 'cross' || p.state === 'wait') && Math.hypot(p.x - x, p.z - z) < r) {
-    if (Math.hypot(p.x - x, p.z - z) < 16 && Math.random() < 0.35) { p.state = 'cower'; p.t = 2 + Math.random() * 2.5; } else { p.state = 'flee'; p.t = 6 + Math.random() * 4; }
+  for (const p of peds) if ((p.state === 'walk' || p.state === 'idle' || p.state === 'cross' || p.state === 'wait' || AMBIENT_STATES.has(p.state)) && Math.hypot(p.x - x, p.z - z) < r) {
+    const lying = p.state === 'lie'; leaveSpot(p);
+    if (lying) { p.state = 'getup'; p.t = 1.0; p.fdir = 1; p.fall = 1; }
+    else if (Math.hypot(p.x - x, p.z - z) < 16 && Math.random() < 0.35) { p.state = 'cower'; p.t = 2 + Math.random() * 2.5; } else { p.state = 'flee'; p.t = 6 + Math.random() * 4; }
     p.fx = x; p.fz = z;
   }
 }
@@ -109,16 +139,17 @@ export function updatePeds(dt: number) {
   const out = game.where === 'out', pl = out ? game.player : game.outsidePos, me = playerCar();
   const inCity = Math.abs(pl.x) < HALF + 30 && Math.abs(pl.z) < HALF + 30;
   // despawn
-  for (let i = peds.length - 1; i >= 0; i--) { const p = peds[i], d = Math.hypot(p.x - pl.x, p.z - pl.z); if (d > 175 || (p.state === 'dead' && (p.t -= dt) <= 0)) peds.splice(i, 1); }
+  for (let i = peds.length - 1; i >= 0; i--) { const p = peds[i], d = Math.hypot(p.x - pl.x, p.z - pl.z); if (d > 150 || (p.state === 'dead' && (p.t -= dt) <= 0)) peds.splice(i, 1); }
   spawnT -= dt;
-  if (inCity && game.started && spawnT <= 0 && peds.filter((p) => p.state !== 'dead').length < pedCap()) { spawnPed(pl.x, pl.z); spawnT = 0.35; }
+  if (inCity && game.started && spawnT <= 0 && peds.filter((p) => p.state !== 'dead' && p.spot < 0).length < pedCap()) { spawnPed(pl.x, pl.z); spawnT = 0.22; }
+  ambT -= dt; if (game.started && ambT <= 0 && peds.length < PED_MAX - 2) { spawnAmbient(pl.x, pl.z); ambT = 0.2; }
   pedsAhead.length = 0;
   for (const p of peds) {
     p.t -= dt;
     if (p.state === 'getup') { if (p.t <= 0) { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; p.fall = 0; } continue; }
     if (p.state === 'dead' || p.state === 'down') {
       // tumble with the knock velocity, then lie there
-      p.vy -= 18 * dt; p.x += p.vx * dt; p.z += p.vz * dt; p.y += p.vy * dt; const g = groundAt(p.x, p.z);
+      p.vy -= 18 * dt; p.x += p.vx * dt; p.z += p.vz * dt; p.y += p.vy * dt; const g = floorAt(p.x, p.z, p.y + 0.6);
       if (p.y <= g) { p.y = g; p.vy = 0; p.vx *= 1 - Math.min(1, dt * 6); p.vz *= 1 - Math.min(1, dt * 6); }
       collide(p, 0.3, p.y, 0.5); p.fall = Math.min(1, p.fall + dt * 5);
       if (p.state === 'down' && p.t <= 0) { p.state = 'getup'; p.t = 1.0; }
@@ -136,7 +167,7 @@ export function updatePeds(dt: number) {
     let wx = 0, wz = 0, sp = 0;
     // being aimed at: hands up (or bolt)
     const L = combat.lock, aimed = !!L && 'ped' in L && L.ped === p;
-    if (aimed && (p.state === 'walk' || p.state === 'idle' || p.state === 'cross' || p.state === 'wait')) { if (Math.random() < 0.65) { p.state = 'handsup'; p.t = 99; } else { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; } }
+    if (aimed && (p.state === 'walk' || p.state === 'idle' || p.state === 'cross' || p.state === 'wait' || (AMBIENT_STATES.has(p.state) && p.state !== 'lie'))) { leaveSpot(p); if (Math.random() < 0.65) { p.state = 'handsup'; p.t = 99; } else { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; } }
     if (p.state === 'handsup') { p.aimedT = aimed ? 0 : p.aimedT + dt; p.yaw += angDiff(p.yaw, Math.atan2(pl.x - p.x, pl.z - p.z)) * Math.min(1, dt * 6); if (p.aimedT > 1.8) { p.state = 'flee'; p.t = 7; p.fx = pl.x; p.fz = pl.z; p.aimedT = 0; } }
     else if (p.state === 'cower') { if (p.t <= 0) { p.state = 'flee'; p.t = 6; } }
     else if (p.state === 'wait') { // at the kerb until the cars on that road get a red light
@@ -150,7 +181,18 @@ export function updatePeds(dt: number) {
       const dx = p.x - p.fx, dz = p.z - p.fz, L = Math.hypot(dx, dz) || 1; wx = dx / L; wz = dz / L; sp = 5.2;
       if (p.t <= 0) { // calm down: return to the nearest block's sidewalk
         let bi = 0, bd = 1e9; blocks.forEach((B, i) => { const d = Math.hypot((B.x0 + B.x1) / 2 - p.x, (B.z0 + B.z1) / 2 - p.z); if (d < bd) { bd = d; bi = i; } });
-        p.blk = bi; p.corner = Math.floor(Math.random() * 4); p.state = 'walk'; setTarget(p);
+        p.blk = bi; p.corner = Math.floor(Math.random() * 4); p.state = 'walk'; p.spot = -1; setTarget(p);
+      }
+    } else if (AMBIENT_STATES.has(p.state)) {
+      const S = spots()[p.spot];
+      if (!S) { p.state = 'walk'; p.spot = -1; p.blk = 0; setTarget(p); continue; }
+      if (p.state === 'jog') { // back and forth along the shore
+        const tx = p.dir > 0 ? S.x2 : S.x, tz = p.dir > 0 ? S.z2 : S.z, dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+        if (d < 1.2) p.dir = -p.dir; else { wx = dx / d; wz = dz / d; sp = p.speed; }
+      } else { // stay put on the bench / towel / lounger / pier
+        p.x = S.x; p.z = S.z; p.y = S.y; p.vx = p.vz = 0; p.yaw = S.yaw;
+        if (p.state === 'chat' || p.state === 'watch' || p.state === 'work') { const pd2 = Math.hypot(pl.x - p.x, pl.z - p.z), want = out && pd2 < 5 ? clamp(angDiff(p.yaw, Math.atan2(pl.x - p.x, pl.z - p.z)), -1.0, 1.0) : 0; p.head += (want - p.head) * Math.min(1, dt * 3); }
+        continue;
       }
     } else if (p.state === 'idle') { if (p.t <= 0) p.state = 'walk'; }
     else {
@@ -167,10 +209,11 @@ export function updatePeds(dt: number) {
     const k = Math.min(1, dt * 8); p.vx += (wx * sp - p.vx) * k; p.vz += (wz * sp - p.vz) * k;
     const ox = p.x, oz = p.z; p.x += p.vx * dt; p.z += p.vz * dt;
     if (collide(p, 0.32, p.y + 0.1, 1.6) && p.state === 'flee') { p.fx = ox - (p.x - ox) * 10 + (Math.random() - 0.5) * 20; p.fz = oz - (p.z - oz) * 10 + (Math.random() - 0.5) * 20; }
-    if (isWater(p.x, p.z)) { p.x = ox; p.z = oz; }
+    const fl = floorAt(p.x, p.z, p.y + 0.6);
+    if (fl < WATER_Y + 0.3 && isWater(p.x, p.z)) { p.x = ox; p.z = oz; }
     // keep out of the walking player
     if (out && !me) { const dx = p.x - pl.x, dz = p.z - pl.z, d = Math.hypot(dx, dz); if (d < 0.7 && d > 1e-3) { p.x += (dx / d) * (0.7 - d); p.z += (dz / d) * (0.7 - d); } }
-    p.y += (groundAt(p.x, p.z) - p.y) * Math.min(1, dt * 12);
+    p.y += (floorAt(p.x, p.z, p.y + 0.6) - p.y) * Math.min(1, dt * 12);
     const s = Math.hypot(p.vx, p.vz); if (s > 0.2) p.yaw += angDiff(p.yaw, Math.atan2(p.vx, p.vz)) * Math.min(1, dt * 10);
     p.phase += dt * (s > 0.15 ? 2.5 + s * 1.2 : 0) * p.gait.cadence;
     // glance at the player when close

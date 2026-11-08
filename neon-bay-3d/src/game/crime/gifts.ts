@@ -73,7 +73,7 @@ export function giftBoxes(): GiftBox[] {
   const R = mulberry(20261108), idx = blocks.map((_, i) => i);
   for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
   for (const bi of idx) {
-    if (out.length >= 30) break;
+    if (out.length >= 40) break;
     const b = blocks[bi], cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     if (out.some((q) => Math.hypot(q.x - cx, q.z - cz) < 120)) continue;
     const hint = b.zone === 'park' ? '公園の中' : b.zone === 'downtown' ? 'ダウンタウンの歩道' : b.zone === 'industrial' ? '工業地帯の歩道' : b.zone === 'residential' ? '住宅街の歩道' : '街角の歩道';
@@ -89,7 +89,8 @@ const boxReward = (id: number): Reward => {
   if (r < 0.9) return { armor: true, cash: 500 };
   return { grenades: 3, cash: 1000 };
 };
-const MILESTONE: Record<number, Reward> = { 10: { cash: 25000 }, 20: { cash: 75000 }, 30: { vehicle: 'formula', cash: 50000 } };
+const FINAL: Reward = { vehicle: 'formula', cash: 50000 };
+const MILESTONE: Record<number, Reward> = { 10: { cash: 25000 }, 20: { cash: 75000 }, 30: { cash: 150000 } };
 export const boxesLeft = () => giftBoxes().filter((b) => !progress.gift.boxes.includes(b.id));
 export function nearestBox(x: number, z: number) { let best: GiftBox | null = null, bd = 1e9; for (const b of boxesLeft()) { const d = Math.hypot(b.x - x, b.z - z); if (d < bd) { bd = d; best = b; } } return best; }
 
@@ -105,8 +106,8 @@ export function updateGifts(dt: number) {
     progress.gift.boxes.push(b.id);
     const n = progress.gift.boxes.length, total = giftBoxes().length;
     let msg = `🎁 ギフトボックス ${n}/${total}：` + grant(boxReward(b.id));
-    if (MILESTONE[n] && n <= total) msg += `　★${n}個達成ボーナス：` + grant(MILESTONE[n]);
-    else if (n === total && !MILESTONE[n]) msg += '　★コンプリート：' + grant(MILESTONE[30]);
+    if (n === total) msg += '　★コンプリート：' + grant(FINAL);
+    else if (MILESTONE[n]) msg += `　★${n}個達成ボーナス：` + grant(MILESTONE[n]);
     sfx('buy'); toast(msg, 3.6);
     if (game.waypoint && Math.hypot(game.waypoint.x - b.x, game.waypoint.z - b.z) < 3) game.waypoint = null;
   }

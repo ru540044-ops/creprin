@@ -7,7 +7,7 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS,
 } from './cityGen';
 import { game } from '../state/store';
 
@@ -100,8 +100,13 @@ function buildChunks(): Chunk[] {
   };
   const g = (rec: Record<string, Geo>, k: string) => (rec[k] ||= new Geo());
   const r = mulberry(4242);
-  for (const b of buildings) {
-    const c = get((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2); c.items.push(b);
+  // chunk by chunk, so only one chunk's raw vertex arrays are alive at a time (keeps peak memory low on phones)
+  const key = (b: Building) => Math.floor((b.x0 + b.x1) / 2 / CH) * 10000 + Math.floor((b.z0 + b.z1) / 2 / CH);
+  const order = buildings.slice().sort((a, b) => key(a) - key(b));
+  let prev: Chunk | null = null;
+  const finish = (c: Chunk | null) => { if (c) for (const rec of [c.hi, c.lo]) for (const geo of Object.values(rec)) geo.build(); };
+  for (const b of order) {
+    const c = get((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2); if (c !== prev) { finish(prev); prev = c; } c.items.push(b);
     const F = FAC_SET(b.type), top = b.y0 + b.h, col = b.tint;
     for (const lvl of [c.hi, c.lo]) {
       const hi = lvl === c.hi, wall = g(lvl, b.type);
@@ -132,6 +137,7 @@ function buildChunks(): Chunk[] {
       if (b.type === 'warehouse') for (let n = 0; n < 3; n++) { const dx = b.x0 + 6 + n * ((b.x1 - b.x0 - 12) / 2.5); m.box(dx, b.y0, b.z1, dx + 6, b.y0 + 5, b.z1 + 0.1, [0.25, 0.27, 0.3]); }
     }
   }
+  finish(prev);
   return [...map.values()];
 }
 
@@ -308,7 +314,7 @@ function buildGround() {
     for (const o of [-hw - 0.6, hw + 0.4]) { G.metal.box(-C - hw, 0.5, side * C + o, C + hw, 0.85, side * C + o + 0.2, [0.75, 0.77, 0.8]); G.metal.box(side * C + o, 0.5, -C - hw, side * C + o + 0.2, 0.85, C + hw, [0.75, 0.77, 0.8]); }
   }
   // connectors from highway to city edge roads
-  for (const k of [3, 7, 11]) { const c = roadC(k); G.asphalt2.flat(c - ROAD / 2, -C + hw, c + ROAD / 2, -HALF, 0.03, ONE, 8); G.asphalt2.flat(c - ROAD / 2, HALF, c + ROAD / 2, C - hw, 0.03, ONE, 8); G.asphalt2.flat(-C + hw, c - ROAD / 2, -HALF, c + ROAD / 2, 0.03, ONE, 8); G.asphalt2.flat(HALF, c - ROAD / 2, C - hw, c + ROAD / 2, 0.03, ONE, 8); }
+  for (const k of HWY_LINKS) { const c = roadC(k); G.asphalt2.flat(c - ROAD / 2, -C + hw, c + ROAD / 2, -HALF, 0.03, ONE, 8); G.asphalt2.flat(c - ROAD / 2, HALF, c + ROAD / 2, C - hw, 0.03, ONE, 8); G.asphalt2.flat(-C + hw, c - ROAD / 2, -HALF, c + ROAD / 2, 0.03, ONE, 8); G.asphalt2.flat(HALF, c - ROAD / 2, C - hw, c + ROAD / 2, 0.03, ONE, 8); }
   // airport
   const A = AIRPORT;
   G.asphalt2.flat(A.x0 + 40, -190, A.x1 - 20, -140, 0.04, [0.55, 0.55, 0.6], 8);
@@ -322,17 +328,17 @@ function buildGround() {
   G.concrete.box(PORT.x0, -3, PORT.z0, PORT.x1, 1.2, PORT.z1, ONE, 4, 4, G.concrete, 10);
   for (let k = 0; k < 3; k++) { const x = PORT.x0 + 120 + k * 150, z = PORT.z1 - 14; for (const [ox, oz] of [[-8, -6], [8, -6], [-8, 6], [8, 6]]) G.misc.box(x + ox - 0.6, 1.2, z + oz - 0.6, x + ox + 0.6, 40, z + oz + 0.6, [0.9, 0.55, 0.12]); G.misc.box(x - 9, 38, z - 30, x + 9, 41, z + 26, [0.9, 0.55, 0.12]); G.misc.box(x - 5, 41, z - 2, x + 5, 46, z + 6, [0.85, 0.85, 0.88]); }
   // beach
-  for (let z = LAND.z0 + 900; z < LAND.z1; z += 40) G.sand.quad([BEACH_X - 10, 0.01, z + 40], [LAND.x1, -2.2, z + 40], [LAND.x1, -2.2, z], [BEACH_X - 10, 0.01, z], [0, 1, 0], [[(BEACH_X - 10) / 6, -(z + 40) / 6], [LAND.x1 / 6, -(z + 40) / 6], [LAND.x1 / 6, -z / 6], [(BEACH_X - 10) / 6, -z / 6]], ONE);
-  for (let z = -HALF + 40; z < HALF; z += 150) { const x = BEACH_X + 45; for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) G.misc.box(x + ox - 0.1, heightAt(x, z), z + oz - 0.1, x + ox + 0.1, 3, z + oz + 0.1, [0.9, 0.9, 0.9]); G.misc.box(x - 1.5, 3, z - 1.5, x + 1.5, 5.5, z + 1.5, [0.95, 0.35, 0.35]); }
+  for (let z = -HALF - 90; z < LAND.z1; z += 40) G.sand.quad([BEACH_X - 10, 0.01, z + 40], [LAND.x1, -2.2, z + 40], [LAND.x1, -2.2, z], [BEACH_X - 10, 0.01, z], [0, 1, 0], [[(BEACH_X - 10) / 6, -(z + 40) / 6], [LAND.x1 / 6, -(z + 40) / 6], [LAND.x1 / 6, -z / 6], [(BEACH_X - 10) / 6, -z / 6]], ONE);
+  for (let z = -HALF + 40; z < HALF; z += 150) { const x = BEACH_X + 27; for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) G.misc.box(x + ox - 0.1, heightAt(x, z), z + oz - 0.1, x + ox + 0.1, 3, z + oz + 0.1, [0.9, 0.9, 0.9]); G.misc.box(x - 1.5, 3, z - 1.5, x + 1.5, 5.5, z + 1.5, [0.95, 0.35, 0.35]); }
   // pier
-  G.misc.box(785, -1.2, 140, HALF + 380, -0.1, 156, [0.55, 0.4, 0.3]);
-  for (let x = 800; x < HALF + 380; x += 12) for (const z of [140.4, 155.6]) G.misc.box(x - 0.25, -4, z - 0.25, x + 0.25, 0.9, z + 0.25, [0.4, 0.3, 0.22]);
+  G.misc.box(PIER.x0, -1.2, PIER.z0, PIER.x1, -0.1, PIER.z1, [0.55, 0.4, 0.3]);
+  for (let x = PIER.x0 + 15; x < PIER.x1; x += 12) for (const z of [140.4, 155.6]) G.misc.box(x - 0.25, -4, z - 0.25, x + 0.25, 0.9, z + 0.25, [0.4, 0.3, 0.22]);
   return G;
 }
 
 function Terrain({ mats }: { mats: Mats }) {
   const geo = useMemo(() => {
-    const x0 = LAND.x0, x1 = LAND.x1, z0 = LAND.z0, z1 = -HALF - 40, nx = 150, nz = 80;
+    const x0 = LAND.x0, x1 = LAND.x1, z0 = LAND.z0, z1 = -HALF - 40, nx = 190, nz = 80;
     const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz); g.rotateX(-Math.PI / 2); g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
     const p = g.attributes.position as THREE.BufferAttribute, cols: number[] = [];
     for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), h = heightAt(x, z); p.setY(i, h); }
@@ -396,9 +402,12 @@ export default function City({ shadows }: { shadows: boolean }) {
   return (
     <group>
       {/* base land + city asphalt */}
-      <mesh rotation-x={-Math.PI / 2} position={[(LAND.x0 + BEACH_X - 10) / 2, -0.05, (-HALF - 40 + LAND.z1) / 2]} material={mats.grass} receiveShadow>
-        <planeGeometry args={[BEACH_X - 10 - LAND.x0, LAND.z1 + HALF + 40]} />
-      </mesh>
+      {/* grass around the city only (not under the asphalt, where the two planes would z-fight at a distance) */}
+      {([[LAND.x0, -HALF - 40, -HALF, LAND.z1], [HALF, -HALF - 40, BEACH_X - 10, LAND.z1], [-HALF, -HALF - 40, HALF, -HALF], [-HALF, HALF, HALF, LAND.z1]] as const).map(([x0, z0, x1, z1], i) => (
+        <mesh key={i} rotation-x={-Math.PI / 2} position={[(x0 + x1) / 2, -0.05, (z0 + z1) / 2]} material={mats.grass} receiveShadow>
+          <planeGeometry args={[x1 - x0, z1 - z0]} />
+        </mesh>
+      ))}
       <mesh geometry={cityPlane} material={mats.asphalt} receiveShadow />
       {ground.map(({ k, geo }) => <mesh key={k} geometry={geo} material={groundMat(k)} receiveShadow castShadow={k === 'misc' && shadows} />)}
       <Terrain mats={mats} />
