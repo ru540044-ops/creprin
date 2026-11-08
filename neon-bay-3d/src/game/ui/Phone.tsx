@@ -1,3 +1,5 @@
+import { SettingsPanel } from './Menus';
+import type { QualityMode } from '../settings';
 import { useEffect, useReducer, useState, type ReactElement } from 'react';
 import { game, toast, save, clearSave, ownedCars, Quality } from '../state/store';
 import { VDEFS, DEALER, VKind } from '../vehicles/defs';
@@ -209,19 +211,17 @@ function Realty({ close }: { close: () => void }) {
   );
 }
 
-function Settings({ quality, setQuality, refresh }: { quality: Quality; setQuality: (q: Quality) => void; refresh: () => void }) {
+function Settings({ quality, mode, setMode }: { quality: Quality; mode: QualityMode; setMode: (q: QualityMode) => void }) {
   return (
     <div className="appBody">
-      <div className="setRow"><span>画質</span><div className="seg">{(['low', 'medium', 'high'] as Quality[]).map((q) => <button type="button" key={q} className={q === quality ? 'on' : ''} onClick={() => setQuality(q)}>{{ low: '低', medium: '中', high: '高' }[q]}</button>)}</div></div>
-      <div className="setRow"><span>サウンド</span><div className="seg"><button type="button" className={!audio.muted ? 'on' : ''} onClick={() => { audio.muted = false; save(); refresh(); }}>オン</button><button type="button" className={audio.muted ? 'on' : ''} onClick={() => { audio.muted = true; save(); refresh(); }}>オフ</button></div></div>
+      <SettingsPanel mode={mode} setMode={setMode} effective={quality} />
       <div className="setRow"><span>セーブ</span><button type="button" className="plain" onClick={() => { save(); toast('保存しました'); }}>今すぐ保存</button></div>
       <div className="setRow"><span>データ</span><ConfirmBtn cls="plain danger" label="最初からやり直す" ask="もう一度タップで消去" onOk={() => { clearSave(); location.reload(); }} /></div>
-      <p className="appNote">画質「低」は影をオフにして最も軽くなります。iPhoneで重いときは「低」にしてください。</p>
     </div>
   );
 }
 
-export default function Phone({ onClose, openMap, quality, setQuality }: { onClose: () => void; openMap: () => void; quality: Quality; setQuality: (q: Quality) => void }) {
+export default function Phone({ onClose, openMap, quality, mode, setMode }: { onClose: () => void; openMap: () => void; quality: Quality; mode: QualityMode; setMode: (q: QualityMode) => void }) {
   const [app, setApp] = useState<App>('home');
   const [, refresh] = useReducer((x: number) => x + 1, 0);
   useEffect(() => { const id = setInterval(refresh, 500); return () => clearInterval(id); }, []);
@@ -257,7 +257,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
             {app === 'realty' && <Realty close={onClose} />}
             {app === 'gift' && <GiftApp close={onClose} refresh={refresh} />}
             {app === 'jobs' && <Jobs close={onClose} refresh={refresh} />}
-            {app === 'settings' && <Settings quality={quality} setQuality={setQuality} refresh={refresh} />}
+            {app === 'settings' && <Settings quality={quality} mode={mode} setMode={setMode} />}
           </>
         )}
         <button type="button" className="pHome" onClick={onClose} aria-label="スマホを閉じる">閉じる</button>

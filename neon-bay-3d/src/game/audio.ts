@@ -1,14 +1,17 @@
 /** Web Audio: engine tone from rpm/gear, tyre squeal from slip, one-shot crash / door / ui sounds. Starts on the first user tap. */
-let C: AudioContext | null = null, master: GainNode;
+import { settings } from './settings';
+let C: AudioContext | null = null, master: GainNode, mainG: GainNode, musicG: GainNode; // master = effects bus; music and effects both feed mainG
 let sir: OscillatorNode, sirG: GainNode, rainG: GainNode, cityG: GainNode, waveG: GainNode, windG: GainNode, birdT = 0, bugT = 0;
 let eng1: OscillatorNode, eng2: OscillatorNode, engG: GainNode, engF: BiquadFilterNode, tireG: GainNode, tireF: BiquadFilterNode, noise: AudioBuffer;
 export const audio = { muted: false };
+/** Title-screen music (NEON FM) plays once the player has touched the screen. */
+export const music = { title: false };
 
 export function initAudio() {
   if (C) { if (C.state !== 'running') C.resume(); return; }
   try {
     C = new (window.AudioContext || (window as any).webkitAudioContext)();
-    master = C.createGain(); master.gain.value = 0.9; master.connect(C.destination);
+    mainG = C.createGain(); mainG.connect(C.destination); master = C.createGain(); master.connect(mainG); musicG = C.createGain(); musicG.connect(mainG); applyVolumes();
     noise = C.createBuffer(1, C.sampleRate * 2, C.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     engF = C.createBiquadFilter(); engF.type = 'lowpass'; engF.frequency.value = 900; engG = C.createGain(); engG.gain.value = 0;
     eng1 = C.createOscillator(); eng1.type = 'sawtooth'; eng2 = C.createOscillator(); eng2.type = 'square';
@@ -24,7 +27,11 @@ export function initAudio() {
   } catch { C = null; }
 }
 
-export const audioCtx = () => (C ? { C, master, noise } : null);
+export const audioCtx = () => (C ? { C, master, noise, music: musicG } : null);
+/** Apply the volume sliders from settings (master / music / effects). */
+export function applyVolumes() { if (!C) return; const t = C.currentTime; mainG.gain.setTargetAtTime(settings.master, t, 0.05); musicG.gain.setTargetAtTime(settings.music, t, 0.05); master.gain.setTargetAtTime(settings.sfx, t, 0.05); }
+/** Freeze all sound while the game is paused (and resume it after). */
+export function pauseAudio(on: boolean) { if (!C) return; try { if (on) C.suspend(); else C.resume(); } catch { /* ignore */ } }
 
 export function engine(on: boolean, rpm: number, gear: number, thr: number, slip: number, kind: string) {
   if (!C) return; const t = C.currentTime, m = audio.muted ? 0 : 1;

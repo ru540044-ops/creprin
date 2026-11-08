@@ -1,3 +1,5 @@
+import { settings, QualityMode } from '../settings';
+import { banner, tutorial, tutorialStep, tutorialCount, skipTutorial } from '../progression';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { game, toast, save, Quality } from '../state/store';
 import Phone from './Phone';
@@ -155,9 +157,10 @@ function Speedo() {
   );
 }
 
-export default function HUD({ quality, setQuality }: { quality: Quality; setQuality: (q: Quality) => void }) {
+export default function HUD({ quality, mode, setMode, onPause }: { quality: Quality; mode: QualityMode; setMode: (q: QualityMode) => void; onPause: () => void }) {
   useTicker(100);
   const [map, setMap] = useState(false);
+  useEffect(() => { game.mapOpen = map; }, [map]);
   const [phone, setPhone] = useState(false);
   useEffect(() => { game.phone = phone; }, [phone]);
   useEffect(() => { const id = setInterval(() => { if (input.phone) { input.phone = false; setPhone((v) => !v); } }, 50); return () => clearInterval(id); }, []);
@@ -191,8 +194,9 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           {!driving && game.arms.cur === 'grenade' && <div className="weap">グレネード <b>×{game.arms.ammo.grenade}</b></div>}
           {!driving && game.arms.cur !== 'fist' && game.arms.cur !== 'grenade' && <div className="weap">{WEAPONS[game.arms.cur as 'pistol'].name} <b>{combat.reload > 0 ? 'リロード中' : game.arms.mag[game.arms.cur as 'pistol']}</b> / {game.arms.ammo[game.arms.cur as 'pistol']}</div>}
           <div className={'stars' + (game.wanted > 0 && !law.seen ? ' search' : '')} aria-label={'手配度 ' + game.wanted}>{[0, 1, 2, 3, 4].map((i) => <b key={i} className={i < game.wanted ? 'on' : ''}>★</b>)}</div>
-          <div className="small">{String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} · {game.fps} FPS</div>
+          <div className="small">{String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')}{settings.showFps ? ` · ${game.fps} FPS` : ''}</div>
           <div className="chips">
+            <button type="button" className="chip pauseChip" onClick={onPause} aria-label="一時停止">Ⅱ</button>
             <button type="button" className="chip phoneChip" onClick={() => setPhone(true)} aria-label="スマホを開く">📱 スマホ</button>
             {driving && me && me.def.kind === 'taxi' && <button type="button" className="chip phoneChip" onClick={() => { if (taxi.on) stopTaxi(); else startTaxi(); }}>🚕 {taxi.on ? '業務終了' : '客を探す'}</button>}
             {driving && <button type="button" className="chip phoneChip" onClick={() => { input.radio = true; }}>📻 {game.radio ? STATIONS[game.radio - 1].name : 'ラジオ'}</button>}
@@ -204,6 +208,8 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
       {admin.is && (() => { const n = (['god', 'noWanted', 'infAmmo', 'carGod', 'carBoost', 'fastRun', 'superJump', 'freezeTime'] as const).filter((k) => admin[k]).length + (admin.timeScale !== 1 ? 1 : 0); return <div className="adBadge">ADMIN{n ? ' ●' + n : ''}</div>; })()}
       {admin.is && admin.debug && <div className="adDebug">x {game.player.x.toFixed(1)} z {game.player.z.toFixed(1)} · {game.where}<br />歩行者 {peds.length} · 車 {vehicles.length} · 手配 {game.wanted} · {game.fps} FPS · {game.hour.toFixed(2)}時</div>}
       {race.id && !race.done && (race.count > 0 || race.t < 0.9) && <div className="countdown" key={race.count > 0 ? Math.ceil(race.count - 0.5) : 'go'}>{race.count > 0.5 ? Math.ceil(race.count - 0.5) : 'GO!'}</div>}
+      {banner.t > 0 && <div className={'banner ' + banner.kind} key={banner.title + banner.sub}><b>{banner.title}</b><span>{banner.sub}</span></div>}
+      {tutorialStep() && <div className="tut"><i>チュートリアル {tutorial.step + 1}/{tutorialCount}</i><b>{tutorialStep()!.title}</b><span>{tutorialStep()!.text()}</span><button type="button" onClick={() => skipTutorial()}>スキップ</button></div>}
       {talk.queue[0] && <div className="subs">{talk.queue[0].who ? <><i>{talk.queue[0].who[0]}</i><b>{talk.queue[0].who}</b></> : <i className="ok">✓</i>}<span>{talk.queue[0].text}</span></div>}
       {law.over && <div className={'over ' + law.over.kind}><b>{law.over.kind === 'busted' ? 'BUSTED' : 'WASTED'}</b><span>{law.over.kind === 'busted' ? '逮捕' : '死亡'}　-${law.over.fine.toLocaleString('en-US')}</span></div>}
       {showDistrict && <div className="district">{district.name}</div>}
@@ -264,7 +270,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
       {game.ui === 'arms' && <GunShop onClose={() => { game.ui = ''; }} />}
       {game.ui === 'customs' && <Customs onClose={() => { game.ui = ''; }} />}
       {map && <FullMap onClose={() => setMap(false)} />}
-      {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} setQuality={setQuality} />}
+      {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} mode={mode} setMode={setMode} />}
     </>
   );
 }

@@ -56,7 +56,7 @@ function play(s: number, t: number) {
 /** Called every frame: on = the player is in a car with the radio on. */
 export function radioTick(on: boolean, st: number) {
   const A = audioCtx(); if (!A) return;
-  if (!bus) { bus = A.C.createGain(); bus.gain.value = 0; bus.connect(A.master); }
+  if (!bus) { bus = A.C.createGain(); bus.gain.value = 0; bus.connect(A.music); }
   const want = on && st > 0 && !audio.muted;
   bus.gain.setTargetAtTime(want ? 0.5 : 0, A.C.currentTime, 0.15);
   if (!want) { station = -1; return; }

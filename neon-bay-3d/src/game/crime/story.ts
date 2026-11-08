@@ -8,6 +8,7 @@ import { steer, newAI, nodeIdx } from '../ai/driver';
 import { setWanted, law } from './crime';
 import { sfx } from '../audio';
 import { clamp } from '../world/rng';
+import { showBanner } from '../progression';
 
 /**
  * Story missions: five jobs for RAY, an old friend who runs a chop shop. Each mission is a list of steps;
@@ -126,8 +127,8 @@ export function startMission() {
 function endMission(ok: boolean) {
   const M = MISSIONS[mission.id];
   if (mission.target && vehicles.includes(mission.target)) remove(mission.target);
-  if (ok) { progress.story++; game.money += M.reward; sfx('buy'); say(M.outro); talk.queue.push({ who: '', text: `ミッション完了「${M.title}」 +$${M.reward.toLocaleString('en-US')}`, t: 3.5 }); save(); }
-  else { toast('ミッション失敗：' + mission.fail + '（マーカーからやり直せる）', 3.5); sfx('crash', 0.3); }
+  if (ok) { progress.story++; game.money += M.reward; sfx('buy'); say(M.outro); showBanner('ok', 'MISSION COMPLETE', `「${M.title}」クリア　+$${M.reward.toLocaleString('en-US')}`, 4.5); save(); }
+  else { showBanner('fail', 'MISSION FAILED', mission.fail + '（マーカーからやり直せる）', 4); sfx('crash', 0.3); }
   mission.id = -1; mission.marker = null; mission.target = null; game.waypoint = null;
 }
 export function updateStory(dt: number) {

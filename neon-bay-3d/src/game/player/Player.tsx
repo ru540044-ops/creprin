@@ -1,3 +1,4 @@
+import { settings } from '../settings';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -91,7 +92,7 @@ export default function Player() {
     else if (me) {
       // ----- driving: the car sim moves the car, the player rides along -----
       if (input.lookDX || input.lookDY) st.lookT = 1.4;
-      st.look -= input.lookDX * 0.0055; st.lookP = clamp(st.lookP + input.lookDY * 0.004, -0.15, 0.9); input.lookDX = 0; input.lookDY = 0;
+      st.look -= input.lookDX * 0.0055 * settings.sens; st.lookP = clamp(st.lookP + input.lookDY * 0.004 * settings.sens * (settings.invertY ? -1 : 1), -0.15, 0.9); input.lookDX = 0; input.lookDY = 0;
       st.lookT -= dt; if (st.lookT <= 0 && game.speed > 3) { st.look *= 1 - Math.min(1, dt * 2.5); st.lookP *= 1 - Math.min(1, dt * 2.5); }
       if (input.camCycle) { input.camCycle = false; game.cam.carMode = (game.cam.carMode + 1) % 3; toast(['追従カメラ', '遠景カメラ', '車内視点（コックピット）'][game.cam.carMode], 1.2); }
       if (me.def.kind === 'jet' && input.fire && !me.dead) vehicleGuns(me);
@@ -108,7 +109,7 @@ export default function Player() {
     }
     else {
       // ----- look -----
-      game.cam.yaw -= input.lookDX * 0.0055; game.cam.pitch = clamp(game.cam.pitch + input.lookDY * 0.004, -0.35, 1.1);
+      game.cam.yaw -= input.lookDX * 0.0055 * settings.sens; game.cam.pitch = clamp(game.cam.pitch + input.lookDY * 0.004 * settings.sens * (settings.invertY ? -1 : 1), -0.35, 1.1);
       input.lookDX = 0; input.lookDY = 0;
       if (input.camCycle) { input.camCycle = false; game.cam.mode = (game.cam.mode + 1) % 3; toast(['標準カメラ', '遠景カメラ', '一人称カメラ'][game.cam.mode], 1.2); }
       if (input.crouchToggle) { input.crouchToggle = false; p.crouch = !p.crouch; }
@@ -296,7 +297,7 @@ export default function Player() {
     const bob = Math.sin(st.phase * 2) * 0.035 * A.smooth(5.5, 8, P.speed) * (1 - st.aimK);
     camTgt.set(P.x + Math.cos(yaw) * 0.85 * st.aimK, P.y + height + 0.1 * st.aimK + bob - (st.downT > 0 || st.upT > 0 ? 0.9 : 0), P.z - Math.sin(yaw) * 0.85 * st.aimK);
     if (!game.started) { // attract orbit over the city
-      const t = performance.now() / 12000; camera.position.set(P.x + Math.sin(t) * 60, 45, P.z + Math.cos(t) * 60); camera.lookAt(P.x, 10, P.z); return;
+      const t = performance.now() / 1000 * 0.035, r = 560 + Math.sin(t * 0.7) * 80; camera.up.set(0, 1, 0); camera.position.set(Math.sin(t) * r, 215 + Math.sin(t * 0.5) * 40, Math.cos(t) * r); camera.lookAt(Math.sin(t * 0.3) * 60, 45, 0); return;
     }
     const cam = camera as THREE.PerspectiveCamera;
     const wantFov = me ? 60 + Math.min(16, game.speed * 0.22) + (me.nitroOn ? 12 : 0) : 62 - st.aimK * 12;

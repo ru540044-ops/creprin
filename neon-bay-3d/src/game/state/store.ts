@@ -21,6 +21,7 @@ export const game = {
   arms: { owned: { pistol: false, smg: false }, ammo: { pistol: 0, smg: 0, grenade: 0 }, mag: { pistol: 0, smg: 0 }, cur: 'fist' as string, armor: 0 },
   ui: '' as string,
   phone: false, // in-game phone open (the character holds it)
+  mapOpen: false, paused: false,
   yachtId: 0, // the yacht whose cabin you are in
   homes: [] as string[], // properties the player owns
   fadeT: 0, // black fade (sleeping)
@@ -44,7 +45,11 @@ export const game = {
 };
 
 /** Persistent progress: best time-trial times. */
-export const progress = { trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
+/** Lifetime play statistics (see progression.ts). */
+export interface Stats { time: number; walk: number; drive: number; fly: number; sail: number; earned: number; vehicles: string[]; top: number; maxWanted: number; districts: string[]; escapes: number; flags: Record<string, 1> }
+export const newStats = (): Stats => ({ time: 0, walk: 0, drive: 0, fly: 0, sail: 0, earned: 0, vehicles: [], top: 0, maxWanted: 0, districts: [], escapes: 0, flags: {} });
+export const progress = {
+  stats: newStats(), ach: [] as string[], trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
   gift: { bv: 2, last: '', streak: 0, boxes: [] as number[], claimed: [] as string[], made: [] as string[], used: [] as string[] } };
 
 /** Cars the player owns; index = garage bay. */
@@ -53,18 +58,22 @@ export const ownedCars: { kind: VKind; color: string; mods?: Mods }[] = [];
 export function toast(msg: string, sec = 2.2) { game.toast = msg; game.toastT = sec; }
 
 const KEY = 'neonbay3d.save.v1';
+let lastBak = 0;
 let wiped = false;
 export function save() {
-  if (wiped) return;
+  if (wiped || !game.started) return; // nothing changes on the title screen (which shows its own time of day)
   try {
     const p = game.where === 'out' ? game.player : { ...game.player, x: game.outsidePos.x, z: game.outsidePos.z, yaw: game.outsidePos.yaw };
-    localStorage.setItem(KEY, JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, homes: game.homes, arms: game.arms, radio: game.radio }));
+    const data = JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, stats: progress.stats, ach: progress.ach, homes: game.homes, arms: game.arms, radio: game.radio });
+    localStorage.setItem(KEY, data);
+    // a second copy, refreshed once a minute, in case the main one is ever cut off mid-write
+    const now = Date.now(); if (now - lastBak > 60000) { lastBak = now; localStorage.setItem(KEY + '.bak', data); }
   } catch { /* storage unavailable */ }
 }
 export function load(): boolean {
   try {
-    const raw = localStorage.getItem(KEY); if (!raw) return false;
-    const s = JSON.parse(raw); if (!s || (s.v !== 1 && s.v !== 2)) return false;
+    const parse = (k: string) => { try { const r = localStorage.getItem(k); const o = r ? JSON.parse(r) : null; return o && (o.v === 1 || o.v === 2) ? o : null; } catch { return null; } };
+    const s = parse(KEY) || parse(KEY + '.bak'); if (!s) return false;
     game.money = s.money ?? game.money; game.hour = s.hour ?? game.hour;
     if (s.v === 1) game.money = Math.max(game.money, 50000); // saves from before cars existed get the starting car budget
     if (Array.isArray(s.owned)) { ownedCars.length = 0; for (const o of s.owned) if (o && typeof o.kind === 'string') ownedCars.push({ kind: o.kind, color: String(o.color), mods: o.mods && typeof o.mods === 'object' ? o.mods : undefined }); }
@@ -73,10 +82,15 @@ export function load(): boolean {
     if (s.tb && typeof s.tb === 'object') Object.assign(progress.trialBest, s.tb);
     if (s.st && typeof s.st === 'object') Object.assign(progress.stunts, s.st);
     if (typeof s.story === 'number') progress.story = s.story;
+    if (s.stats && typeof s.stats === 'object') { const T = s.stats, S = progress.stats;
+      for (const k of ['time', 'walk', 'drive', 'fly', 'sail', 'earned', 'top', 'maxWanted', 'escapes'] as const) if (typeof T[k] === 'number' && Number.isFinite(T[k])) S[k] = T[k];
+      if (Array.isArray(T.vehicles)) S.vehicles = T.vehicles.filter((x: unknown) => typeof x === 'string'); if (Array.isArray(T.districts)) S.districts = T.districts.filter((x: unknown) => typeof x === 'string');
+      if (T.flags && typeof T.flags === 'object') for (const k of Object.keys(T.flags)) S.flags[k] = 1; }
+    if (Array.isArray(s.ach)) progress.ach = s.ach.filter((x: unknown) => typeof x === 'string');
     if (s.gift && typeof s.gift === 'object') { const g = s.gift, G = progress.gift, arr = (a: unknown, t: string) => (Array.isArray(a) ? a.filter((x) => typeof x === t) : []);
       G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = g.bv === 2 ? (arr(g.boxes, 'number') as number[]) : [] /* box layout changed with the bigger city */; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
     if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
-    if (typeof s.ccam === 'number') game.cam.carMode = s.ccam; if (s.mute) audio.muted = true;
+    if (typeof s.ccam === 'number') game.cam.carMode = s.ccam;
     if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI;
       // the city grew around the old one: a saved spot that is now inside a building or the sea goes back to the safehouse
       if (!Number.isFinite(s.p.x) || pointBlocked(s.p.x, 0.9, s.p.z) || pointBlocked(s.p.x, 1.6, s.p.z) || isWater(s.p.x, s.p.z)) { game.player.x = SPAWN.x; game.player.z = SPAWN.z; } }
@@ -84,4 +98,4 @@ export function load(): boolean {
     return true;
   } catch { return false; }
 }
-export function clearSave() { wiped = true; try { localStorage.removeItem(KEY); } catch { /* ignore */ } }
+export function clearSave() { wiped = true; try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.bak'); } catch { /* ignore */ } }

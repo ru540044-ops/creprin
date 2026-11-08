@@ -1,3 +1,4 @@
+import { music } from '../audio';
 import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
@@ -193,7 +194,7 @@ export default function Vehicles() {
       if (v.gear > v.gearPrev && v.id === game.inCar && (v.def.kind === 'super' || v.def.kind === 'sport') && v.rpm > 0.6) { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw); flash(v.x - fx * (v.def.len / 2 + 0.15), v.y + 0.38, v.z - fz * (v.def.len / 2 + 0.15), 0.9); sfx('shot', 0.18); }
       v.gearPrev = v.gear;
     }
-    updatePeds(dt); tickFx(dt); radioTick(!!me && game.started, game.radio);
+    updatePeds(dt); tickFx(dt); radioTick((!!me && game.started) || (!game.started && music.title), game.started ? game.radio : 1);
     for (const v of vehicles) if (v.dead && v.burn > 0) v.burn -= dt;
     // burning wrecks explode (chain reactions come from explode() setting short fuses on neighbours)
     for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && !v.exploded) { v.exploded = true; explode(v.x, v.y + 0.8, v.z, v.def.kind === 'truck' || v.def.kind === 'armored' || v.def.kind === 'heli' ? 1.3 : 1, false); }
