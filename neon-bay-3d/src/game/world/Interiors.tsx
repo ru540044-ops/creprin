@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { makeCharacter, Look } from '../player/character';
 import { game } from '../state/store';
@@ -46,6 +46,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
     { x0: -7.5, z0: -5.6, x1: -2, z1: -4.8, h: 2.2, c: '#3a2f4a' }, { x0: 2, z0: -5.6, x1: 7.5, z1: -4.8, h: 2.2, c: '#3a2f4a' },
     { x0: -7.5, z0: -5.8, x1: 7.5, z1: -5.65, h: 3.2, c: '#c07aff', glow: true },
     { x0: -4, z0: -0.4, x1: -2.5, z1: 0.4, h: 1.4, c: '#ff3f93' }, { x0: 2.5, z0: -0.4, x1: 4, z1: 0.4, h: 1.4, c: '#2be4ff' },
+    { x0: 7.35, z0: 1.6, x1: 7.55, z1: 3.6, h: 2.4, c: '#dff0ff', glow: true }, { x0: 7.2, z0: 1.5, x1: 7.6, z1: 1.6, h: 2.5, c: '#c9a25a' }, { x0: 7.2, z0: 3.6, x1: 7.6, z1: 3.7, h: 2.5, c: '#c9a25a' },
   ]),
   arms: mk('arms', 'BAY ARMS', -3300, 16, 12, '#2b2d33', '#4a4d55', [
     { x0: -5.5, z0: -2.6, x1: 5.5, z1: -1.8, h: 1.05, c: '#20232a' }, { x0: -5.5, z0: -1.85, x1: 5.5, z1: -1.75, h: 1.1, c: '#ff5a36', glow: true },
@@ -63,7 +64,8 @@ INTERIORS.home.bed = { x: 3.8, z: -2.9 }; // the starter safehouse bed
 
 /** Shop clerk behind the till: idle sway, hands up while being robbed, cowering afterwards. */
 function Clerk({ x = CLERK.x, z = CLERK.z, yaw = Math.PI, shop = true, look }: { x?: number; z?: number; yaw?: number; shop?: boolean; look?: Look }) {
-  const C = useMemo(() => makeCharacter(look || { skin: '#8d5a3b', shirt: '#2b8f5a', pants: '#24262c', shoe: '#30323a', hair: '#141012' }), [look]);
+  const C = useMemo(() => makeCharacter(look || { skin: '#8d5a3b', shirt: '#2b8f5a', pants: '#24262c', shoe: '#30323a', hair: '#141012' }, Math.abs(Math.round(x * 31 + z * 17 + (look ? look.shirt.charCodeAt(2) : 0))) + 1), [look, x, z]);
+  useEffect(() => () => C.dispose(), [C]);
   const bag = useRef<THREE.Mesh>(null!);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime, here = shop && rob.door === game.lastDoor, scared = shop && ((here && rob.phase !== '') || recentlyRobbed(game.lastDoor));

@@ -1,3 +1,6 @@
+import { lookState } from './appearance';
+import { progress } from '../state/store';
+import { useEffect, useState } from 'react';
 import { settings } from '../settings';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -46,8 +49,13 @@ function pushOutOfCars(p: { x: number; y: number; z: number }) {
 
 const inside2a = () => game.where !== 'out';
 
+/** Style studio camera: turntable angle and face zoom, driven by the studio UI. */
+export const styleCam = { rot: 0, zoom: false };
+
 export default function Player() {
-  const C = useMemo(() => makeCharacter(), []);
+  const [C, setC] = useState(() => makeCharacter(progress.look));
+  const lookVer = useRef(lookState.ver);
+  useEffect(() => () => C.dispose(), [C]);
   const guns = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({ color: '#1b1c20', metalness: 0.7, roughness: 0.35 });
     const pistol = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.11), m); pistol.position.set(0, -0.36, 0.03);
@@ -55,6 +63,7 @@ export default function Player() {
     C.arms[0].mid.add(pistol, smg); return { pistol, smg };
   }, [C]);
   const grp = useRef<THREE.Group>(null!);
+  const studioLight = useRef<THREE.PointLight>(null);
   const { camera } = useThree();
   const st = useMemo(() => ({ phase: 0, vx: 0, vz: 0, lean: 0, saveT: 0, crouchK: 0, landT: 0, carYaw: 0, look: 0, lookP: 0, lookT: 0, fov: 62, aimK: 0,
     pose: A.newPose(), tmp: A.newPose(), prevYaw: 0, prevSpd: 0, bank: 0, accl: 0, idleT: 0, idleNext: 6, idleStart: -99, idleV: 'look' as A.IdleVariant,
@@ -85,6 +94,7 @@ export default function Player() {
   };
 
   useFrame((_, rawDt) => {
+    if (lookState.ver !== lookVer.current) { lookVer.current = lookState.ver; setC(makeCharacter(progress.look)); }
     const dt = tdt(Math.min(rawDt, 0.05)), p = game.player, inside = game.where !== 'out', def = INTERIORS[game.where];
     const me = playerCar();
     if (game.inCar && !me) game.inCar = 0;
@@ -119,7 +129,7 @@ export default function Player() {
       if (aiming) game.cam.pitch = clamp(game.cam.pitch, -0.55, 0.85);
       // ----- move (camera-relative, PC style: the camera never auto-swings) -----
       const busy = st.downT > 0 || st.upT > 0 || st.exitK < 1;
-      const [mx, my] = law.over || busy ? [0, 0] : moveVector(), mag = Math.min(1, Math.hypot(mx, my));
+      const [mx, my] = law.over || busy || game.styling ? [0, 0] : moveVector(), mag = Math.min(1, Math.hypot(mx, my));
       if (busy) { input.jump = false; input.fire = false; }
       if (law.over) { input.action = false; input.jump = false; }
       const yaw = game.cam.yaw, fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
@@ -296,6 +306,16 @@ export default function Player() {
     const yaw = game.cam.yaw, pitch = game.cam.pitch;
     const bob = Math.sin(st.phase * 2) * 0.035 * A.smooth(5.5, 8, P.speed) * (1 - st.aimK);
     camTgt.set(P.x + Math.cos(yaw) * 0.85 * st.aimK, P.y + height + 0.1 * st.aimK + bob - (st.downT > 0 || st.upT > 0 ? 0.9 : 0), P.z - Math.sin(yaw) * 0.85 * st.aimK);
+    if (studioLight.current) { const L2 = studioLight.current; L2.intensity = game.styling ? (styleCam.zoom ? 1.2 : 4) : 0; if (game.styling) L2.position.copy(camera.position).add(new THREE.Vector3(0, styleCam.zoom ? 0.15 : 0.6, 0)); }
+    const ov = (window as unknown as { __nb3dCamOverride?: { p: number[]; t: number[] } }).__nb3dCamOverride; // debug screenshots only
+    if (ov) { camera.up.set(0, 1, 0); camera.position.set(ov.p[0], ov.p[1], ov.p[2]); camera.lookAt(ov.t[0], ov.t[1], ov.t[2]); return; }
+    if (game.styling && !playerCar()) { // style studio: a portrait camera in front of the character, framed to the left of the panel
+      const st2 = styleCam, a = P.yaw + st2.rot, zoom = st2.zoom, dist = zoom ? 0.62 : 2.7, ty = P.y + (zoom ? 1.8 : 1.0) * (progress.look.height || 1);
+      const side = (window.innerWidth > window.innerHeight ? (zoom ? 0.2 : 0.95) : 0), rx = Math.cos(a), rz = -Math.sin(a);
+      camera.up.set(0, 1, 0);
+      camera.position.set(P.x + Math.sin(a) * dist + rx * side, ty + (zoom ? 0.0 : 0.15), P.z + Math.cos(a) * dist + rz * side);
+      camera.lookAt(P.x + rx * side, ty, P.z + rz * side); return;
+    }
     if (!game.started) { // attract orbit over the city
       const t = performance.now() / 1000 * 0.035, r = 560 + Math.sin(t * 0.7) * 80; camera.up.set(0, 1, 0); camera.position.set(Math.sin(t) * r, 215 + Math.sin(t * 0.5) * 40, Math.cos(t) * r); camera.lookAt(Math.sin(t * 0.3) * 60, 45, 0); return;
     }
@@ -348,5 +368,5 @@ export default function Player() {
     camera.position.copy(camPos); camera.lookAt(camTgt.x - cx * 0.0, camTgt.y + 0.1, camTgt.z);
   });
 
-  return <group ref={grp}><primitive object={C.root} /></group>;
+  return <><group ref={grp}><primitive object={C.root} /></group><pointLight ref={studioLight} intensity={0} distance={6} decay={1.4} color="#fff1e0" /></>;
 }

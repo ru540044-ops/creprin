@@ -1,3 +1,4 @@
+import { playerCar } from '../vehicles/sim';
 import { SettingsPanel } from './Menus';
 import type { QualityMode } from '../settings';
 import { useEffect, useReducer, useState, type ReactElement } from 'react';
@@ -244,6 +245,7 @@ export default function Phone({ onClose, openMap, quality, mode, setMode }: { on
             <button type="button" className="appIc" onClick={() => { sfx('ui'); onClose(); openMap(); }}><i style={{ background: 'linear-gradient(135deg,#2be4ff,#2b6bff)' }}>🗺</i>マップ</button>
             <button type="button" className="appIc" onClick={() => open('jobs')}><i style={{ background: 'linear-gradient(135deg,#ffd23a,#ff6a00)' }}>💰</i>仕事</button>
             <button type="button" className="appIc" onClick={() => open('gift')}><i style={{ background: 'linear-gradient(135deg,#ff3f6e,#ffcf4a)' }}>🎁</i>ギフト{(dailyState().can ? 1 : 0) + unclaimed().length > 0 && <em className="badge">{(dailyState().can ? 1 : 0) + unclaimed().length}</em>}</button>
+            <button type="button" className="appIc" onClick={() => { sfx('ui'); if (playerCar()) { toast('車を降りてから使えます', 1.6); return; } onClose(); game.openStyle = true; }}><i style={{ background: 'linear-gradient(135deg,#c9a25a,#5a3a22)' }}>👗</i>スタイル</button>
             <button type="button" className="appIc" onClick={() => open('realty')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#2b6bff)' }}>🏠</i>不動産</button>
             {admin.is && <button type="button" className="appIc" onClick={() => open('admin')}><i style={{ background: 'linear-gradient(135deg,#ff2a40,#7a00ff)' }}>🛡</i>管理者</button>}
             <button type="button" className="appIc" onClick={() => open('settings')}><i style={{ background: 'linear-gradient(135deg,#8a8aa8,#3c3c55)' }}>⚙</i>設定</button>

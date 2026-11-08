@@ -14,6 +14,8 @@ import { initNetGifts } from './game/crime/gifts';
 import * as giftsMod from './game/crime/gifts';
 import * as ambientMod from './game/ai/ambient';
 import * as progressionMod from './game/progression';
+import * as appearanceMod from './game/player/appearance';
+import * as playerMod from './game/player/Player';
 import * as settingsMod from './game/settings';
 import * as cityMod from './game/world/cityGen';
 import { progress, ownedCars } from './game/state/store';
@@ -51,7 +53,7 @@ import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLI
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },

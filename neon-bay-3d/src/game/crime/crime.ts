@@ -260,6 +260,7 @@ export function jobNear(): Near | null {
   { const I = INTERIORS[game.where]; if (I && I.roofSpot && I.roof && !me) { const l = local(); if (Math.hypot(l.x - I.roofSpot.x, l.z - I.roofSpot.z) < 1.6) return { kind: 'job', id: 'roofup', label: I.roofLabel || `エレベーターで屋上へ（${Math.round(I.roof.y)}m）`, btn: I.roofLabel ? '移動' : '屋上' }; } }
   { const I = INTERIORS[game.where]; if (I && I.links && !me) { const l = local(); for (const k of I.links) if (Math.hypot(l.x - k.x, l.z - k.z) < 1.5) return { kind: 'job', id: 'link:' + k.to, label: k.label, btn: '移動' }; } }
   if (game.where === 'out' && !me && roofTrip.on) { const p = game.player; if (Math.hypot(p.x - roofTrip.x, p.z - roofTrip.z) < 2.6 && Math.abs(p.y - roofTrip.y) < 2) return { kind: 'job', id: 'roofdown', label: roofTrip.from.startsWith('ship_') ? 'エレベーターで船内（アトリウム）へ' : 'エレベーターで1階へ', btn: '下へ' }; }
+  if (game.where === 'clothes' && !me) { const l = local(); if (Math.hypot(l.x - 6.4, l.z - 2.6) < 1.6) return { kind: 'job', id: 'style', label: '試着室で着替える・ブティック', btn: '着替え' }; }
   if (game.where === 'arms' && !me) { const l = local(); return Math.hypot(l.x, l.z + 1.1) < 2.2 ? { kind: 'job', id: 'gunshop', label: 'BAY ARMS で買い物', btn: '買う' } : null; }
   if (game.where !== 'out') return null;
   if (!me) {
@@ -293,6 +294,7 @@ export function jobAction(id: string) {
     me.vx = me.vz = 0; game.yachtId = me.id; game.inCar = 0; releaseDrive(); game.where = 'yacht';
     game.outsidePos = { x: me.x + Math.cos(me.yaw) * 4, z: me.z - Math.sin(me.yaw) * 4, yaw: me.yaw };
     p.x = C.ox + C.spawn.x; p.z = C.oz + C.spawn.z; p.y = -50; p.vy = 0; game.fadeT = 0.6; sfx('door'); toast(C.name + '（出口で操舵席に戻る）', 2);
+  } else if (id === 'style') { game.openStyle = true;
   } else if (id === 'story') { startMission();
   } else if (id === 'roofup') {
     const I = INTERIORS[game.where], p = game.player;

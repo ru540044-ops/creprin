@@ -1,3 +1,4 @@
+import StyleStudio from './StyleStudio';
 import { settings, QualityMode } from '../settings';
 import { banner, tutorial, tutorialStep, tutorialCount, skipTutorial } from '../progression';
 import { useEffect, useReducer, useRef, useState } from 'react';
@@ -163,7 +164,8 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
   useEffect(() => { game.mapOpen = map; }, [map]);
   const [phone, setPhone] = useState(false);
   useEffect(() => { game.phone = phone; }, [phone]);
-  useEffect(() => { const id = setInterval(() => { if (input.phone) { input.phone = false; setPhone((v) => !v); } }, 50); return () => clearInterval(id); }, []);
+  const [studio, setStudio] = useState(false);
+  useEffect(() => { const id = setInterval(() => { if (input.phone) { input.phone = false; if (!game.styling) setPhone((v) => !v); } if (game.openStyle) { game.openStyle = false; if (!playerCar()) { setPhone(false); setStudio(true); } } }, 50); return () => clearInterval(id); }, []);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPhone(false); setMap(false); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
   const me = playerCar(), driving = !!me, js = jobStatus();
   useEffect(() => { releaseDrive(); }, [driving]);
@@ -172,6 +174,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
   const showDistrict = Date.now() - district.t < 3500;
   const near = game.near, p = game.player, inside = game.where !== 'out';
   const hh = Math.floor(game.hour), mm = Math.floor((game.hour - hh) * 60);
+  if (studio) return <><StyleStudio onClose={() => setStudio(false)} />{game.toastT > 0 && <div className="toast">{game.toast}</div>}</>;
   return (
     <>
       <LookZone />

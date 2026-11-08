@@ -1,5 +1,6 @@
 import { SPAWN, pointBlocked, isWater } from '../world/cityGen';
 import type { VKind, Mods } from '../vehicles/defs';
+import { DEFAULT_LOOK, sanitizeLook, itemById, fashion, setCityStyle, CityStyle, CITY_STYLE_NAMES } from '../player/appearance';
 import { audio } from '../audio';
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -21,7 +22,7 @@ export const game = {
   arms: { owned: { pistol: false, smg: false }, ammo: { pistol: 0, smg: 0, grenade: 0 }, mag: { pistol: 0, smg: 0 }, cur: 'fist' as string, armor: 0 },
   ui: '' as string,
   phone: false, // in-game phone open (the character holds it)
-  mapOpen: false, paused: false,
+  mapOpen: false, paused: false, styling: false, openStyle: false,
   yachtId: 0, // the yacht whose cabin you are in
   homes: [] as string[], // properties the player owns
   fadeT: 0, // black fade (sleeping)
@@ -49,7 +50,7 @@ export const game = {
 export interface Stats { time: number; walk: number; drive: number; fly: number; sail: number; earned: number; vehicles: string[]; top: number; maxWanted: number; districts: string[]; escapes: number; flags: Record<string, 1> }
 export const newStats = (): Stats => ({ time: 0, walk: 0, drive: 0, fly: 0, sail: 0, earned: 0, vehicles: [], top: 0, maxWanted: 0, districts: [], escapes: 0, flags: {} });
 export const progress = {
-  stats: newStats(), ach: [] as string[], trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
+  stats: newStats(), ach: [] as string[], look: { ...DEFAULT_LOOK }, wardrobe: [] as string[], trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
   gift: { bv: 2, last: '', streak: 0, boxes: [] as number[], claimed: [] as string[], made: [] as string[], used: [] as string[] } };
 
 /** Cars the player owns; index = garage bay. */
@@ -64,7 +65,7 @@ export function save() {
   if (wiped || !game.started) return; // nothing changes on the title screen (which shows its own time of day)
   try {
     const p = game.where === 'out' ? game.player : { ...game.player, x: game.outsidePos.x, z: game.outsidePos.z, yaw: game.outsidePos.yaw };
-    const data = JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, stats: progress.stats, ach: progress.ach, homes: game.homes, arms: game.arms, radio: game.radio });
+    const data = JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, stats: progress.stats, ach: progress.ach, look: progress.look, wardrobe: progress.wardrobe, cityStyle: fashion.style, homes: game.homes, arms: game.arms, radio: game.radio });
     localStorage.setItem(KEY, data);
     // a second copy, refreshed once a minute, in case the main one is ever cut off mid-write
     const now = Date.now(); if (now - lastBak > 60000) { lastBak = now; localStorage.setItem(KEY + '.bak', data); }
@@ -87,6 +88,9 @@ export function load(): boolean {
       if (Array.isArray(T.vehicles)) S.vehicles = T.vehicles.filter((x: unknown) => typeof x === 'string'); if (Array.isArray(T.districts)) S.districts = T.districts.filter((x: unknown) => typeof x === 'string');
       if (T.flags && typeof T.flags === 'object') for (const k of Object.keys(T.flags)) S.flags[k] = 1; }
     if (Array.isArray(s.ach)) progress.ach = s.ach.filter((x: unknown) => typeof x === 'string');
+    if (Array.isArray(s.wardrobe)) progress.wardrobe = s.wardrobe.filter((x: unknown) => typeof x === 'string' && !!itemById(x as string));
+    if (s.look) { const L = sanitizeLook(s.look); if (L.watch && !progress.wardrobe.includes(L.watch)) L.watch = ''; if (L.bag && !progress.wardrobe.includes(L.bag)) L.bag = ''; progress.look = L; }
+    if (typeof s.cityStyle === 'string' && s.cityStyle in CITY_STYLE_NAMES) setCityStyle(s.cityStyle as CityStyle);
     if (s.gift && typeof s.gift === 'object') { const g = s.gift, G = progress.gift, arr = (a: unknown, t: string) => (Array.isArray(a) ? a.filter((x) => typeof x === t) : []);
       G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = g.bv === 2 ? (arr(g.boxes, 'number') as number[]) : [] /* box layout changed with the bigger city */; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
     if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
