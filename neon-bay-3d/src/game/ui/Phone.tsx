@@ -6,6 +6,7 @@ import { vehicles, deliverNear, sellOwned, repairAll } from '../vehicles/sim';
 import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT } from '../world/cityGen';
 import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
 import { RACES, PRIZES } from '../crime/race';
+import { MISSIONS, nextMission, mission as storyMission } from '../crime/story';
 import { progress } from '../state/store';
 import AdminApp from './AdminApp';
 import { PROPERTIES } from '../world/homes';
@@ -142,6 +143,14 @@ function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
         {TRIALS.map((T) => { const b = progress.trialBest[T.id]; return (
           <div className="trow" key={T.id}><span>{T.name}<br /><small>目標 {fmt(T.par)} · 自己ベスト {b !== undefined ? fmt(b) : '—'} · ${T.reward.toLocaleString('en-US')}</small></span><div className="jobBtns"><button type="button" disabled={!!trial.id} onClick={() => go(T.start.x, T.start.z, T.name + 'のスタートを目的地に設定')}>目的地</button></div></div>
         ); })}
+      </div>
+      <div className="jobCard story">
+        <b>📞 ストーリー（レイからの仕事）　{Math.min(progress.story, MISSIONS.length)}/{MISSIONS.length}</b>
+        {nextMission() ? (<>
+          <p>次：<b>「{nextMission()!.title}」</b>　{nextMission()!.blurb}<br />地図の黄色い <b>R</b> マークへ行って「開始」。</p>
+          <span className="pay">報酬 ${nextMission()!.reward.toLocaleString('en-US')}</span>
+          <div className="jobBtns"><button type="button" disabled={storyMission.id >= 0} onClick={() => { const s = nextMission()!.start(); go(s.x, s.z, 'ミッションの場所を目的地に設定'); }}>{storyMission.id >= 0 ? 'ミッション中' : 'R マークへ案内'}</button></div>
+        </>) : <p>全ミッションクリア！ ネオンベイはあなたの街だ。</p>}
       </div>
       <div className="jobCard">
         <b>ストリートレース</b>

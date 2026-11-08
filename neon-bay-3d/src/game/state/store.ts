@@ -43,7 +43,7 @@ export const game = {
 };
 
 /** Persistent progress: best time-trial times. */
-export const progress = { trialBest: {} as Record<string, number>, stunts: {} as Record<string, number> };
+export const progress = { trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0 };
 
 /** Cars the player owns; index = garage bay. */
 export const ownedCars: { kind: VKind; color: string; mods?: Mods }[] = [];
@@ -56,7 +56,7 @@ export function save() {
   if (wiped) return;
   try {
     const p = game.where === 'out' ? game.player : { ...game.player, x: game.outsidePos.x, z: game.outsidePos.z, yaw: game.outsidePos.yaw };
-    localStorage.setItem(KEY, JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, homes: game.homes, arms: game.arms, radio: game.radio }));
+    localStorage.setItem(KEY, JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, homes: game.homes, arms: game.arms, radio: game.radio }));
   } catch { /* storage unavailable */ }
 }
 export function load(): boolean {
@@ -70,6 +70,7 @@ export function load(): boolean {
     if (typeof s.radio === 'number') game.radio = s.radio;
     if (s.tb && typeof s.tb === 'object') Object.assign(progress.trialBest, s.tb);
     if (s.st && typeof s.st === 'object') Object.assign(progress.stunts, s.st);
+    if (typeof s.story === 'number') progress.story = s.story;
     if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
     if (typeof s.ccam === 'number') game.cam.carMode = s.ccam; if (s.mute) audio.muted = true;
     if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI; }

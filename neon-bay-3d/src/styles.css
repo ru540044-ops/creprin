@@ -175,3 +175,10 @@ button.armed{background:#ff4b4b !important;color:#fff}
 @keyframes pop{from{transform:translate(-50%,-50%) scale(1.8);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
 
 .fade{position:fixed;inset:0;z-index:7;background:#000;pointer-events:none;transition:opacity .2s}
+
+.subs{position:fixed;left:50%;bottom:calc(96px + var(--sab));transform:translateX(-50%);z-index:5;pointer-events:none;display:flex;align-items:center;gap:8px;max-width:min(640px,80vw);background:rgba(8,6,18,.78);box-shadow:inset 0 0 0 1px var(--edge);border-radius:14px;padding:8px 14px 8px 8px;animation:fade2 .25s ease-out}
+.subs i{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:900;background:#ffd23a;color:#1a1400}.subs i.ok{background:var(--mint)}
+.subs b{flex:none;color:#ffd23a;font-size:13px}.subs span{font-size:14px;line-height:1.45}
+@keyframes fade2{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (max-height:500px){.subs{bottom:calc(10px + var(--sab));max-width:52vw}.subs span{font-size:12px}}
+.jobCard.story{box-shadow:inset 0 0 0 1px #ffd23a}

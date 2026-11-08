@@ -5,6 +5,7 @@ import GunShop from './GunShop';
 import Customs from './Customs';
 import { taxi, startTaxi, stopTaxi } from '../crime/stunts';
 import { race } from '../crime/race';
+import { talk, mission } from '../crime/story';
 import { admin } from '../admin';
 import { peds } from '../ai/peds';
 import { WEAPONS, combat } from '../combat/weapons';
@@ -19,6 +20,11 @@ function useTicker(ms: number) { const [, f] = useReducer((x: number) => x + 1, 
 
 /* ---------- moving blips: search area, police, cash truck ---------- */
 function drawDynamic(c: CanvasRenderingContext2D, k: number, t: number) {
+  if (mission.marker && mission.marker.y > -40) { // story: start blip (R) or the current objective
+    const [a, b] = toMap(mission.marker.x, mission.marker.z), pulse = 1 + Math.sin(t / 250) * 0.15;
+    c.fillStyle = '#ffd23a'; c.strokeStyle = '#000'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(a, b, 6.5 * k * 1.4 * pulse, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#000'; c.font = `900 ${9 * k * 1.4}px system-ui`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(mission.id < 0 ? 'R' : '!', a, b + 0.5 * k);
+  }
   if (game.wanted > 0) {
     const [a, b] = toMap(law.lastSeen.x, law.lastSeen.z), flash = Math.floor(t / 300) % 2;
     c.fillStyle = flash ? 'rgba(255,40,60,.18)' : 'rgba(40,90,255,.18)'; c.strokeStyle = flash ? 'rgba(255,60,80,.8)' : 'rgba(60,120,255,.8)'; c.lineWidth = 1.5 * k;
@@ -174,7 +180,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           {js ? (
             <div className={'card mis' + (game.wanted > 0 ? ' hot' : '')}><span className="lab">ミッション</span><b>{js.title}</b><span>{js.text}</span>{js.prog !== undefined && <i className="prog"><b style={{ width: Math.min(100, js.prog * 100) + '%' }} /></i>}</div>
           ) : (
-            <div className="card mis tip"><span className="lab">ミッション</span><b>自由行動</b><span>{driving ? 'ドライブ中。視点ボタンでカメラ切替、降車で降りる' : 'お金を稼ぐ：スマホの「仕事」アプリ（強盗・輸送車・輸出・タイムトライアル）'}</span></div>
+            <div className="card mis tip"><span className="lab">ミッション</span><b>自由行動</b><span>{driving ? 'ドライブ中。視点ボタンでカメラ切替、降車で降りる' : '地図の黄色い R マークでストーリーミッション開始。お金はスマホの「仕事」で'}</span></div>
           )}
         </div>
         <div className="tr">
@@ -196,6 +202,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
       {admin.is && (() => { const n = (['god', 'noWanted', 'infAmmo', 'carGod', 'carBoost', 'fastRun', 'superJump', 'freezeTime'] as const).filter((k) => admin[k]).length + (admin.timeScale !== 1 ? 1 : 0); return <div className="adBadge">ADMIN{n ? ' ●' + n : ''}</div>; })()}
       {admin.is && admin.debug && <div className="adDebug">x {game.player.x.toFixed(1)} z {game.player.z.toFixed(1)} · {game.where}<br />歩行者 {peds.length} · 車 {vehicles.length} · 手配 {game.wanted} · {game.fps} FPS · {game.hour.toFixed(2)}時</div>}
       {race.id && !race.done && (race.count > 0 || race.t < 0.9) && <div className="countdown" key={race.count > 0 ? Math.ceil(race.count - 0.5) : 'go'}>{race.count > 0.5 ? Math.ceil(race.count - 0.5) : 'GO!'}</div>}
+      {talk.queue[0] && <div className="subs">{talk.queue[0].who ? <><i>{talk.queue[0].who[0]}</i><b>{talk.queue[0].who}</b></> : <i className="ok">✓</i>}<span>{talk.queue[0].text}</span></div>}
       {law.over && <div className={'over ' + law.over.kind}><b>{law.over.kind === 'busted' ? 'BUSTED' : 'WASTED'}</b><span>{law.over.kind === 'busted' ? '逮捕' : '死亡'}　-${law.over.fine.toLocaleString('en-US')}</span></div>}
       {showDistrict && <div className="district">{district.name}</div>}
       {game.toastT > 0 && <div className="toast">{game.toast}</div>}

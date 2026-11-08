@@ -5,6 +5,7 @@ import { labelTexture } from '../world/textures';
 import { LANDMARKS, EXPORT_DOCK, TRIALS, Landmark, RAMPS, Ramp, HELIPADS, CUSTOMS } from '../world/cityGen';
 import { game } from '../state/store';
 import { trial, trialDef, roofTrip } from './crime';
+import { mission } from './story';
 import { RACES } from './race';
 
 function Sign({ x, z, y = 5, ang = 0, text, color, w = 5.2 }: { x: number; z: number; y?: number; ang?: number; text: string; color: string; w?: number }) {
@@ -72,6 +73,26 @@ function Helipad({ x, y, z }: { x: number; y: number; z: number }) {
   );
 }
 
+/** Story marker: a glowing yellow column + ring, with an R badge while waiting to be started. */
+function StoryMarker() {
+  const g = useRef<THREE.Group>(null!), badge = useRef<THREE.Mesh>(null!);
+  const tex = useMemo(() => labelTexture('R', '#ffd23a', 128, 128), []);
+  useFrame(({ clock, camera }) => {
+    const G = g.current, m = mission.marker; if (!G) return;
+    const inside = game.where !== 'out', show = !!m && (inside ? m.y < -40 : m.y > -40);
+    G.visible = show; if (!show || !m) return;
+    G.position.set(m.x, m.y + 0.05, m.z); const s = 1 + Math.sin(clock.elapsedTime * 3) * 0.08; G.scale.set(s, 1, s);
+    if (badge.current) { badge.current.visible = mission.id < 0; badge.current.quaternion.copy(camera.quaternion); }
+  });
+  return (
+    <group ref={g} visible={false}>
+      <mesh rotation-x={-Math.PI / 2}><ringGeometry args={[1.3, 1.7, 40]} /><meshBasicMaterial color="#ffd23a" toneMapped={false} transparent opacity={0.9} /></mesh>
+      <mesh position={[0, 3, 0]}><cylinderGeometry args={[1.2, 1.2, 6, 20, 1, true]} /><meshBasicMaterial color="#ffd23a" transparent opacity={0.22} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} /></mesh>
+      <mesh ref={badge} position={[0, 3.6, 0]}><planeGeometry args={[1.6, 1.6]} /><meshBasicMaterial map={tex} toneMapped={false} transparent /></mesh>
+    </group>
+  );
+}
+
 function RoofMarker() {
   const g = useRef<THREE.Group>(null!);
   useFrame(({ clock }) => { const G = g.current; if (!G) return; G.visible = roofTrip.on && game.where === 'out'; if (G.visible) { G.position.set(roofTrip.x, roofTrip.y + 0.06, roofTrip.z); const s = 1 + Math.sin(clock.elapsedTime * 3) * 0.08; G.scale.set(s, 1, s); } });
@@ -87,6 +108,7 @@ export default function CrimeView() {
       {TRIALS.map((T) => <group key={T.id}><Ring x={T.start.x} z={T.start.z} r={7} color="#c07aff" /><Sign x={T.start.x + 8} z={T.start.z} y={4} ang={Math.PI / 2} text={'TIME TRIAL'} color="#c07aff" /></group>)}
       <Checkpoint />
       <RoofMarker />
+      <StoryMarker />
       {RAMPS.map((r) => <RampView key={r.id} r={r} />)}
       {RACES.map((R) => <group key={'race' + R.id}><Ring x={R.x} z={R.z} r={7} color="#ff2a40" /><Sign x={R.x - Math.cos(R.yaw) * 8} z={R.z + Math.sin(R.yaw) * 8} y={4} ang={R.yaw + Math.PI / 2} text={'STREET RACE'} color="#ff2a40" /></group>)}
       {HELIPADS.map((h) => <Helipad key={h.name} x={h.x} y={h.y} z={h.z} />)}

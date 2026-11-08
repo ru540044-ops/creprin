@@ -81,6 +81,7 @@ export function genInterior(d: BDoor): GenDef {
         f(-6.5, -0.4, -5.7, 0.4, 6, dark ? '#3a3e48' : '#cfccc6'), f(5.7, -0.4, 6.5, 0.4, 6, dark ? '#3a3e48' : '#cfccc6'),
         f(-11.5, 6.6, -10.7, 7.4, 1.8, PLANT), f(10.7, 6.6, 11.5, 7.4, 1.8, PLANT), f(10.7, -7.4, 11.5, -6.6, 2.2, PLANT),
       ];
+      if (d.label === 'CENTRAL BANK') F.push(f(5.2, -7.97, 7.8, -7.8, 2.8, '#8a8f98', { metal: 0.9, rough: 0.25, walk: true }), f(6.2, -7.82, 6.8, -7.7, 0.6, '#c9a24a', { y0: 1.1, metal: 0.9, rough: 0.2, walk: true }), f(5.2, -7.97, 7.8, -7.8, 0.08, '#ff2a40', { y0: 2.9, glow: true, walk: true }));
       for (let k = 0; k < 3; k++) { const z = -5.5 + k * 2.6; F.push(f(-11.98, z - 0.8, -11.9, z + 0.8, 2.6, '#b8bcc4', { metal: 0.9, rough: 0.18, walk: true }), f(-11.97, z - 0.2, -11.92, z + 0.2, 0.15, '#ffb35a', { y0: 2.8, glow: true, walk: true })); }
       return base(24, 16, 6, wall, '#ece9e4', 'marble', F, { lights: [L(-6, 5.6, -2, '#fff1dc', 16, 18), L(6, 5.6, -2, '#fff1dc', 16, 18), L(0, 5.6, 4, '#fff1dc', 14, 16)], ownLights: true, roofSpot: { x: -10.5, z: -3 }, npcs: [npc(0, -3.8, 0, '#1d2c4d', r), npc(9, -6, -Math.PI / 2, '#2a2a30', r)] });
     }

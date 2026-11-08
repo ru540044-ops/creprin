@@ -214,7 +214,9 @@ export default function Player() {
     st.bank = lerp(st.bank, clamp(-yawRate * spd * 0.014, -0.24, 0.24), Math.min(1, dt * 6));
     st.accl = lerp(st.accl, clamp(accel * 0.022, -0.12, 0.16), Math.min(1, dt * 5));
     st.landT = Math.max(0, st.landT - dt); st.flinchT = Math.max(0, st.flinchT - dt);
+    const prevStep = Math.floor(st.phase / Math.PI);
     st.phase += dt * (spd > 0.15 ? 2.5 + spd * 1.2 : 0);
+    if (!me && pl.grounded && spd > 0.6 && Math.floor(st.phase / Math.PI) !== prevStep && game.started) sfx('step', Math.min(1, 0.35 + spd / 7));
     // flinch when hurt
     const hpNow = game.health + game.arms.armor; if (hpNow < st.prevHp - 0.5 && game.started) { st.flinchT = 0.35; st.flinchSide = Math.random() < 0.5 ? -1 : 1; game.hurtT = 0.6; } st.prevHp = hpNow;
     // knockdown -> get up

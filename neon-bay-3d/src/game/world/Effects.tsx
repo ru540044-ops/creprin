@@ -17,7 +17,7 @@ import { pointBlocked } from './cityGen';
  * Low quality skips the composer entirely (plain render, cheapest on phones).
  */
 export default function Effects({ quality }: { quality: Quality }) {
-  const { gl, scene, camera, size } = useThree();
+  const { gl, scene, camera, size } = useThree(); const dpr = useThree((s) => s.viewport.dpr);
   const fx = useMemo(() => {
     if (quality === 'low') return null;
     const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: quality === 'high' ? 4 : 2 });
@@ -37,7 +37,7 @@ export default function Effects({ quality }: { quality: Quality }) {
     fx.grade.uniforms.uRes.value.set(size.width * pr, size.height * pr);
     fx.bloom.resolution.set(size.width * pr * (quality === 'high' ? 0.5 : 0.35), size.height * pr * (quality === 'high' ? 0.5 : 0.35));
     return undefined;
-  }, [fx, size, gl, quality]);
+  }, [fx, size, gl, quality, dpr]);
   useEffect(() => () => { fx?.composer.dispose(); }, [fx]);
   const tmp = useMemo(() => new THREE.Vector3(), []), sunVis = useMemo(() => ({ v: 0 }), []);
   useFrame((_, dt) => {

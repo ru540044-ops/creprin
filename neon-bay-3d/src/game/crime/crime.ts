@@ -13,6 +13,7 @@ import { admin } from '../admin';
 import { PROPERTIES } from '../world/homes';
 import { updateStunts, updateTaxi, taxi, stunt } from './stunts';
 import { RACES, race, raceDef, startRace, updateRace, position, fmtT, PRIZES } from './race';
+import { storyNear, storyStatus, updateStory, startMission } from './story';
 
 /* =====================================================================
    Wanted level + police
@@ -239,6 +240,7 @@ export const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).p
 export type Near = { kind: 'job'; id: string; label: string; btn: string };
 export function jobNear(): Near | null {
   if (law.over) return null;
+  { const s = storyNear(); if (s) return s; }
   const me = playerCar();
   if (robbable() && !me) {
     const l = local();
@@ -280,6 +282,7 @@ export function jobAction(id: string) {
   if (id === 'rob') {
     rob.door = game.lastDoor; rob.phase = 'fill'; rob.t = 0; rob.dur = 6; rob.cash = (game.where === 'gas' ? 600 : 800) + Math.round(Math.random() * 14) * 100;
     sfx('crash', 0.25); toast('「金を出せ！」 店員がレジを開けた', 2.2); setWanted(1, '店員が通報した');
+  } else if (id === 'story') { startMission();
   } else if (id === 'roofup') {
     const I = INTERIORS[game.where], p = game.player;
     if (I && I.roof) { roofTrip.on = true; roofTrip.x = I.roof.x; roofTrip.z = I.roof.z; roofTrip.y = I.roof.y; game.where = 'out'; p.x = I.roof.x; p.z = I.roof.z; p.y = I.roof.y + 0.05; p.vy = 0; game.fadeT = 0.8; sfx('door'); toast(`屋上に出た（高さ ${Math.round(I.roof.y)}m）`, 2.2); }
@@ -326,13 +329,14 @@ export function updateCrime(dt: number) {
   if (law.over) { law.over.t -= dt; siren(0); if (law.over.t <= 0) { const o = law.over; law.over = null; respawn(o.kind, o.fine); } return; }
   if (game.health <= 0) { over('wasted'); return; }
   law.hurtT += dt; if (law.hurtT > 6 && game.health < 100) game.health = Math.min(100, game.health + dt * 4);
-  updatePolice(dt); updateRob(dt); updateArmored(dt); updateTrial(dt); updateStunts(dt); updateTaxi(dt); updateRace(dt);
+  updatePolice(dt); updateRob(dt); updateArmored(dt); updateTrial(dt); updateStunts(dt); updateTaxi(dt); updateRace(dt); updateStory(dt);
   if (!exportJob.kind) { exportJob.cool -= dt; if (exportJob.cool <= 0) { newExport(); toast(`輸出の新しい依頼：${VDEFS[exportJob.kind!].name}（スマホの「仕事」）`, 2.6); } }
   exportJob.reroll = Math.max(0, exportJob.reroll - dt);
 }
 
 /** One-line status for the HUD mission card. */
 export function jobStatus(): { title: string; text: string; prog?: number } | null {
+  { const s = storyStatus(); if (s) return s; }
   { const R = raceDef(); if (R) return { title: R.name, text: race.done ? (race.place ? `${race.place}位でゴール` : 'レース終了') : race.count > 0 ? 'スタート待ち…' : `${position()}位 / 4　CP ${race.i}/${R.trial.cps.length}　${fmtT(race.t)}`, prog: race.done ? undefined : race.i / R.trial.cps.length }; }
   if (taxi.on) return { title: 'タクシー', text: taxi.phase === 'pick' ? '待っている客を迎えに行け（目的地マーク）' : `目的地へ急げ ${Math.floor(taxi.t)}秒 / 目標 ${Math.round(taxi.par)}秒（停車で到着）`, prog: taxi.phase === 'ride' ? Math.min(1, taxi.t / taxi.par) : undefined };
   if (stunt.ramp) return { title: 'スタントジャンプ', text: '着地を決めろ！' };
