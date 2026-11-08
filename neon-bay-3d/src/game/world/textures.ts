@@ -15,7 +15,7 @@ function noise(c: Ctx, w: number, h: number, amt: number, seed: number, size = 2
   for (let i = 0; i < (w * h) / (size * size) / 3; i++) { const v = Math.floor(r() * 255); c.fillStyle = `rgba(${v},${v},${v},${amt})`; c.fillRect(r() * w, r() * h, size, size); }
 }
 
-export interface FacadeSet { map: THREE.Texture; emissive: THREE.Texture; rough: THREE.Texture; normal: THREE.Texture; su: number; sv: number; }
+export interface FacadeSet { map: THREE.Texture; emissive: THREE.Texture; rough: THREE.Texture; normal: THREE.Texture; su: number; sv: number; cols: number; rows: number; }
 
 /** Height canvas (white = out, black = in) -> tangent-space normal map. */
 function normalFromHeight(hc: HTMLCanvasElement, strength: number) {
@@ -84,7 +84,7 @@ function facade(opts: { cols: number; rows: number; su: number; sv: number; wall
       if (ww > 30) { c.fillStyle = '#707070'; c.fillRect(x + ww / 2 - 1, y, 2, hh); } // mullion
     }
   });
-  return { map: tex(map), emissive: tex(emissive), rough: tex(rough, false), normal: tex(normalFromHeight(height, opts.brick ? 3.2 : 2.4), false), su: opts.su, sv: opts.sv };
+  return { map: tex(map), emissive: tex(emissive), rough: tex(rough, false), normal: tex(normalFromHeight(height, opts.brick ? 3.2 : 2.4), false), su: opts.su, sv: opts.sv, cols: opts.cols, rows: opts.rows };
 }
 
 let cache: ReturnType<typeof build> | null = null;

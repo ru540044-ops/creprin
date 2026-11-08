@@ -26,6 +26,11 @@ export class Geo {
     }
     if (top) { const T = (a: number) => a / topScale; top.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0], [[T(x0), T(-z1)], [T(x1), T(-z1)], [T(x1), T(-z0)], [T(x0), T(-z0)]], col); }
   }
+  /** Closed box (sides, top and bottom) for protruding trim that can be seen from below. */
+  solid(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col: number[]) {
+    this.box(x0, y0, z0, x1, y1, z1, col, 4, 4, this, 8, true, 0);
+    this.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], col);
+  }
   /** Flat horizontal quad. */
   flat(x0: number, z0: number, x1: number, z1: number, y: number, col: number[], scale = 4) {
     const T = (a: number) => a / scale;

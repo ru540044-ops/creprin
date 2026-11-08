@@ -79,6 +79,11 @@ const HOUSE_T: [number, number, number][] = [[0.98, 0.92, 0.82], [0.9, 0.82, 0.7
 const ROOF_T: [number, number, number][] = [[0.55, 0.25, 0.2], [0.35, 0.35, 0.4], [0.45, 0.32, 0.25], [0.3, 0.38, 0.36]];
 const SHOP_T: [number, number, number][] = [[0.95, 0.9, 0.82], [0.88, 0.8, 0.9], [0.8, 0.9, 0.95], [0.98, 0.85, 0.75]];
 
+/** Fraction of the footprint each side the top tier is inset by (setback towers); 0 = plain box. */
+export const topInset = (b: Building) => (b.type === 'glass' && b.h > 140 ? 0.26 : (b.type === 'glass' && b.h > 90) || (b.type === 'office' && b.h > 42) ? 0.13 : 0);
+/** Footprint of the topmost tier. */
+export const topFoot = (b: Building) => { const k = topInset(b), ix = (b.x1 - b.x0) * k, iz = (b.z1 - b.z0) * k; return { x0: b.x0 + ix, z0: b.z0 + iz, x1: b.x1 - ix, z1: b.z1 - iz }; };
+
 function addB(b: Building) { buildings.push(b); solids.push({ x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, y0: b.y0, y1: b.y0 + b.h + (b.gable ? 4 : 0) }); }
 
 const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', 'BAY DINER', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store'], ['arms', 'BAY ARMS', '#ff5a36', 'arms']];

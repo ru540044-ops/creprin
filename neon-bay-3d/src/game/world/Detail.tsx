@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { buildings, blocks, Building, BlockInfo } from './cityGen';
+import { buildings, blocks, Building, BlockInfo, topFoot } from './cityGen';
 import { game } from '../state/store';
 import { getTextures } from './textures';
 import { mulberry } from './rng';
@@ -59,18 +59,18 @@ export default function Detail() {
     const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
     for (const b of buildings) {
       if (b.gable || b.type === 'hangar') continue;
-      const top = b.y0 + b.h, w = b.x1 - b.x0, d = b.z1 - b.z0, grey = ['#8a8c90', '#9a958c', '#7d8186', '#a5a39d'][Math.floor(r() * 4)];
+      const T = topFoot(b), top = b.y0 + b.h, w = T.x1 - T.x0, d = T.z1 - T.z0, grey = ['#8a8c90', '#9a958c', '#7d8186', '#a5a39d'][Math.floor(r() * 4)];
       // parapet ring
       const pt = 0.35, ph = 0.9;
-      box((b.x0 + b.x1) / 2, top, b.z0 + pt / 2, w, ph, pt, grey); box((b.x0 + b.x1) / 2, top, b.z1 - pt / 2, w, ph, pt, grey);
-      box(b.x0 + pt / 2, top, (b.z0 + b.z1) / 2, pt, ph, d, grey); box(b.x1 - pt / 2, top, (b.z0 + b.z1) / 2, pt, ph, d, grey);
-      const rx = () => b.x0 + 2 + r() * Math.max(0.1, w - 4), rz = () => b.z0 + 2 + r() * Math.max(0.1, d - 4);
+      box((T.x0 + T.x1) / 2, top, T.z0 + pt / 2, w, ph, pt, grey); box((T.x0 + T.x1) / 2, top, T.z1 - pt / 2, w, ph, pt, grey);
+      box(T.x0 + pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); box(T.x1 - pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey);
+      const rx = () => T.x0 + 2 + r() * Math.max(0.1, w - 4), rz = () => T.z0 + 2 + r() * Math.max(0.1, d - 4);
       if (w > 8 && d > 8) {
         const n = 1 + Math.floor(r() * (w * d > 600 ? 5 : 3));
         for (let k = 0; k < n; k++) { box(rx(), top, rz(), 1.4, 1.0, 1.1, '#c9ccd0', r() * Math.PI); }
         if (r() < 0.65) box(rx(), top, rz(), 3.2, 2.6, 2.6, grey);
         if ((b.type === 'brick' || b.type === 'office' || b.type === 'shop') && r() < 0.4) { const x = rx(), z = rz(); cyl(x, top + 1.2, z, 1.25, 2.4, '#8a6a4a'); box(x, top, z, 2.2, 1.2, 2.2, '#3a3a3e'); }
-        if (b.h > 70) { const x = rx(), z = rz(), ah = 8 + r() * 10; cyl(x, top, z, 0.12, ah, '#c9ccd0'); beacons.push(new THREE.Vector3(x, top + ah + 0.2, z)); if (r() < 0.5) box((b.x0 + b.x1) / 2, top, (b.z0 + b.z1) / 2, w * 0.55, 3 + r() * 5, d * 0.55, '#2a3038'); }
+        if (b.h > 70) { const x = rx(), z = rz(), ah = 8 + r() * 10; cyl(x, top, z, 0.12, ah, '#c9ccd0'); beacons.push(new THREE.Vector3(x, top + ah + 0.2, z)); if (r() < 0.5) box((T.x0 + T.x1) / 2, top, (T.z0 + T.z1) / 2, w * 0.55, 3 + r() * 5, d * 0.55, '#2a3038'); }
       }
       // street-level neon
       const k = blockOf(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas')) continue;

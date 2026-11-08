@@ -7,7 +7,7 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y,
 } from './cityGen';
 import { game } from '../state/store';
 
@@ -53,6 +53,45 @@ const FAC_SET = (t: BType) => { const T = getTextures(); return ({ glass: T.glas
 /* ---------- chunked buildings with two LOD levels ---------- */
 const CH = 300;
 interface Chunk { cx: number; cz: number; hi: Record<string, Geo>; lo: Record<string, Geo>; items: Building[] }
+/** Real 3D facade trim built into the chunk meshes: cornices, floor bands, plinths, glass fins, crowns, balconies. */
+function archTrim(b: Building, F: { su: number; sv: number; cols: number; rows: number }, mainTop: number, m: Geo, metal: Geo, r: () => number, tall: boolean) {
+  const t = b.type, w = F.su / F.cols, rh = F.sv / F.rows, x0 = b.x0, x1 = b.x1, z0 = b.z0, z1 = b.z1, top = b.y0 + b.h;
+  const ring = (g: Geo, y0: number, y1: number, p: number, d: number, c: number[]) => { // four trim boxes around the footprint
+    g.solid(x0 - p, y0, z0 - p, x1 + p, y1, z0 + d, c); g.solid(x0 - p, y0, z1 - d, x1 + p, y1, z1 + p, c);
+    g.solid(x0 - p, y0, z0 + d, x0 + d, y1, z1 - d, c); g.solid(x1 - d, y0, z0 + d, x1 + p, y1, z1 - d, c);
+  };
+  const lite = [Math.min(1, b.tint[0] * 0.25 + 0.72), Math.min(1, b.tint[1] * 0.25 + 0.7), Math.min(1, b.tint[2] * 0.25 + 0.66)];
+  if (t === 'office' || t === 'brick' || t === 'shop') {
+    const stone = t === 'brick' ? [0.86, 0.82, 0.75] : lite;
+    ring(m, mainTop - 0.7, mainTop + 0.1, 0.5, 0.4, stone); // cornice
+    ring(m, b.y0, b.y0 + 0.9, 0.14, 0.2, [stone[0] * 0.6, stone[1] * 0.6, stone[2] * 0.6]); // plinth
+    const every = t === 'brick' ? 2 : 3;
+    if (b.h > 12) for (let k = every; b.y0 + k * rh < mainTop - 2; k += every) { const y = b.y0 + k * rh; ring(m, y - 0.12, y + 0.12, 0.18, 0.2, stone); }
+    if (tall) ring(m, top - 0.6, top + 0.1, 0.4, 0.3, stone);
+  }
+  if (t === 'glass') {
+    const fin = [0.7, 0.74, 0.8], pd = 0.55;
+    for (let x = Math.ceil(x0 / (w * 2)) * w * 2; x < x1 - 0.5; x += w * 2) { if (x < x0 + 0.5) continue; metal.solid(x - 0.13, b.y0, z0 - pd, x + 0.13, mainTop, z0, fin); metal.solid(x - 0.13, b.y0, z1, x + 0.13, mainTop, z1 + pd, fin); }
+    for (let z = Math.ceil(z0 / (w * 2)) * w * 2; z < z1 - 0.5; z += w * 2) { if (z < z0 + 0.5) continue; metal.solid(x0 - pd, b.y0, z - 0.13, x0, mainTop, z + 0.13, fin); metal.solid(x1, b.y0, z - 0.13, x1 + pd, mainTop, z + 0.13, fin); }
+    ring(metal, b.y0, b.y0 + 4.5, 0.3, 0.3, [0.32, 0.34, 0.38]); // dark lobby band
+    if (b.h > 120) { // open crown frame on the top tier
+      const ix = (x1 - x0) * 0.26, iz = (z1 - z0) * 0.26, a0 = x0 + ix, a1 = x1 - ix, c0 = z0 + iz, c1 = z1 - iz, y = top;
+      metal.solid(a0, y, c0, a1, y + 0.5, c0 + 0.4, fin); metal.solid(a0, y, c1 - 0.4, a1, y + 0.5, c1, fin); metal.solid(a0, y, c0, a0 + 0.4, y + 0.5, c1, fin); metal.solid(a1 - 0.4, y, c0, a1, y + 0.5, c1, fin);
+      for (const [px, pz] of [[a0, c0], [a1, c0], [a0, c1], [a1, c1]]) metal.solid(px - 0.25, y, pz - 0.25, px + 0.25, y + 7, pz + 0.25, fin);
+      metal.solid(a0, y + 6.6, c0, a1, y + 7.1, c0 + 0.35, fin); metal.solid(a0, y + 6.6, c1 - 0.35, a1, y + 7.1, c1, fin);
+    }
+  }
+  // balconies on brick apartment blocks: slab + railing under every other window, on the two long faces
+  if (t === 'brick' && b.h <= 34 && r() < 0.85) {
+    const rail = [0.22, 0.23, 0.26], slab = [0.8, 0.78, 0.74], dep = 1.15, along = x1 - x0 >= z1 - z0;
+    for (let k = 1; b.y0 + k * rh < mainTop - 1.5; k++) {
+      const y = b.y0 + k * rh;
+      if (along) for (let x = (Math.ceil(x0 / w - 0.5) + 0.5) * w; x < x1 - w * 0.5; x += w * 2) { if (x < x0 + w * 0.5) continue; for (const [za, zb] of [[z0 - dep, z0], [z1, z1 + dep]]) { m.solid(x - 1.25, y - 0.14, za, x + 1.25, y, zb, slab); const zf = za < z0 ? za : zb - 0.06; metal.solid(x - 1.25, y, zf, x + 1.25, y + 1.0, zf + 0.06, rail); } }
+      else for (let z = (Math.ceil(z0 / w - 0.5) + 0.5) * w; z < z1 - w * 0.5; z += w * 2) { if (z < z0 + w * 0.5) continue; for (const [xa, xb] of [[x0 - dep, x0], [x1, x1 + dep]]) { m.solid(xa, y - 0.14, z - 1.25, xb, y, z + 1.25, slab); const xf = xa < x0 ? xa : xb - 0.06; metal.solid(xf, y, z - 1.25, xf + 0.06, y + 1.0, z + 1.25, rail); } }
+    }
+  }
+}
+
 function buildChunks(): Chunk[] {
   const map = new Map<string, Chunk>();
   const get = (x: number, z: number) => {
@@ -72,20 +111,23 @@ function buildChunks(): Chunk[] {
         if (hi) { const cx = b.x0 + (b.x1 - b.x0) * 0.25; g(lvl, 'misc').box(cx, top, (b.z0 + b.z1) / 2 - 0.5, cx + 1, top + 3.2, (b.z0 + b.z1) / 2 + 0.5, [0.55, 0.4, 0.35]); g(lvl, 'misc').box((b.x0 + b.x1) / 2 - 0.7, b.y0, b.z0 - 0.08, (b.x0 + b.x1) / 2 + 0.7, b.y0 + 2.2, b.z0, [0.35, 0.22, 0.16]); }
         continue;
       }
-      const tall = b.type === 'glass' && b.h > 90 && hi;
-      const mainTop = tall ? top - b.h * 0.18 : top;
-      wall.box(b.x0, b.y0, b.z0, b.x1, mainTop, b.z1, col, F.su, F.sv, g(lvl, 'roof'), 8, true, b.y0);
-      if (tall) { const ix = (b.x1 - b.x0) * 0.15, iz = (b.z1 - b.z0) * 0.15; wall.box(b.x0 + ix, mainTop, b.z0 + iz, b.x1 - ix, top, b.z1 - iz, col, F.su, F.sv, g(lvl, 'roof'), 8, true, b.y0); }
+      // setbacks: tall glass towers step in twice, tall offices once (snapped to whole floors so windows line up)
+      const rh = F.sv / F.rows, snap = (y: number) => b.y0 + Math.round((y - b.y0) / rh) * rh;
+      const tall = (b.type === 'glass' && b.h > 90) || (b.type === 'office' && b.h > 42);
+      const t1 = tall ? snap(top - b.h * (b.type === 'glass' ? 0.3 : 0.2)) : top, t2 = b.type === 'glass' && b.h > 140 ? snap(top - b.h * 0.12) : top;
+      wall.box(b.x0, b.y0, b.z0, b.x1, t1, b.z1, col, F.su, F.sv, g(lvl, 'roof'), 8, true, b.y0);
+      if (tall) { const ix = (b.x1 - b.x0) * 0.13, iz = (b.z1 - b.z0) * 0.13; wall.box(b.x0 + ix, t1, b.z0 + iz, b.x1 - ix, t2, b.z1 - iz, col, F.su, F.sv, g(lvl, 'roof'), 8, true, b.y0); if (t2 < top) { const jx = (b.x1 - b.x0) * 0.26, jz = (b.z1 - b.z0) * 0.26; wall.box(b.x0 + jx, t2, b.z0 + jz, b.x1 - jx, top, b.z1 - jz, col, F.su, F.sv, g(lvl, 'roof'), 8, true, b.y0); } }
+      if (hi) archTrim(b, F, t1, g(lvl, 'misc'), g(lvl, 'metal'), r, tall);
       if (!hi) continue;
-      const m = g(lvl, 'misc'), cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
-      // rooftop machinery
-      if (b.type !== 'terminal' && b.type !== 'hangar') for (let n = 0; n < 2 + Math.floor(r() * 3); n++) { const ax = b.x0 + 3 + r() * (b.x1 - b.x0 - 9), az = b.z0 + 3 + r() * (b.z1 - b.z0 - 7); m.box(ax, top, az, ax + 3 + r() * 3, top + 1.5 + r() * 1.5, az + 2 + r() * 2, [0.55, 0.56, 0.6]); }
+      const m = g(lvl, 'misc'), cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, tf = topFoot(b);
+      // rooftop machinery (on the top tier)
+      if (b.type !== 'terminal' && b.type !== 'hangar' && tf.x1 - tf.x0 > 10 && tf.z1 - tf.z0 > 8) for (let n = 0; n < 2 + Math.floor(r() * 3); n++) { const ax = tf.x0 + 3 + r() * (tf.x1 - tf.x0 - 9), az = tf.z0 + 3 + r() * (tf.z1 - tf.z0 - 7); m.box(ax, top, az, ax + 3 + r() * 3, top + 1.5 + r() * 1.5, az + 2 + r() * 2, [0.55, 0.56, 0.6]); }
       if (b.type === 'glass' && b.h > 70) { g(lvl, 'metal').box(cx - 0.3, top, cz - 0.3, cx + 0.3, top + 14, cz + 0.3, [0.7, 0.7, 0.75]); g(lvl, 'glow').box(cx - 0.6, top + 14, cz - 0.6, cx + 0.6, top + 15, cz + 0.6, [1, 0.15, 0.15]); }
       if (b.type === 'brick' && r() < 0.5) { const tx = b.x1 - 6, tz = b.z1 - 6; for (const [ox, oz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) m.box(tx + ox - 0.15, top, tz + oz - 0.15, tx + ox + 0.15, top + 3, tz + oz + 0.15, [0.3, 0.25, 0.2]); m.box(tx - 2, top + 3, tz - 2, tx + 2, top + 6.5, tz + 2, [0.5, 0.38, 0.28]); }
       if (b.type === 'shop') {
         const sides: [number, number, number, number, number][] = [[b.x0, b.z0 - 1.6, b.x1, b.z0, 0], [b.x0, b.z1, b.x1, b.z1 + 1.6, 0]];
         const aw = [[0.85, 0.2, 0.25], [0.15, 0.5, 0.35], [0.2, 0.35, 0.7], [0.9, 0.65, 0.15]][Math.floor(r() * 4)];
-        for (const [a0, b0, a1, b1] of sides) { m.box(a0 + 1, b.y0 + 3.4, b0, a1 - 1, b.y0 + 3.7, b1, aw); g(lvl, 'glow').box(a0 + (a1 - a0) * 0.3, b.y0 + 4.1, b0 + (b1 - b0) * 0.5 - 0.12, a0 + (a1 - a0) * 0.7, b.y0 + 5, b0 + (b1 - b0) * 0.5 + 0.12, [[1, 0.3, 0.55], [0.25, 0.9, 1], [1, 0.8, 0.25], [0.4, 1, 0.55]][Math.floor(r() * 4)]); }
+        void aw; for (const [a0, b0, a1, b1] of sides) { g(lvl, 'glow').box(a0 + (a1 - a0) * 0.3, b.y0 + 4.1, b0 + (b1 - b0) * 0.5 - 0.12, a0 + (a1 - a0) * 0.7, b.y0 + 5, b0 + (b1 - b0) * 0.5 + 0.12, [[1, 0.3, 0.55], [0.25, 0.9, 1], [1, 0.8, 0.25], [0.4, 1, 0.55]][Math.floor(r() * 4)]); }
       }
       if (b.type === 'warehouse') for (let n = 0; n < 3; n++) { const dx = b.x0 + 6 + n * ((b.x1 - b.x0 - 12) / 2.5); m.box(dx, b.y0, b.z1, dx + 6, b.y0 + 5, b.z1 + 0.1, [0.25, 0.27, 0.3]); }
     }
