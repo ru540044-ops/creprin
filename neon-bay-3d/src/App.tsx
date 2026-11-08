@@ -28,14 +28,15 @@ import * as adminMod from './game/admin';
 import * as explodeMod from './game/combat/explode';
 import * as stuntsMod from './game/crime/stunts';
 import * as raceMod from './game/crime/race';
-import { RAMPS, HELIPADS, CUSTOMS } from './game/world/cityGen';
+import { BDOORS } from './game/world/bldgInteriors';
+import { RAMPS, HELIPADS, CUSTOMS, floorAt, solids } from './game/world/cityGen';
 import { game, load, save, clearSave, Quality } from './game/state/store';
 import { bindKeyboard, input } from './game/input';
 import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ } from './game/world/cityGen';
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },

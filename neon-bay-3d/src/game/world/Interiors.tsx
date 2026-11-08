@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { makeCharacter } from '../player/character';
+import { makeCharacter, Look } from '../player/character';
 import { game } from '../state/store';
 import { rob, CLERK, BAG, recentlyRobbed } from '../crime/crime';
 import * as THREE from 'three';
@@ -16,6 +16,7 @@ export interface InteriorDef {
   id: string; name: string; ox: number; oz: number; w: number; d: number; h: number; wall: string; floor: string; furniture: Furn[]; exit: { x: number; z: number }; spawn: { x: number; z: number; yaw: number };
   floorTex?: 'tiles' | 'concrete' | 'wood' | 'marble' | 'tatami'; ceil?: string; lights?: { x: number; y: number; z: number; c: string; i: number; d: number }[]; views?: View[];
   home?: boolean; flicker?: boolean; bed?: { x: number; z: number }; buy?: { x: number; z: number };
+  npcs?: { x: number; z: number; yaw: number; look: Look }[]; roofSpot?: { x: number; z: number }; roof?: { x: number; z: number; y: number }; noSign?: boolean; ownLights?: boolean;
 }
 
 const mk = (id: string, name: string, ox: number, w: number, d: number, wall: string, floor: string, f: InteriorDef['furniture']): InteriorDef => ({
@@ -58,8 +59,8 @@ export const INTERIORS: Record<string, InteriorDef> = {
 INTERIORS.home.bed = { x: 3.8, z: -2.9 }; // the starter safehouse bed
 
 /** Shop clerk behind the till: idle sway, hands up while being robbed, cowering afterwards. */
-function Clerk({ x = CLERK.x, z = CLERK.z, yaw = Math.PI, shop = true }: { x?: number; z?: number; yaw?: number; shop?: boolean }) {
-  const C = useMemo(() => makeCharacter({ skin: '#8d5a3b', shirt: '#2b8f5a', pants: '#24262c', shoe: '#30323a', hair: '#141012' }), []);
+function Clerk({ x = CLERK.x, z = CLERK.z, yaw = Math.PI, shop = true, look }: { x?: number; z?: number; yaw?: number; shop?: boolean; look?: Look }) {
+  const C = useMemo(() => makeCharacter(look || { skin: '#8d5a3b', shirt: '#2b8f5a', pants: '#24262c', shoe: '#30323a', hair: '#141012' }), [look]);
   const bag = useRef<THREE.Mesh>(null!);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime, here = shop && rob.door === game.lastDoor, scared = shop && ((here && rob.phase !== '') || recentlyRobbed(game.lastDoor));
@@ -161,13 +162,15 @@ function Room({ def }: { def: InteriorDef }) {
           {f.glow ? <meshBasicMaterial color={f.c} toneMapped={false} /> : <meshStandardMaterial color={f.c} roughness={f.rough ?? 0.6} metalness={f.metal ?? 0} />}
         </mesh>
       ))}
-      {!def.home && <mesh position={[0, 3.3, -d / 2 + 0.05]}><planeGeometry args={[5, 1.25]} /><meshBasicMaterial map={sign} toneMapped={false} /></mesh>}
+      {!def.home && !def.noSign && <mesh position={[0, Math.min(3.3, h - 0.75), -d / 2 + 0.05]}><planeGeometry args={[5, 1.25]} /><meshBasicMaterial map={sign} toneMapped={false} /></mesh>}
       {def.views?.map((v, i) => <ViewPlane key={i} v={v} def={def} />)}
       {def.lights?.map((l, i) => def.flicker && i === 0 ? <FlickerLight key={i} l={l} /> : <pointLight key={i} position={[l.x, l.y, l.z]} intensity={l.i} distance={l.d} decay={1.6} color={l.c} />)}
-      {!def.home && [-w / 4, w / 4].map((x) => <mesh key={x} position={[x, h - 0.05, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[2.4, 0.5]} /><meshBasicMaterial color="#ffffff" toneMapped={false} /></mesh>)}
+      {def.npcs?.map((n, i) => <Clerk key={def.name + i} x={n.x} z={n.z} yaw={n.yaw} shop={false} look={n.look} />)}
+      {def.roofSpot && <mesh rotation-x={-Math.PI / 2} position={[def.roofSpot.x, 0.02, def.roofSpot.z]}><ringGeometry args={[0.55, 0.75, 32]} /><meshBasicMaterial color="#ffd23a" toneMapped={false} /></mesh>}
+      {!def.home && !def.ownLights && [-w / 4, w / 4].map((x) => <mesh key={x} position={[x, h - 0.05, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[2.4, 0.5]} /><meshBasicMaterial color="#ffffff" toneMapped={false} /></mesh>)}
       {(def.id === 'store' || def.id === 'gas') && <Clerk />}
       {def.id === 'arms' && <Clerk x={0} z={-3.6} yaw={0} shop={false} />}
-      {!def.home && <pointLight position={[0, h - 0.4, 0]} intensity={26} distance={22} decay={1.6} color="#fff1dc" />}
+      {!def.home && !def.ownLights && <pointLight position={[0, h - 0.4, 0]} intensity={26} distance={22} decay={1.6} color="#fff1dc" />}
       <hemisphereLight args={[def.home ? '#fff4e6' : '#ffffff', '#6a5a4a', def.home ? 0.22 : 0.2]} />
       <mesh position={[0, Math.min(1.2, h / 2 - 0.05), d / 2 - 0.06]}><boxGeometry args={[1.0, Math.min(2.4, h - 0.1), 0.1]} /><meshStandardMaterial color="#2a2f3a" metalness={0.5} roughness={0.3} /></mesh>
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, d / 2 - 1.2]}><ringGeometry args={[0.6, 0.8, 32]} /><meshBasicMaterial color="#2be4ff" toneMapped={false} /></mesh>

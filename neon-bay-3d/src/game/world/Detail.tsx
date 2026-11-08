@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { buildings, blocks, Building, BlockInfo, topFoot } from './cityGen';
+import { BDOORS } from './bldgInteriors';
 import { game } from '../state/store';
 import { getTextures } from './textures';
 import { mulberry } from './rng';
@@ -112,15 +113,29 @@ export default function Detail() {
     const awnings = mk(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }), aw); awnings.castShadow = true;
     const beaconMat = new THREE.MeshBasicMaterial({ map: getTextures().glow, color: '#ff2020', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
     const bl = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.6, 1.6), beaconMat, Math.max(1, beacons.length)); bl.count = beacons.length; bl.frustumCulled = false;
-    return { awnings, roofBoxes, roofCyl, signs, blades, hMat, vMat, bl, beacons, beaconMat, counts: { awnings: aw.length, roof: boxes.length + cyls.length, signs: hs.length + vs.length, beacons: beacons.length } };
+    const frameM: { m: THREE.Matrix4 }[] = [], glassM: { m: THREE.Matrix4 }[] = [], lampM: { m: THREE.Matrix4 }[] = [];
+    for (const dd of BDOORS) {
+      const nx = Math.sin(dd.ang), nz = Math.cos(dd.ang), wide = dd.kind === 'lobby' || dd.kind === 'terminal' ? 2.6 : dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 1.8, hh = dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 2.6;
+      Q.setFromAxisAngle(UP, dd.ang);
+      P.set(dd.fx + nx * 0.06, dd.y + hh / 2, dd.fz + nz * 0.06); S.set(wide + 0.3, hh + 0.2, 0.14); frameM.push({ m: M.compose(P, Q, S).clone() });
+      P.set(dd.fx + nx * 0.14, dd.y + hh / 2 - 0.05, dd.fz + nz * 0.14); S.set(wide, hh - 0.1, 1); glassM.push({ m: M.compose(P, Q, S).clone() });
+      P.set(dd.fx + nx * 0.4, dd.y + hh + 0.35, dd.fz + nz * 0.4); S.set(0.5, 0.12, 0.25); lampM.push({ m: M.compose(P, Q, S).clone() });
+    }
+    const doorFrames = mk(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }), frameM);
+    const doorGlassMat = new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false });
+    const doorGlass = mk(new THREE.PlaneGeometry(1, 1), doorGlassMat, glassM); doorGlass.receiveShadow = false;
+    const doorLampMat = new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false });
+    const doorLamps = mk(new THREE.BoxGeometry(1, 1, 1), doorLampMat, lampM); doorLamps.receiveShadow = false;
+    return { doorFrames, doorGlass, doorGlassMat, doorLamps, doorLampMat, awnings, roofBoxes, roofCyl, signs, blades, hMat, vMat, bl, beacons, beaconMat, counts: { awnings: aw.length, roof: boxes.length + cyls.length, signs: hs.length + vs.length, beacons: beacons.length } };
   }, []);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
   useFrame(({ camera, clock }) => {
     const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2);
     const k = night ? 1.7 : dusk ? 1.1 : 0.55; D.hMat.color.setScalar(k); D.vMat.color.setScalar(k);
+    D.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); D.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
     const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; D.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
     for (let i = 0; i < D.beacons.length; i++) { tmp.m.compose(D.beacons[i], camera.quaternion, tmp.s); D.bl.setMatrixAt(i, tmp.m); }
     D.bl.instanceMatrix.needsUpdate = true;
   });
-  return <><primitive object={D.awnings} /><primitive object={D.roofBoxes} /><primitive object={D.roofCyl} /><primitive object={D.signs} /><primitive object={D.blades} /><primitive object={D.bl} /></>;
+  return <><primitive object={D.doorFrames} /><primitive object={D.doorGlass} /><primitive object={D.doorLamps} /><primitive object={D.awnings} /><primitive object={D.roofBoxes} /><primitive object={D.roofCyl} /><primitive object={D.signs} /><primitive object={D.blades} /><primitive object={D.bl} /></>;
 }

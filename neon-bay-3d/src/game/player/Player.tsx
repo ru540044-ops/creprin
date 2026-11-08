@@ -11,6 +11,8 @@ import { collide, groundAt, floorAt, doors, pointBlocked, districtAt, isWater } 
 import { INTERIORS, FLOOR, interiorCollide } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
+import { nearBDoor, bdoorById, genInterior } from '../world/bldgInteriors';
+import { roofTrip } from '../crime/crime';
 import { combat, fire, findLock, cycleWeapon, armed, startReload } from '../combat/weapons';
 import { peds, nearestPed, mug, ejectPed, scare } from '../ai/peds';
 import { copSees, setWanted } from '../crime/crime';
@@ -130,7 +132,7 @@ export default function Player() {
       // collisions
       if (inside && def) { interiorCollide(def, p, R); const g = FLOOR; if (p.y <= g) { if (!p.grounded && p.vy < -8) st.landT = 0.25; p.y = g; p.vy = 0; p.grounded = true; } }
       else {
-        collide(p, R, p.y, H);
+        collide(p, R, p.y + 0.25, H - 0.25); // check from just above the feet: a low-fps gravity step must not push you off a roof
         if (isWater(p.x, p.z)) { p.x = ox; p.z = oz; } // no swimming yet: the shoreline blocks you
         hitCD -= dt; pushOutOfCars(p); if (knock.x || knock.z) { st.vx += knock.x; st.vz += knock.z; p.vy = Math.max(p.vy, 3); p.grounded = false; if (knock.down) { st.downT = 1.5; st.upT = 0; st.downDir = 1; } knock.x = knock.z = 0; knock.down = false; }
         const g = floorAt(p.x, p.z, p.y);
@@ -161,7 +163,8 @@ export default function Player() {
       // ----- interaction -----
       game.near = null;
       if (inside && def) { if (Math.hypot(p.x - def.ox - def.exit.x, p.z - def.oz - def.exit.z) < 1.6) game.near = { kind: 'exit', label: '外へ出る', id: def.id }; }
-      else for (const d of doors) if (Math.hypot(p.x - d.x, p.z - d.z) < 1.8) { game.near = { kind: 'door', label: d.label + 'に入る', id: d.id }; break; }
+      else { for (const d of doors) if (Math.hypot(p.x - d.x, p.z - d.z) < 1.8) { game.near = { kind: 'door', label: d.label + 'に入る', id: d.id }; break; }
+        if (!game.near && Math.abs(p.y - groundAt(p.x, p.z)) < 1.2) { const bd = nearBDoor(p.x, p.z); if (bd) game.near = { kind: 'door', label: bd.label + 'に入る', id: bd.id }; } }
       { const j = jobNear(); if (j && (!game.near || game.near.kind !== 'door')) game.near = j; }
       if (!inside && !game.near && armed()) { const q = nearestPed(p.x, p.z, 2.4); if (q && q.state !== 'hands' && q.state !== 'flee') game.near = { kind: 'job', id: 'mug:' + q.id, label: 'カツアゲする（銃で脅す）', btn: '脅す' }; }
       if (!inside && !game.near) {
@@ -176,7 +179,8 @@ export default function Player() {
           const q = peds.find((o) => 'mug:' + o.id === n.id); if (q) { mug(q); scare(q.x, q.z, 12); sfx('ui'); if (copSees(q.x, q.z, 60)) setWanted(1, 'カツアゲを見られた'); }
         } else if (n && n.kind === 'job') jobAction(n.id);
         else if (n && n.kind === 'door') {
-          const d = doors.find((q) => q.id === n.id)!, I = INTERIORS[d.interior]; game.lastDoor = d.id;
+          const bd = bdoorById(n.id); if (bd) INTERIORS.bi = genInterior(bd);
+          const d = bd ? { id: bd.id, x: bd.x, z: bd.z, ang: bd.ang, interior: 'bi' } : doors.find((q) => q.id === n.id)!, I = INTERIORS[d.interior]; game.lastDoor = d.id; roofTrip.on = false;
           game.outsidePos = { x: d.x + Math.sin(d.ang) * 2.2, z: d.z + Math.cos(d.ang) * 2.2, yaw: d.ang };
           game.where = I.id; p.x = I.ox + I.spawn.x; p.z = I.oz + I.spawn.z; p.y = FLOOR; p.vy = 0; p.yaw = I.spawn.yaw; game.cam.yaw = I.spawn.yaw + Math.PI; st.vx = st.vz = 0;
           toast(I.name, 1.6); save();

@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { labelTexture } from '../world/textures';
 import { LANDMARKS, EXPORT_DOCK, TRIALS, Landmark, RAMPS, Ramp, HELIPADS, CUSTOMS } from '../world/cityGen';
 import { game } from '../state/store';
-import { trial, trialDef } from './crime';
+import { trial, trialDef, roofTrip } from './crime';
 import { RACES } from './race';
 
 function Sign({ x, z, y = 5, ang = 0, text, color, w = 5.2 }: { x: number; z: number; y?: number; ang?: number; text: string; color: string; w?: number }) {
@@ -72,6 +72,12 @@ function Helipad({ x, y, z }: { x: number; y: number; z: number }) {
   );
 }
 
+function RoofMarker() {
+  const g = useRef<THREE.Group>(null!);
+  useFrame(({ clock }) => { const G = g.current; if (!G) return; G.visible = roofTrip.on && game.where === 'out'; if (G.visible) { G.position.set(roofTrip.x, roofTrip.y + 0.06, roofTrip.z); const s = 1 + Math.sin(clock.elapsedTime * 3) * 0.08; G.scale.set(s, 1, s); } });
+  return <group ref={g} visible={false}><mesh rotation-x={-Math.PI / 2}><ringGeometry args={[1.1, 1.4, 40]} /><meshBasicMaterial color="#ffd23a" toneMapped={false} transparent opacity={0.9} /></mesh></group>;
+}
+
 export default function CrimeView() {
   return (
     <>
@@ -80,6 +86,7 @@ export default function CrimeView() {
       <Sign x={EXPORT_DOCK.x} z={EXPORT_DOCK.z + 11} y={5} ang={0} text="EXPORT DOCK" color="#ff9a3a" w={8} />
       {TRIALS.map((T) => <group key={T.id}><Ring x={T.start.x} z={T.start.z} r={7} color="#c07aff" /><Sign x={T.start.x + 8} z={T.start.z} y={4} ang={Math.PI / 2} text={'TIME TRIAL'} color="#c07aff" /></group>)}
       <Checkpoint />
+      <RoofMarker />
       {RAMPS.map((r) => <RampView key={r.id} r={r} />)}
       {RACES.map((R) => <group key={'race' + R.id}><Ring x={R.x} z={R.z} r={7} color="#ff2a40" /><Sign x={R.x - Math.cos(R.yaw) * 8} z={R.z + Math.sin(R.yaw) * 8} y={4} ang={R.yaw + Math.PI / 2} text={'STREET RACE'} color="#ff2a40" /></group>)}
       {HELIPADS.map((h) => <Helipad key={h.name} x={h.x} y={h.y} z={h.z} />)}
