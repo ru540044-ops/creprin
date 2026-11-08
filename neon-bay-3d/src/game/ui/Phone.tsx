@@ -1,8 +1,11 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useReducer, useState, type ReactElement } from 'react';
 import { game, toast, save, clearSave, ownedCars, Quality } from '../state/store';
 import { VDEFS, DEALER, VKind } from '../vehicles/defs';
 import { PROF } from '../vehicles/models';
-import { vehicles, deliverNear, sellOwned, repairAll } from '../vehicles/sim';
+import { vehicles, deliverNear, sellOwned, repairAll, ownedSpot } from '../vehicles/sim';
+import { mediumOf } from '../vehicles/defs';
+import GiftApp from './GiftApp';
+import { hasRoom, capOf, usedOf, homeName, dailyState, unclaimed } from '../crime/gifts';
 import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT } from '../world/cityGen';
 import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
 import { RACES, PRIZES } from '../crime/race';
@@ -13,8 +16,7 @@ import { PROPERTIES } from '../world/homes';
 import { admin } from '../admin';
 import { audio, sfx } from '../audio';
 
-const GARAGE_CAP = GARAGE.slots.length;
-type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin' | 'realty';
+type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin' | 'realty' | 'gift';
 
 /** Side view drawn from the same profile the 3D model is extruded from. */
 export function CarSVG({ kind, color }: { kind: VKind; color: string }) {
@@ -22,6 +24,15 @@ export function CarSVG({ kind, color }: { kind: VKind; color: string }) {
   const pts = (a: number[][]) => a.map((p) => `${p[0].toFixed(2)},${(-p[1]).toFixed(2)}`).join(' ');
   const wheel = (x: number) => <g key={x}><circle cx={x} cy={-r} r={r} fill="#111" /><circle cx={x} cy={-r} r={r * 0.6} fill="#c9ccd3" /></g>;
   let body;
+  const SP: Partial<Record<VKind, [number, number, ReactElement]>> = {
+    formula: [3, 1.25, <><polygon points="-2.6,-0.35 2.55,-0.25 2.6,-0.12 -2.6,-0.12" fill={color} /><polygon points="-1.4,-0.5 1.6,-0.38 2.5,-0.25 -2.4,-0.3" fill={color} /><ellipse cx={-0.2} cy={-0.7} rx={0.5} ry={0.22} fill="#18202d" /><rect x={-2.75} y={-1.05} width={0.55} height={0.12} fill="#222" /><rect x={-2.55} y={-0.95} width={0.08} height={0.6} fill="#222" /><rect x={2.2} y={-0.2} width={0.7} height={0.08} fill="#222" /></>],
+    jetski: [1.9, 1.3, <><polygon points="-1.6,-0.15 1.55,-0.2 1.7,-0.55 0.9,-0.75 -1.5,-0.62" fill={color} /><polygon points="-1.2,-0.62 0.3,-0.68 0.25,-0.85 -1.05,-0.82" fill="#18181c" /><rect x={0.5} y={-1.15} width={0.08} height={0.45} fill="#444" /><rect x={0.3} y={-1.18} width={0.5} height={0.07} fill="#222" /><rect x={-2} y={-0.12} width={4} height={0.1} fill="#5fb8e8" opacity={0.6} /></>],
+    speedboat: [5.6, 2.6, <><polygon points="-5,-0.3 4.2,-0.3 5.3,-1.3 -5,-1.35" fill="#f4f4f6" /><polygon points="-5,-0.3 4.2,-0.3 4.75,-0.8 -5,-0.75" fill={color} /><polygon points="-0.6,-1.35 1.6,-1.35 0.8,-2.0 -0.4,-2.0" fill="#5a6f8f" /><rect x={-5.3} y={-1.6} width={0.5} height={1.2} fill="#2b2b30" /><rect x={-5.6} y={-0.2} width={11.2} height={0.12} fill="#5fb8e8" opacity={0.6} /></>],
+    yacht: [14.5, 9.4, <><polygon points="-13.5,-0.4 11.5,-0.4 14,-3.2 -13.5,-3.1" fill="#f4f4f6" /><polygon points="-13.5,-0.4 11.5,-0.4 12.6,-1.5 -13.5,-1.4" fill={color} /><rect x={-9} y={-5.4} width={15} height={2.3} fill="#f4f4f6" /><rect x={-8.4} y={-4.9} width={13.8} height={1.1} fill="#1b2433" /><rect x={-6} y={-7.4} width={9} height={2} fill="#f4f4f6" /><rect x={-5.6} y={-7.0} width={8.2} height={0.9} fill="#1b2433" /><rect x={-1} y={-9.2} width={0.25} height={1.8} fill="#c9ccd3" /><rect x={-2.2} y={-8.6} width={2.6} height={0.25} fill="#c9ccd3" /><rect x={-14.5} y={-0.25} width={29} height={0.2} fill="#5fb8e8" opacity={0.6} /></>],
+    jet: [8, 5.2, <><polygon points="-7.2,-1.3 5.6,-1.25 7.8,-1.75 5.6,-2.35 -6.6,-2.55" fill={color} /><polygon points="2.4,-2.3 4.6,-2.2 3.9,-2.9 2.6,-2.95" fill="#3a5470" /><polygon points="-6.8,-2.5 -4.8,-2.5 -6.2,-4.9 -7.0,-4.9" fill={color} /><polygon points="-3.5,-1.6 1.8,-1.6 -2.2,-1.25 -4.6,-1.25" fill="#5a636e" /><rect x={-7.8} y={-2.1} width={0.7} height={0.6} fill="#ff8a3a" opacity={0.7} /><rect x={-3.2} y={-1.25} width={0.14} height={0.95} fill="#333" /><rect x={4.2} y={-1.25} width={0.12} height={0.85} fill="#333" /><circle cx={-3.1} cy={-0.32} r={0.32} fill="#111" /><circle cx={4.25} cy={-0.32} r={0.28} fill="#111" /></>],
+  };
+  const sp = SP[kind];
+  if (sp) return <svg viewBox={`${-sp[0]} ${-sp[1]} ${sp[0] * 2} ${sp[1] + 0.05}`} className="carsvg" aria-hidden="true">{sp[2]}{kind === 'formula' ? [wb, -wb].map((x) => <g key={x}><rect x={x - 0.36} y={-0.74} width={0.72} height={0.74} rx={0.2} fill="#111" /></g>) : null}</svg>;
   if (P) body = <><polygon points={pts(P.glass)} fill="#5a6f8f" /><polygon points={pts(P.lower)} fill={color} /></>;
   else if (kind === 'truck') body = <><rect x={-3.6} y={-3.25} width={5.15} height={2.6} fill="#f1efe9" /><rect x={1.65} y={-2.9} width={1.9} height={2.3} fill={color} /><rect x={2.6} y={-2.75} width={0.9} height={0.75} fill="#18202d" /><rect x={-3.6} y={-0.78} width={7.2} height={0.35} fill="#222" /></>;
   else if (kind === 'heli') body = <><ellipse cx={0.4} cy={-1.45} rx={2.1} ry={1.05} fill={color} /><ellipse cx={1.4} cy={-1.6} rx={1.0} ry={0.7} fill="#5a6f8f" /><rect x={-5.6} y={-1.95} width={4.4} height={0.45} fill={color} /><rect x={-5.9} y={-2.9} width={0.6} height={1.2} fill={color} /><rect x={-4.6} y={-3.05} width={10.4} height={0.08} fill="#222" /><rect x={-1.4} y={-0.2} width={3.4} height={0.1} fill="#222" /></>;
@@ -41,12 +52,11 @@ const bar = (v: number) => <i className="sbar"><b style={{ width: Math.round(Mat
 
 function Motors({ buy }: { buy: (k: VKind, c: string) => void }) {
   const [col, setCol] = useState<Record<string, string>>({});
-  const full = ownedCars.length >= GARAGE_CAP;
   return (
     <div className="appBody">
-      <p className="appNote">購入した車はセーフハウス近くの<b>ガレージ</b>に届きます（{ownedCars.length}/{GARAGE_CAP}台）</p>
+      <p className="appNote">車とヘリは<b>ガレージ</b>（{usedOf('sedan')}/{capOf('sedan')}）、船は<b>マリーナ</b>（{usedOf('yacht')}/{capOf('yacht')}）、戦闘機は<b>空港の駐機場</b>（{usedOf('jet')}/{capOf('jet')}）に納車されます</p>
       {DEALER.map((k) => {
-        const d = VDEFS[k], c = col[k] || d.colors[0], can = game.money >= d.price && !full;
+        const d = VDEFS[k], c = col[k] || d.colors[0], full = !hasRoom(k), can = game.money >= d.price && !full;
         return (
           <div className="carCard" key={k}>
             <CarSVG kind={k} color={c} />
@@ -59,7 +69,7 @@ function Motors({ buy }: { buy: (k: VKind, c: string) => void }) {
               <span>耐久</span>{bar(d.hp / 220)}
             </div>
             <div className="swatches">{d.colors.map((cc) => <button type="button" key={cc} aria-label={'色 ' + cc} className={cc === c ? 'on' : ''} style={{ background: cc }} onClick={() => setCol({ ...col, [k]: cc })} />)}</div>
-            <button type="button" className="buy" disabled={!can} onClick={() => buy(k, c)}>{full ? 'ガレージが満車' : game.money < d.price ? '資金不足' : '購入する'}</button>
+            <button type="button" className="buy" disabled={!can} onClick={() => buy(k, c)}>{full ? homeName(k) + 'が満杯' : game.money < d.price ? '資金不足' : '購入する'}</button>
           </div>
         );
       })}
@@ -70,20 +80,21 @@ function Motors({ buy }: { buy: (k: VKind, c: string) => void }) {
 function Garage({ refresh, close }: { refresh: () => void; close: () => void }) {
   const damaged = vehicles.some((v) => v.owned >= 0 && v.hp < v.def.hp);
   const status = (i: number) => {
-    const v = vehicles.find((q) => q.owned === i);
-    if (!v) return 'ガレージ保管中';
+    const v = vehicles.find((q) => q.owned === i), home = ownedCars[i].kind === 'heli' ? 'ガレージ' : homeName(ownedCars[i].kind);
+    if (!v) return home + 'で保管中';
     if (v.id === game.inCar) return '運転中';
     if (v.dead) return '大破';
-    return v.touched ? '街に駐車中' : 'ガレージ';
+    return v.touched ? (mediumOf(v.def.kind) === 'land' ? '街に駐車中' : '外に停泊・駐機中') : home;
   };
   const call = (i: number) => {
     if (game.where !== 'out') { toast('外に出てから呼んでください'); return; }
+    if (mediumOf(ownedCars[i].kind) !== 'land' || ownedCars[i].kind === 'heli') { const s = ownedSpot(i); game.waypoint = { x: s.x, z: s.z }; save(); toast(VDEFS[ownedCars[i].kind].name + 'は' + (ownedCars[i].kind === 'heli' ? 'ガレージ' : homeName(ownedCars[i].kind)) + 'にあります（目的地に設定）', 2.6); close(); return; }
     const p = game.player; if (deliverNear(i, p.x, p.z, p.yaw)) { sfx('ui'); toast(VDEFS[ownedCars[i].kind].name + 'を近くに届けた'); close(); } else toast('近くに空きスペースがない');
   };
   return (
     <div className="appBody">
       <div className="gHead">
-        <span>{ownedCars.length}/{GARAGE_CAP}台</span>
+        <span>{ownedCars.length}台</span>
         <button type="button" onClick={() => { game.waypoint = { x: GARAGE.x, z: GARAGE.z }; save(); toast('ガレージを目的地に設定'); close(); }}>ガレージへ案内</button>
         <button type="button" disabled={!damaged || game.money < 250} onClick={() => { game.money -= 250; repairAll(); sfx('buy'); toast('全車を修理した（$250）'); save(); refresh(); }}>全車修理 $250</button>
       </div>
@@ -96,7 +107,7 @@ function Garage({ refresh, close }: { refresh: () => void; close: () => void }) 
             <div className="gInfo"><b>{d.name}</b><span>{st}{v && !v.dead ? ` · 状態 ${Math.round((v.hp / d.hp) * 100)}%` : ''}</span></div>
             <div className="gBtns">
               <button type="button" disabled={st === '運転中'} onClick={() => call(i)}>呼ぶ</button>
-              <button type="button" disabled={!v || st === '運転中'} onClick={() => { if (!v) return; game.waypoint = { x: v.x, z: v.z }; save(); toast('車の位置を目的地に設定'); close(); }}>場所</button>
+              <button type="button" disabled={st === '運転中'} onClick={() => { const s = v ? { x: v.x, z: v.z } : ownedSpot(i); game.waypoint = { x: s.x, z: s.z }; save(); toast(d.name + 'の位置を目的地に設定'); close(); }}>場所</button>
               <ConfirmBtn label="売る" ask={'$' + Math.round(d.price * 0.5).toLocaleString('en-US') + 'で売却'} disabled={st === '運転中'} onOk={() => { const g = sellOwned(i); game.money += g; sfx('buy'); toast('売却 +$' + g.toLocaleString('en-US')); save(); refresh(); }} />
             </div>
           </div>
@@ -217,11 +228,11 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
   const hh = Math.floor(game.hour), mm = Math.floor((game.hour - hh) * 60);
   const open = (a: App) => { sfx('ui'); setApp(a); };
   const buy = (k: VKind, c: string) => {
-    const d = VDEFS[k]; if (game.money < d.price || ownedCars.length >= GARAGE_CAP) return;
-    game.money -= d.price; ownedCars.push({ kind: k, color: c }); game.waypoint = { x: GARAGE.x, z: GARAGE.z };
-    sfx('buy'); toast(d.name + 'を購入！ガレージに納車しました（目的地に設定）', 3.2); save(); refresh();
+    const d = VDEFS[k]; if (game.money < d.price || !hasRoom(k)) return;
+    game.money -= d.price; ownedCars.push({ kind: k, color: c }); const s = ownedSpot(ownedCars.length - 1); game.waypoint = { x: s.x, z: s.z };
+    sfx('buy'); toast(d.name + 'を購入！' + homeName(k) + 'に納車しました（目的地に設定）', 3.2); save(); refresh();
   };
-  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者', realty: '不動産' }[app];
+  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者', realty: '不動産', gift: 'ギフト' }[app];
   return (
     <div className="overlay phoneWrap" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="phone" role="dialog" aria-label="スマートフォン">
@@ -232,6 +243,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
             <button type="button" className="appIc" onClick={() => open('garage')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#1c8f7a)' }}>🅿</i>ガレージ</button>
             <button type="button" className="appIc" onClick={() => { sfx('ui'); onClose(); openMap(); }}><i style={{ background: 'linear-gradient(135deg,#2be4ff,#2b6bff)' }}>🗺</i>マップ</button>
             <button type="button" className="appIc" onClick={() => open('jobs')}><i style={{ background: 'linear-gradient(135deg,#ffd23a,#ff6a00)' }}>💰</i>仕事</button>
+            <button type="button" className="appIc" onClick={() => open('gift')}><i style={{ background: 'linear-gradient(135deg,#ff3f6e,#ffcf4a)' }}>🎁</i>ギフト{(dailyState().can ? 1 : 0) + unclaimed().length > 0 && <em className="badge">{(dailyState().can ? 1 : 0) + unclaimed().length}</em>}</button>
             <button type="button" className="appIc" onClick={() => open('realty')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#2b6bff)' }}>🏠</i>不動産</button>
             {admin.is && <button type="button" className="appIc" onClick={() => open('admin')}><i style={{ background: 'linear-gradient(135deg,#ff2a40,#7a00ff)' }}>🛡</i>管理者</button>}
             <button type="button" className="appIc" onClick={() => open('settings')}><i style={{ background: 'linear-gradient(135deg,#8a8aa8,#3c3c55)' }}>⚙</i>設定</button>
@@ -243,6 +255,7 @@ export default function Phone({ onClose, openMap, quality, setQuality }: { onClo
             {app === 'garage' && <Garage refresh={refresh} close={onClose} />}
             {app === 'admin' && <AdminApp close={onClose} />}
             {app === 'realty' && <Realty close={onClose} />}
+            {app === 'gift' && <GiftApp close={onClose} refresh={refresh} />}
             {app === 'jobs' && <Jobs close={onClose} refresh={refresh} />}
             {app === 'settings' && <Settings quality={quality} setQuality={setQuality} refresh={refresh} />}
           </>

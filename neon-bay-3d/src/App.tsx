@@ -2,12 +2,18 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import City from './game/world/City';
+import CruiseShip from './game/world/CruiseShip';
 import Environment from './game/world/Environment';
 import Interiors from './game/world/Interiors';
 import Player from './game/player/Player';
 import HUD from './game/ui/HUD';
 import Vehicles from './game/vehicles/Vehicles';
 import CrimeView from './game/crime/CrimeView';
+import GiftView from './game/crime/GiftView';
+import { initNetGifts } from './game/crime/gifts';
+import * as giftsMod from './game/crime/gifts';
+import * as cityMod from './game/world/cityGen';
+import { progress, ownedCars } from './game/state/store';
 import Birds from './game/world/Birds';
 import Weather from './game/world/Weather';
 import Effects from './game/world/Effects';
@@ -31,13 +37,13 @@ import * as raceMod from './game/crime/race';
 import * as story from './game/crime/story';
 import { BDOORS } from './game/world/bldgInteriors';
 import { RAMPS, HELIPADS, CUSTOMS, floorAt, solids } from './game/world/cityGen';
-import { game, load, save, clearSave, Quality } from './game/state/store';
+import { game, load, save, clearSave, Quality, toast } from './game/state/store';
 import { bindKeyboard, input } from './game/input';
 import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ } from './game/world/cityGen';
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -83,10 +89,12 @@ function Scene({ quality }: { quality: Quality }) {
     <>
       <Environment shadows={q.shadows} shadowSize={q.size} />
       <City shadows={q.shadows} />
+      <CruiseShip />
       <Interiors where={where} />
       <Player />
       <Vehicles />
       <CrimeView />
+      <GiftView />
       <PedsView />
       <FXView />
       <Birds />
@@ -105,7 +113,7 @@ export default function App() {
   const hadSave = useMemo(() => load(), []);
   const [started, setStarted] = useState(false);
   const [quality, setQuality] = useState<Quality>(game.quality);
-  useEffect(() => { bindKeyboard(); checkAdmin(); }, []);
+  useEffect(() => { bindKeyboard(); checkAdmin(); initNetGifts(); }, []);
   useEffect(() => { game.quality = quality; save(); }, [quality]);
   useEffect(() => {
     const vis = () => { if (document.hidden) save(); };
@@ -146,7 +154,7 @@ export default function App() {
               <li><b>セーブ</b>5秒ごとに自動保存</li>
             </ul>
             <p className="note">地図の黄色い R マークからストーリーミッション（全5話）が遊べます。お金はスマホの「仕事」でも稼げます：コンビニ強盗、現金輸送車強盗、車の輸出、タイムトライアル。手配度が付くとパトカーが追ってきます。街には歩行者と一般車が走り、車を奪う・カツアゲもできます。ストーリーミッションと徒歩の警官はまだ未実装です。</p>
-            <button type="button" className="go" onClick={() => { initAudio(); game.started = true; setStarted(true); }}>{hadSave ? '続きから' : 'スタート'}</button>
+            <button type="button" className="go" onClick={() => { initAudio(); game.started = true; setStarted(true); setTimeout(() => { const n = (giftsMod.dailyState().can ? 1 : 0) + giftsMod.unclaimed().length; if (n) toast(`🎁 ギフトが${n}件届いています（スマホ →「ギフト」）`, 3.2); }, 2500); }}>{hadSave ? '続きから' : 'スタート'}</button>
             {hadSave && <button type="button" className="sub" onClick={() => { clearSave(); location.reload(); }}>最初からやり直す</button>}
           </div>
         </div>

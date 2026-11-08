@@ -14,12 +14,13 @@ import { PROPERTIES } from '../world/homes';
 import { updateStunts, updateTaxi, taxi, stunt } from './stunts';
 import { RACES, race, raceDef, startRace, updateRace, position, fmtT, PRIZES } from './race';
 import { storyNear, storyStatus, updateStory, startMission } from './story';
+import { updateGifts } from './gifts';
 
 /* =====================================================================
    Wanted level + police
    ===================================================================== */
 /** Where the rooftop elevator exit is while you are up on a roof (so you can ride back down). */
-export const roofTrip = { on: false, x: 0, z: 0, y: 0 };
+export const roofTrip = { on: false, x: 0, z: 0, y: 0, from: '' };
 export const law = {
   lastSeen: { x: 0, z: 0 }, unseen: 0, seen: false, seeT: 0, bust: 0, spawnT: 0, hitT: 0, hurtT: 99,
   over: null as null | { kind: 'busted' | 'wasted'; t: number; fine: number },
@@ -256,8 +257,9 @@ export function jobNear(): Near | null {
     if (owned && I.bed && Math.hypot(l.x - I.bed.x, l.z - I.bed.z) < 2.4) return { kind: 'job', id: 'sleep', label: '寝る（時間を進めて体力回復・セーブ）', btn: '寝る' };
     if (!owned && P && I.buy && Math.hypot(l.x - I.buy.x, l.z - I.buy.z) < 2.2) return { kind: 'job', id: 'buyhome:' + P.id, label: `この物件を買う $${P.price.toLocaleString('en-US')}${game.money < P.price ? '（資金不足）' : ''}`, btn: '購入' };
   } }
-  { const I = INTERIORS[game.where]; if (I && I.roofSpot && I.roof && !me) { const l = local(); if (Math.hypot(l.x - I.roofSpot.x, l.z - I.roofSpot.z) < 1.6) return { kind: 'job', id: 'roofup', label: `エレベーターで屋上へ（${Math.round(I.roof.y)}m）`, btn: '屋上' }; } }
-  if (game.where === 'out' && !me && roofTrip.on) { const p = game.player; if (Math.hypot(p.x - roofTrip.x, p.z - roofTrip.z) < 2.6 && Math.abs(p.y - roofTrip.y) < 2) return { kind: 'job', id: 'roofdown', label: 'エレベーターで1階へ', btn: '下へ' }; }
+  { const I = INTERIORS[game.where]; if (I && I.roofSpot && I.roof && !me) { const l = local(); if (Math.hypot(l.x - I.roofSpot.x, l.z - I.roofSpot.z) < 1.6) return { kind: 'job', id: 'roofup', label: I.roofLabel || `エレベーターで屋上へ（${Math.round(I.roof.y)}m）`, btn: I.roofLabel ? '移動' : '屋上' }; } }
+  { const I = INTERIORS[game.where]; if (I && I.links && !me) { const l = local(); for (const k of I.links) if (Math.hypot(l.x - k.x, l.z - k.z) < 1.5) return { kind: 'job', id: 'link:' + k.to, label: k.label, btn: '移動' }; } }
+  if (game.where === 'out' && !me && roofTrip.on) { const p = game.player; if (Math.hypot(p.x - roofTrip.x, p.z - roofTrip.z) < 2.6 && Math.abs(p.y - roofTrip.y) < 2) return { kind: 'job', id: 'roofdown', label: roofTrip.from.startsWith('ship_') ? 'エレベーターで船内（アトリウム）へ' : 'エレベーターで1階へ', btn: '下へ' }; }
   if (game.where === 'arms' && !me) { const l = local(); return Math.hypot(l.x, l.z + 1.1) < 2.2 ? { kind: 'job', id: 'gunshop', label: 'BAY ARMS で買い物', btn: '買う' } : null; }
   if (game.where !== 'out') return null;
   if (!me) {
@@ -265,6 +267,7 @@ export function jobNear(): Near | null {
     return null;
   }
   // in a car
+  if (me.def.kind === 'yacht' && !me.dead && Math.hypot(me.vx, me.vz) < 1.5) return { kind: 'job', id: 'cabin', label: 'メインサロン（キャビン）に入る', btn: 'キャビン' };
   if (atDock(me) && Math.hypot(me.vx, me.vz) < 4) {
     if (me.owned >= 0 || me.role) return { kind: 'job', id: 'exportno', label: 'この車は輸出できない', btn: '輸出' };
     if (exportJob.kind && me.def.kind === exportJob.kind) return { kind: 'job', id: 'export', label: `${me.def.name}を引き渡す（$${exportValue(me).toLocaleString('en-US')}）`, btn: '引き渡す' };
@@ -282,12 +285,22 @@ export function jobAction(id: string) {
   if (id === 'rob') {
     rob.door = game.lastDoor; rob.phase = 'fill'; rob.t = 0; rob.dur = 6; rob.cash = (game.where === 'gas' ? 600 : 800) + Math.round(Math.random() * 14) * 100;
     sfx('crash', 0.25); toast('「金を出せ！」 店員がレジを開けた', 2.2); setWanted(1, '店員が通報した');
+  } else if (id.startsWith('link:')) {
+    const to = INTERIORS[id.slice(5)], from = game.where, p = game.player;
+    if (to) { const back = to.links?.find((k) => k.to === from); game.where = to.id; p.x = to.ox + (back ? back.x : to.spawn.x); p.z = to.oz + (back ? back.z + (back.z > 0 ? -1.4 : 1.4) : to.spawn.z); p.y = -50; p.vy = 0; game.fadeT = 0.6; sfx('door'); toast(to.name, 1.6); }
+  } else if (id === 'cabin' && me && me.def.kind === 'yacht') {
+    const C = INTERIORS.yacht, p = game.player;
+    me.vx = me.vz = 0; game.yachtId = me.id; game.inCar = 0; releaseDrive(); game.where = 'yacht';
+    game.outsidePos = { x: me.x + Math.cos(me.yaw) * 4, z: me.z - Math.sin(me.yaw) * 4, yaw: me.yaw };
+    p.x = C.ox + C.spawn.x; p.z = C.oz + C.spawn.z; p.y = -50; p.vy = 0; game.fadeT = 0.6; sfx('door'); toast(C.name + '（出口で操舵席に戻る）', 2);
   } else if (id === 'story') { startMission();
   } else if (id === 'roofup') {
     const I = INTERIORS[game.where], p = game.player;
-    if (I && I.roof) { roofTrip.on = true; roofTrip.x = I.roof.x; roofTrip.z = I.roof.z; roofTrip.y = I.roof.y; game.where = 'out'; p.x = I.roof.x; p.z = I.roof.z; p.y = I.roof.y + 0.05; p.vy = 0; game.fadeT = 0.8; sfx('door'); toast(`屋上に出た（高さ ${Math.round(I.roof.y)}m）`, 2.2); }
+    if (I && I.roof) { roofTrip.on = true; roofTrip.from = game.where; roofTrip.x = I.roof.x; roofTrip.z = I.roof.z; roofTrip.y = I.roof.y; game.where = 'out'; p.x = I.roof.x; p.z = I.roof.z; p.y = I.roof.y + 0.05; p.vy = 0; game.fadeT = 0.8; sfx('door'); toast(`屋上に出た（高さ ${Math.round(I.roof.y)}m）`, 2.2); }
   } else if (id === 'roofdown') {
-    const o = game.outsidePos, p = game.player; roofTrip.on = false; p.x = o.x; p.z = o.z; p.y = groundAt(o.x, o.z); p.vy = 0; p.yaw = o.yaw; game.cam.yaw = o.yaw + Math.PI; game.fadeT = 0.8; sfx('door');
+    const o = game.outsidePos, p = game.player, I = INTERIORS[roofTrip.from]; roofTrip.on = false;
+    if (I && roofTrip.from.startsWith('ship_') && I.roofSpot) { game.where = I.id; p.x = I.ox + I.roofSpot.x - 1.6; p.z = I.oz + I.roofSpot.z; p.y = -50; p.vy = 0; game.fadeT = 0.8; sfx('door'); toast(I.name, 1.4); return; }
+    p.x = o.x; p.z = o.z; p.y = groundAt(o.x, o.z); p.vy = 0; p.yaw = o.yaw; game.cam.yaw = o.yaw + Math.PI; game.fadeT = 0.8; sfx('door');
   } else if (id.startsWith('buyhome:')) {
     const P = PROPERTIES.find((q) => 'buyhome:' + q.id === id);
     if (P && !game.homes.includes(P.id)) { if (game.money < P.price) toast('お金が足りない（$' + P.price.toLocaleString('en-US') + '）', 2); else { game.money -= P.price; game.homes.push(P.id); sfx('buy'); toast(`${P.kind}を購入！ ベッドで寝るとセーブ＆時間を進められる`, 3.2); save(); } }
@@ -324,6 +337,7 @@ hooks.carHit = (a, b, imp) => {
 hooks.hurtPlayer = (dmg) => damagePlayer(dmg);
 
 export function updateCrime(dt: number) {
+  updateGifts(dt);
   if (!game.started) return;
   if (admin.is && admin.noWanted && game.wanted) { game.wanted = 0; law.bust = 0; }
   if (law.over) { law.over.t -= dt; siren(0); if (law.over.t <= 0) { const o = law.over; law.over = null; respawn(o.kind, o.fine); } return; }

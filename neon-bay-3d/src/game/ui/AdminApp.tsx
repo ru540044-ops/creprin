@@ -1,7 +1,33 @@
-import { useReducer } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { game } from '../state/store';
 import { VDEFS } from '../vehicles/defs';
 import * as AD from '../admin';
+import { net, sendNetGift, deleteNetGift, rewardLabel, Reward } from '../crime/gifts';
+
+const GIFT_PRESETS: { label: string; r: Reward }[] = [
+  { label: '$10,000', r: { cash: 10000 } }, { label: '$100,000', r: { cash: 100000 } }, { label: '$1,000,000', r: { cash: 1000000 } }, { label: '$5,000,000', r: { cash: 5000000 } },
+  { label: '武器パック', r: { ammo: true, armor: true, grenades: 5 } },
+  ...(['jet', 'yacht', 'formula', 'limo', 'speedboat', 'jetski', 'hyper'] as const).map((k) => ({ label: VDEFS[k].name, r: { vehicle: k } as Reward })),
+];
+
+/** Owner → every player gifts (stored in the page's shared db; the rules let only the owner write). */
+function GiftSender() {
+  const [title, setTitle] = useState('運営からのプレゼント'), [msg, setMsg] = useState(''), [pick, setPick] = useState(0), [busy, setBusy] = useState(false), [note, setNote] = useState(''), [, tick] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => { const id = setInterval(tick, 1000); return () => clearInterval(id); }, []);
+  if (net.state === 'off') return <p className="appNote">ギフト配布は claude.ai で開いたときに使えます（共有データを使います）。</p>;
+  const send = async () => { setBusy(true); setNote(''); const err = await sendNetGift(title, msg, GIFT_PRESETS[pick].r); setBusy(false); setNote(err || '配布しました：全プレイヤーのスマホ「ギフト」に届きます'); };
+  return (
+    <div className="adGift">
+      <input value={title} maxLength={40} onChange={(e) => setTitle(e.target.value)} aria-label="ギフトのタイトル" placeholder="タイトル" />
+      <input value={msg} maxLength={120} onChange={(e) => setMsg(e.target.value)} aria-label="メッセージ" placeholder="メッセージ（任意）" />
+      <div className="adRow">{GIFT_PRESETS.map((g, i) => <button type="button" key={g.label} className={pick === i ? 'sel' : ''} onClick={() => setPick(i)}>{g.label}</button>)}</div>
+      <div className="adRow"><button type="button" disabled={busy || !title.trim()} onClick={send}>{busy ? '送信中…' : `「${GIFT_PRESETS[pick].label}」を全員に配る`}</button></div>
+      {note && <p className="appNote">{note}</p>}
+      {net.list.length > 0 && <p className="appNote">配布中（新しい順・最大30件）</p>}
+      {net.list.map((g) => <div className="adRow" key={g.id}><span className="adGL">{g.title} — {rewardLabel(g.reward)}</span><button type="button" onClick={async () => { await deleteNetGift(g.id); tick(); }}>配布停止</button></div>)}
+    </div>
+  );
+}
 
 /** Owner-only control panel inside the phone. Every action re-checks admin status in admin.ts. */
 export default function AdminApp({ close }: { close: () => void }) {
@@ -68,6 +94,9 @@ export default function AdminApp({ close }: { close: () => void }) {
         <button type="button" onClick={run(AD.armoredNow, true)}>現金輸送車を呼ぶ</button>
         <button type="button" onClick={run(AD.resetJobs)}>仕事をリセット</button>
       </div>
+
+      <h4 className="adH">ギフト配布（全プレイヤー）</h4>
+      <GiftSender />
 
       <h4 className="adH">開発</h4>
       <div className="adGrid">{T('debug', 'デバッグ表示', '座標・人数・車数・FPS')}</div>

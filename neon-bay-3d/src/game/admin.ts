@@ -1,6 +1,7 @@
 import { game, toast, save, ownedCars } from './state/store';
 import { vehicles, spawn, remove, playerCar, owned } from './vehicles/sim';
-import { VDEFS, VKind, DEALER } from './vehicles/defs';
+import { VDEFS, VKind, DEALER, isBoat } from './vehicles/defs';
+import { hasRoom } from './crime/gifts';
 import { peds, scare } from './ai/peds';
 import { law, armored, exportJob, newExport, resetRobberies } from './crime/crime';
 import { groundAt, floorAt, doors, GARAGE, AIRPORT, PORT, BEACH_X, POLICE_HQ, HOSPITAL, EXPORT_DOCK, CUSTOMS, HELIPADS, RAMPS, isWater } from './world/cityGen';
@@ -62,15 +63,15 @@ export function spawnVehicle(kind: VKind, enter: boolean) {
   if (!guard()) return; if (game.where !== 'out') { toast('外で使ってください', 1.4); return; }
   const me = playerCar(), p = game.player, yaw = me ? me.yaw : p.yaw, d = me ? me.def.len + 3 : 5;
   const x = (me ? me.x : p.x) + Math.sin(yaw) * d, z = (me ? me.z : p.z) + Math.cos(yaw) * d;
-  if (isWater(x, z)) { toast('ここには出せない', 1.4); return; }
+  if (isBoat(kind) ? !isWater(x, z) : isWater(x, z)) { toast(isBoat(kind) ? '船は水の上で出してください' : 'ここには出せない', 1.4); return; }
   const def = VDEFS[kind], v = spawn(kind, x, z, yaw, def.colors[Math.floor(Math.random() * def.colors.length)]); v.touched = true;
   if (enter && !me) { game.inCar = v.id; releaseDrive(); }
   toast(def.name + 'を出現', 1.2);
 }
 export function fillGarage() {
   if (!guard()) return; let n = 0;
-  for (const k of DEALER) if (ownedCars.length < GARAGE.slots.length && !ownedCars.some((o) => o.kind === k)) { ownedCars.push({ kind: k, color: VDEFS[k].colors[0] }); n++; }
-  save(); toast(n ? `${n}台をガレージに追加` : 'ガレージは揃っています', 1.6);
+  for (const k of DEALER) if (hasRoom(k) && !ownedCars.some((o) => o.kind === k)) { ownedCars.push({ kind: k, color: VDEFS[k].colors[0] }); n++; }
+  save(); toast(n ? `${n}台を追加（車→ガレージ・船→マリーナ・戦闘機→空港）` : '全車種そろっています', 1.8);
 }
 
 export const WARPS: { name: string; at: () => { x: number; z: number } }[] = [

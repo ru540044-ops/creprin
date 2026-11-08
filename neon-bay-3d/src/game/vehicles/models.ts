@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { VDef, VKind, Mods } from './defs';
 import { getTextures } from '../world/textures';
+import { addCabin, buildBoat, buildJet, buildFormula } from './models2';
+import { isBoat } from './defs';
 import { labelTexture } from '../world/textures';
 
 /** Side profiles (x = forward, y = up). lower = painted body up to the belt line, glass = greenhouse. */
@@ -13,12 +15,13 @@ export const PROF: Partial<Record<VKind, { lower: number[][]; glass: number[][];
   muscle: { lower: [[-2.45, 0.34], [2.45, 0.34], [2.5, 0.66], [2.38, 0.86], [0.85, 0.92], [-1.4, 0.94], [-2.38, 0.9], [-2.5, 0.62]], glass: [[-1.35, 0.93], [0.8, 0.91], [0.2, 1.28], [-0.95, 1.3]], roofY: 1.3 },
   hatch: { lower: [[-1.85, 0.32], [1.9, 0.32], [1.95, 0.62], [1.75, 0.85], [0.85, 0.95], [-1.82, 1.0], [-1.9, 0.6]], glass: [[-1.75, 0.98], [0.8, 0.94], [0.2, 1.45], [-1.68, 1.47]], roofY: 1.47 },
   pickup: { lower: [[-2.62, 0.45], [2.62, 0.45], [2.64, 0.85], [2.48, 1.1], [1.3, 1.18], [-2.6, 1.12], [-2.64, 0.8]], glass: [[-0.35, 1.16], [1.25, 1.16], [0.8, 1.75], [-0.3, 1.77]], roofY: 1.77 },
+  limo: { lower: [[-3.75, 0.32], [3.75, 0.32], [3.78, 0.62], [3.6, 0.86], [2.4, 0.98], [-3.0, 0.98], [-3.7, 0.94], [-3.8, 0.6]], glass: [[-2.95, 0.97], [2.35, 0.97], [1.8, 1.42], [-2.45, 1.44]], roofY: 1.44 },
   suv: { lower: [[-2.42, 0.45], [2.42, 0.45], [2.45, 0.85], [2.3, 1.1], [1.35, 1.2], [-2.35, 1.2], [-2.45, 0.85]], glass: [[-2.3, 1.18], [1.3, 1.18], [0.85, 1.78], [-2.25, 1.8]], roofY: 1.8 },
 };
 
-export interface CarModel { root: THREE.Group; tilt: THREE.Group; body: THREE.Group; wheels: THREE.Group[]; paint: THREE.MeshStandardMaterial; glass?: THREE.MeshStandardMaterial; rim?: THREE.MeshStandardMaterial; neon?: THREE.Mesh; rotors?: { main: THREE.Group; tail: THREE.Group }; modKey?: string; lights: { head: THREE.MeshStandardMaterial; tail: THREE.MeshStandardMaterial; bar?: [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial]; blinkL?: THREE.MeshStandardMaterial; blinkR?: THREE.MeshStandardMaterial; rev?: THREE.MeshStandardMaterial }; door?: THREE.Group }
+export interface CarModel { root: THREE.Group; tilt: THREE.Group; body: THREE.Group; wheels: THREE.Group[]; paint: THREE.MeshStandardMaterial; glass?: THREE.MeshStandardMaterial; rim?: THREE.MeshStandardMaterial; neon?: THREE.Mesh; rotors?: { main: THREE.Group; tail: THREE.Group }; modKey?: string; eye?: THREE.Vector3; steering?: THREE.Object3D; burner?: THREE.Mesh[]; gear?: THREE.Group; lights: { head: THREE.MeshStandardMaterial; tail: THREE.MeshStandardMaterial; bar?: [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial]; blinkL?: THREE.MeshStandardMaterial; blinkR?: THREE.MeshStandardMaterial; rev?: THREE.MeshStandardMaterial }; door?: THREE.Group }
 
-const shared = (() => {
+export const shared = (() => {
   let s: any = null;
   return () => (s ||= {
     glass: new THREE.MeshStandardMaterial({ color: '#0d141f', metalness: 0.9, roughness: 0.06, envMapIntensity: 2, transparent: true, opacity: 0.62 }),
@@ -33,9 +36,30 @@ function extrude(poly: number[][], width: number, bevel = 0.06) {
   const g = new THREE.ExtrudeGeometry(sh, { depth: width - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, steps: 1 });
   g.translate(0, 0, -(width - bevel * 2) / 2); return g;
 }
-function box(w: number, h: number, d: number, x: number, y: number, z: number) { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; }
+/** Keep the part of a polygon where f(p) >= 0 (Sutherland–Hodgman against one half-plane). */
+function clipHalf(poly: number[][], f: (p: number[]) => number): number[][] {
+  const out: number[][] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const A = poly[i], B = poly[(i + 1) % poly.length], fa = f(A), fb = f(B);
+    if (fa >= 0) out.push(A);
+    if ((fa >= 0) !== (fb >= 0)) { const t = fa / (fa - fb); out.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); }
+  }
+  return out;
+}
+/** Car body with an open cabin: solid hood and boot, thin side walls and a floor between them, so the interior shows from the driver's seat. */
+function hollowBody(lower: number[][], W: number, x0: number, x1: number) {
+  const parts: THREE.BufferGeometry[] = [];
+  const put = (poly: number[][], w: number, bevel: number, z = 0) => { if (poly.length < 3) return; const g = extrude(poly, w, bevel); g.translate(0, 0, z); parts.push(g.index ? g.toNonIndexed() : g); };
+  put(clipHalf(lower, (p) => p[0] - x1), W, 0.06);
+  put(clipHalf(lower, (p) => x0 - p[0]), W, 0.06);
+  const mid = clipHalf(clipHalf(lower, (p) => p[0] - x0 + 0.02), (p) => x1 + 0.02 - p[0]);
+  put(clipHalf(mid, (p) => 0.4 - p[1]), W, 0.02);
+  for (const s of [-1, 1]) put(mid, 0.1, 0.02, s * (W / 2 - 0.05));
+  return mergeGeometries(parts)!;
+}
+export function box(w: number, h: number, d: number, x: number, y: number, z: number) { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; }
 
-function wheel(r: number, w: number, rimMat?: THREE.Material) {
+export function wheel(r: number, w: number, rimMat?: THREE.Material) {
   const g = new THREE.Group(), S = shared(); g.rotation.order = 'YXZ';
   const tire = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 18).rotateX(Math.PI / 2), S.tire);
   const rim = new THREE.Mesh(mergeGeometries([new THREE.CylinderGeometry(r * 0.62, r * 0.62, w + 0.02, 12).rotateX(Math.PI / 2), ...[0, 1, 2, 3, 4].map((k) => new THREE.BoxGeometry(r * 1.15, r * 0.14, w * 0.3).rotateZ((k / 5) * Math.PI).translate(0, 0, w * 0.4))])!, rimMat || S.chrome);
@@ -43,10 +67,10 @@ function wheel(r: number, w: number, rimMat?: THREE.Material) {
 }
 
 export function buildCarModel(def: VDef, color: string): CarModel {
-  const m = def.kind === 'heli' ? buildHeli(def, color) : buildInner(def, color), outer = new THREE.Group(), tilt = new THREE.Group();
+  const m = def.kind === 'heli' ? buildHeli(def, color) : isBoat(def.kind) ? buildBoat(def, color) : def.kind === 'jet' ? buildJet(def, color) : def.kind === 'formula' ? buildFormula(def, color) : buildInner(def, color), outer = new THREE.Group(), tilt = new THREE.Group();
   m.root.rotation.y = -Math.PI / 2; tilt.add(m.root); outer.add(tilt);
   // neon underglow: an additive glow card under the car, shown when the Bay Customs neon kit is fitted
-  if (def.kind !== 'heli') {
+  if (def.kind !== 'heli' && def.kind !== 'jet' && !isBoat(def.kind)) {
     const neon = new THREE.Mesh(new THREE.PlaneGeometry(def.len * 1.25, def.wid * 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: getTextures().glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, opacity: 0.95 }));
     neon.position.y = 0.06; neon.visible = false; m.root.add(neon); m.neon = neon;
   }
@@ -118,9 +142,9 @@ function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
     return { root, body, wheels, paint, glass, rim, lights: { head, tail } };
   }
   const P = PROF[def.kind === 'police' || def.kind === 'taxi' ? 'sedan' : def.kind]!;
-  add(extrude(P.lower, W), paint);
-  add(extrude(P.glass, W * 0.9, 0.04), glass);
   const gx0 = Math.min(...P.glass.map((p) => p[0])), gx1 = Math.max(...P.glass.map((p) => p[0]));
+  add(hollowBody(P.lower, W, gx0, gx1), paint);
+  add(extrude(P.glass, W * 0.9, 0.04), glass);
   const roofPts = P.glass.filter((p) => p[1] > P.roofY - 0.05).map((p) => p[0]); const r0 = Math.min(...roofPts), r1 = Math.max(...roofPts);
   add(box(r1 - r0 + 0.08, 0.05, W * 0.88, (r0 + r1) / 2, P.roofY + 0.02, 0), paint);
   // trim: bumpers, skirts, grille, mirrors, plates
@@ -152,6 +176,7 @@ function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
     add(box(0.12, 0.35, W * 0.7, L + 0.2, 0.5, 0), S.trim);
     bar = [red, blue];
   }
+  const cab = addCabin(def, P, W, body);
   const wx = def.wheelbase / 2, wz = W / 2 - 0.16;
   for (const x of [wx, -wx]) for (const s of [-1, 1]) { const wg = wheel(def.wheelR, 0.28, rim); wg.position.set(x, def.wheelR, s * wz); root.add(wg); wheels.push(wg); }
   void gx0;
@@ -176,5 +201,14 @@ function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
   if (def.kind === 'muscle') { const w = new THREE.MeshStandardMaterial({ color: '#f4f4f4', roughness: 0.4 }); for (const sz of [-0.18, 0.18]) { add(box(1.7, 0.02, 0.18, 1.6, 0.93, sz), w, false); add(box(1.2, 0.02, 0.18, -0.35, 1.31, sz), w, false); } add(box(0.7, 0.14, 0.5, 1.4, 0.98, 0), S.trim); }
   if (def.kind === 'hyper') { add(mergeGeometries([box(0.45, 0.05, W * 1.0, -L + 0.2, 1.2, 0), box(0.08, 0.36, 0.08, -L + 0.3, 1.02, W * 0.32), box(0.08, 0.36, 0.08, -L + 0.3, 1.02, -W * 0.32)].map((g) => g.toNonIndexed()))!, S.trim); for (const sz of [-1, 1]) add(box(0.9, 0.22, 0.04, -0.6, 0.55, sz * (W / 2 + 0.01)), S.trim, false); }
   if (def.kind === 'pickup') add(box(2.05, 0.2, W * 0.86, -1.5, 1.04, 0), new THREE.MeshStandardMaterial({ color: '#1a1a1d', roughness: 0.9 }), false);
-  return { root, body, wheels, paint, glass, rim, lights: { head, tail, bar, blinkL, blinkR, rev }, door };
+  return { root, body, wheels, paint, glass, rim, lights: { head, tail, bar, blinkL, blinkR, rev }, door, eye: cab.eye, steering: cab.steering };
+}
+
+/** Vehicle-local point (model space: x forward, y up, z right-of-driver) -> world, matching VehicleView's transforms. */
+const _o = new THREE.Object3D(), _t = new THREE.Object3D(), _i = new THREE.Object3D(); _o.add(_t); _t.add(_i); _i.rotation.y = -Math.PI / 2;
+export function vehicleToWorld(v: { x: number; y: number; z: number; yaw: number; pitch: number; squat: number; roll: number; lean: number; def: VDef }, local: THREE.Vector3, out: THREE.Vector3, fwd?: THREE.Vector3, up?: THREE.Vector3) {
+  _o.position.set(v.x, v.y, v.z); _o.rotation.set(0, v.yaw, 0); _t.rotation.set(-v.pitch - v.squat, 0, v.def.kind === 'bike' ? v.lean : v.roll); _o.updateMatrixWorld(true);
+  out.copy(local); _i.localToWorld(out);
+  if (fwd) fwd.set(1, 0, 0).transformDirection(_i.matrixWorld);
+  if (up) up.set(0, 1, 0).transformDirection(_i.matrixWorld);
 }

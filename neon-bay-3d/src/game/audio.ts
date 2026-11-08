@@ -28,7 +28,7 @@ export const audioCtx = () => (C ? { C, master, noise } : null);
 
 export function engine(on: boolean, rpm: number, gear: number, thr: number, slip: number, kind: string) {
   if (!C) return; const t = C.currentTime, m = audio.muted ? 0 : 1;
-  const base = kind === 'heli' ? 18 : kind === 'truck' ? 28 : kind === 'bike' ? 70 : kind === 'super' || kind === 'hyper' ? 48 : kind === 'muscle' ? 30 : 38, span = kind === 'heli' ? 26 : kind === 'bike' ? 230 : kind === 'truck' ? 70 : kind === 'hyper' ? 190 : 150;
+  const base = kind === 'jet' ? 70 : kind === 'yacht' ? 22 : kind === 'speedboat' ? 34 : kind === 'jetski' ? 62 : kind === 'formula' ? 80 : kind === 'heli' ? 18 : kind === 'truck' ? 28 : kind === 'bike' ? 70 : kind === 'super' || kind === 'hyper' ? 48 : kind === 'muscle' ? 30 : 38, span = kind === 'jet' ? 420 : kind === 'yacht' ? 30 : kind === 'formula' ? 330 : kind === 'jetski' ? 190 : kind === 'heli' ? 26 : kind === 'bike' ? 230 : kind === 'truck' ? 70 : kind === 'hyper' ? 190 : 150;
   const f = base + rpm * span + gear * 6;
   eng1.frequency.setTargetAtTime(f, t, 0.05); eng2.frequency.setTargetAtTime(f * 0.5, t, 0.05);
   engF.frequency.setTargetAtTime(500 + rpm * 1600 + thr * 600, t, 0.08);

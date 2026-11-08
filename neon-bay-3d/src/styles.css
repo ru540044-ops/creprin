@@ -182,3 +182,19 @@ button.armed{background:#ff4b4b !important;color:#fff}
 @keyframes fade2{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
 @media (max-height:500px){.subs{bottom:calc(10px + var(--sab));max-width:52vw}.subs span{font-size:12px}}
 .jobCard.story{box-shadow:inset 0 0 0 1px #ffd23a}
+.jetinfo{grid-column:1/3;display:flex;gap:8px;font-size:9px;font-weight:800;letter-spacing:.06em;color:#9fe8ff;margin-top:2px}.jetinfo span:nth-child(2){color:var(--amber)}
+.jobCard.gift{box-shadow:inset 0 0 0 1px rgba(255,207,74,.35)}
+.daily{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.dcell{background:rgba(255,255,255,.06);border-radius:10px;padding:6px 5px;display:grid;gap:2px;min-height:48px;align-content:start}
+.dcell span{font-size:10px;color:var(--dim);font-weight:800}.dcell b{font-size:10px!important;line-height:1.3;color:var(--ink)}
+.dcell.done{opacity:.45}.dcell.done span::after{content:' ✓';color:var(--mint)}
+.dcell.now{background:linear-gradient(135deg,rgba(255,63,110,.35),rgba(255,207,74,.35));box-shadow:inset 0 0 0 1px #ffcf4a}
+.gnet span{display:grid;gap:2px}.gnet em{font-style:normal;font-size:11px;color:var(--dim)}.gnet i{font-style:normal;font-size:11px;color:var(--mint);font-weight:800}
+.gcode{display:grid;gap:4px;background:rgba(0,0,0,.35);border-radius:10px;padding:10px;text-align:center}.gcode span{font-size:11px;color:var(--dim)}
+.gcode b{font-size:20px!important;letter-spacing:.12em;color:#ffcf4a;user-select:text;-webkit-user-select:text;font-family:ui-monospace,Menlo,monospace}.gcode .jobBtns{justify-content:center}
+.jobCard input,.jobCard select{flex:1;min-width:0;background:rgba(255,255,255,.08);color:var(--ink);border:0;border-radius:10px;padding:9px 10px;font-size:16px;font-weight:700;letter-spacing:.04em}
+.jobCard select{font-size:13px}.jobCard select option{color:#111}
+.gmsg{color:#ffcf4a!important;font-weight:700}
+.jobBtns button.armed{background:#ff3f6e;color:#fff}
+.appIc{position:relative}.appIc .badge{position:absolute;top:0;right:6px;min-width:20px;height:20px;border-radius:10px;background:#ff2a40;color:#fff;font-style:normal;font-size:11px;font-weight:900;display:grid;place-items:center;padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.adGift{display:grid;gap:6px}.adGift input{background:rgba(255,255,255,.08);color:var(--ink);border:0;border-radius:10px;padding:9px 10px;font-size:16px}.adGL{flex:1;min-width:0;font-size:11px;color:var(--dim);align-self:center}

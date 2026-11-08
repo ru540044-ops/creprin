@@ -15,6 +15,7 @@ import { law, jobStatus, armored, searchRadius } from '../crime/crime';
 import { input, releaseDrive } from '../input';
 import { mapImage, toMap, fromMap, POI, MAP } from './mapRender';
 import { INTERIORS } from '../world/Interiors';
+import { isBoat } from '../vehicles/defs';
 
 function useTicker(ms: number) { const [, f] = useReducer((x: number) => x + 1, 0); useEffect(() => { const id = setInterval(f, ms); return () => clearInterval(id); }, [ms]); }
 
@@ -144,7 +145,8 @@ function Speedo() {
   return (
     <div className="speedo" aria-label={'速度 ' + kmh + ' km/h'}>
       <div className="spd"><b>{kmh}</b><span>km/h</span></div>
-      <div className="gear">{me.def.kind === 'heli' ? Math.round(me.y) + 'm' : gear}</div>
+      <div className="gear">{me.def.kind === 'heli' || me.def.kind === 'jet' ? Math.round(me.y) + 'm' : isBoat(me.def.kind) ? (fv < -0.5 ? 'R' : Math.round(game.speed * 1.944) + 'kt') : gear}</div>
+      {me.def.kind === 'jet' && <div className="jetinfo"><span>THR {Math.round(me.rotor * 100)}%</span><span>{me.nitroOn ? 'AB ON' : me.air ? (me.spd < 60 ? '失速注意' : 'FLY') : me.spd > 60 ? '離陸可' : 'TAXI'}</span><span>PITCH {Math.round(me.pitch * 57)}°</span></div>}
       <div className="vname">{me.def.name}</div>
       <i className="vhp"><b style={{ width: hp * 100 + '%', background: hp > 0.5 ? 'var(--mint)' : hp > 0.25 ? 'var(--amber)' : '#ff4b4b' }} /></i>
       <div className="rpm"><b style={{ width: Math.round(me.rpm * 100) + '%' }} /></div>
@@ -217,7 +219,18 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           <div className="pedals">
             <HoldBtn label={near && near.kind === 'job' ? near.btn || '決定' : '降車'} cls="act" onDown={() => { input.action = true; }} />
             <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
-            {me && me.def.kind === 'heli' ? (<>
+            {me && me.def.kind === 'jet' ? (<>
+              <HoldBtn label="機首上げ" cls="gas" active={input.up} onDown={() => { input.up = true; }} onUp={() => { input.up = false; }} />
+              <HoldBtn label="スロットル+" cls="hb" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
+              <HoldBtn label="機首下げ" cls="brk" active={input.down} onDown={() => { input.down = true; }} onUp={() => { input.down = false; }} />
+              <HoldBtn label="スロットル−" cls="rev" active={input.brake} onDown={() => { input.brake = true; }} onUp={() => { input.brake = false; }} />
+              <HoldBtn label="機銃" cls="fire" active={input.fire} onDown={() => { input.fire = true; }} onUp={() => { input.fire = false; }} />
+              <HoldBtn label="AB" cls="nosb" active={input.nitro} onDown={() => { input.nitro = true; }} onUp={() => { input.nitro = false; }} />
+            </>) : me && isBoat(me.def.kind) ? (<>
+              <HoldBtn label="スロットル" cls="gas" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
+              <HoldBtn label="後進" cls="brk" active={input.brake} onDown={() => { input.brake = true; }} onUp={() => { input.brake = false; }} />
+              {me.mods.nitro && <HoldBtn label="ニトロ" cls="nosb" active={input.nitro} onDown={() => { input.nitro = true; }} onUp={() => { input.nitro = false; }} />}
+            </>) : me && me.def.kind === 'heli' ? (<>
               <HoldBtn label="上昇" cls="gas" active={input.up} onDown={() => { input.up = true; }} onUp={() => { input.up = false; }} />
               <HoldBtn label="前進" cls="hb" active={input.gas} onDown={() => { input.gas = true; }} onUp={() => { input.gas = false; }} />
               <HoldBtn label="下降" cls="brk" active={input.down} onDown={() => { input.down = true; }} onUp={() => { input.down = false; }} />
@@ -245,7 +258,7 @@ export default function HUD({ quality, setQuality }: { quality: Quality; setQual
           </div>
         </>
       ) : (
-        <div className="keys">{driving ? (me && me.def.kind === 'heli' ? 'Space 上昇 · Shift 下降 · W/S 前進/後退 · A D 旋回 · E 降りる(着陸後) · V 視点' : 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイド · Shift ニトロ · E 降りる · V 視点 · R ラジオ · P スマホ') : 'WASD 移動 · Shift ダッシュ · Space ジャンプ · E 入る/乗る · X 武器 · 右クリック/Q 狙う · 左クリック/F 撃つ · P スマホ'}</div>
+        <div className="keys">{driving ? (me && me.def.kind === 'jet' ? 'W/S スロットル · A D 旋回(バンク) · Space 機首上げ · C/Ctrl 機首下げ · Shift アフターバーナー · F 機銃 · V 視点(コックピット) · E 降りる(着陸後)' : me && isBoat(me.def.kind) ? 'W スロットル · S 後進 · A D 舵 · Shift ニトロ · E 降りる(桟橋で) · V 視点' + (me.def.kind === 'yacht' ? ' · 停船して[E]でキャビン' : '') : me && me.def.kind === 'heli' ? 'Space 上昇 · Shift 下降 · W/S 前進/後退 · A D 旋回 · E 降りる(着陸後) · V 視点' : 'W アクセル · S ブレーキ/バック · A D ハンドル · Space サイド · Shift ニトロ · E 降りる · V 視点 · R ラジオ · P スマホ') : 'WASD 移動 · Shift ダッシュ · Space ジャンプ · E 入る/乗る · X 武器 · 右クリック/Q 狙う · 左クリック/F 撃つ · P スマホ'}</div>
       )}
       {!driving && (input.aim || input.aimHold) && game.arms.cur !== 'fist' && game.where === 'out' && <div className={'xhair' + (combat.lock ? ' lock' : '')} />}
       {game.ui === 'arms' && <GunShop onClose={() => { game.ui = ''; }} />}

@@ -6,6 +6,7 @@ import { rob, CLERK, BAG, recentlyRobbed } from '../crime/crime';
 import * as THREE from 'three';
 import { getTextures, labelTexture } from './textures';
 import { HOME_DEFS } from './homes';
+import { SHIP_DEFS } from './shipInteriors';
 
 /** Interiors live underground (y = FLOOR) so they never overlap the city. */
 export const FLOOR = -50;
@@ -17,6 +18,7 @@ export interface InteriorDef {
   floorTex?: 'tiles' | 'concrete' | 'wood' | 'marble' | 'tatami'; ceil?: string; lights?: { x: number; y: number; z: number; c: string; i: number; d: number }[]; views?: View[];
   home?: boolean; flicker?: boolean; bed?: { x: number; z: number }; buy?: { x: number; z: number };
   npcs?: { x: number; z: number; yaw: number; look: Look }[]; roofSpot?: { x: number; z: number }; roof?: { x: number; z: number; y: number }; noSign?: boolean; ownLights?: boolean;
+  roofLabel?: string; links?: { x: number; z: number; to: string; label: string }[];
 }
 
 const mk = (id: string, name: string, ox: number, w: number, d: number, wall: string, floor: string, f: InteriorDef['furniture']): InteriorDef => ({
@@ -32,6 +34,7 @@ const store = (ox: number, name: string, accent: string) => mk(name === 'FUEL & 
 
 export const INTERIORS: Record<string, InteriorDef> = {
   ...Object.fromEntries(HOME_DEFS.map((d) => [d.id, d])),
+  ...Object.fromEntries(SHIP_DEFS.map((d) => [d.id, d])),
   store: store(-3000, 'QWIK 24', '#3dffb0'),
   gas: store(-3060, 'FUEL & SNACKS', '#ffc03a'),
   diner: mk('diner', 'BAY DINER', -3120, 18, 12, '#f3e0d6', '#e0c8b8', [
@@ -166,6 +169,7 @@ function Room({ def }: { def: InteriorDef }) {
       {def.views?.map((v, i) => <ViewPlane key={i} v={v} def={def} />)}
       {def.lights?.map((l, i) => def.flicker && i === 0 ? <FlickerLight key={i} l={l} /> : <pointLight key={i} position={[l.x, l.y, l.z]} intensity={l.i} distance={l.d} decay={1.6} color={l.c} />)}
       {def.npcs?.map((n, i) => <Clerk key={def.name + i} x={n.x} z={n.z} yaw={n.yaw} shop={false} look={n.look} />)}
+      {def.links?.map((l, i) => <mesh key={'lk' + i} rotation-x={-Math.PI / 2} position={[l.x, 0.02, l.z]}><ringGeometry args={[0.55, 0.75, 32]} /><meshBasicMaterial color="#2be4ff" toneMapped={false} /></mesh>)}
       {def.roofSpot && <mesh rotation-x={-Math.PI / 2} position={[def.roofSpot.x, 0.02, def.roofSpot.z]}><ringGeometry args={[0.55, 0.75, 32]} /><meshBasicMaterial color="#ffd23a" toneMapped={false} /></mesh>}
       {!def.home && !def.ownLights && [-w / 4, w / 4].map((x) => <mesh key={x} position={[x, h - 0.05, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[2.4, 0.5]} /><meshBasicMaterial color="#ffffff" toneMapped={false} /></mesh>)}
       {(def.id === 'store' || def.id === 'gas') && <Clerk />}

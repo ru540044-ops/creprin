@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { vehicles, stream, drive, collisions, Veh, playerCar, remove } from './sim';
 import { buildCarModel, CarModel, applyMods } from './models';
+import { isBoat } from './defs';
 import { explode, tickExplosives } from '../combat/explode';
 import { game, toast } from '../state/store';
 import { input } from '../input';
@@ -20,17 +21,17 @@ import { sfx } from '../audio';
 import { tdt } from '../admin';
 import { race } from '../crime/race';
 
-const models = new Map<number, CarModel>();
+export const models = new Map<number, CarModel>();
 
 /** Driving controls: keyboard WASD/arrows + Space, or the touch pedal/steer buttons, or the stick x-axis. */
-export function driveInput() {
+export function driveInput(kind = '') {
   const k = input.keys, [jx] = input.joyActive ? [input.joyX] : [0];
   const thr = Math.max(k.has('w') || k.has('arrowup') || input.gas ? 1 : 0, 0);
   const brake = k.has('s') || k.has('arrowdown') || input.brake ? 1 : 0;
   let steer = (k.has('d') || k.has('arrowright') || input.right ? 1 : 0) - (k.has('a') || k.has('arrowleft') || input.left ? 1 : 0);
   if (input.joyActive) steer = jx;
-  const lift = (k.has(' ') || input.up ? 1 : 0) - (k.has('shift') || k.has('control') || input.down ? 1 : 0);
-  return { thr, brake, steer, hb: k.has(' ') || input.hb, lift, nitro: k.has('shift') || input.nitro };
+  const heli = kind === 'heli', lift = (k.has(' ') || input.up ? 1 : 0) - ((heli && k.has('shift')) || k.has('control') || k.has('c') || input.down ? 1 : 0);
+  return { thr, brake, steer, hb: kind === 'jet' ? false : k.has(' ') || input.hb, lift, nitro: (!heli && k.has('shift')) || input.nitro };
 }
 
 /** Tyre smoke and skid marks from sliding / hard-braking / burnouts. */
@@ -66,6 +67,21 @@ function TireFX() {
     smoke.instanceMatrix.needsUpdate = true;
   });
   return <><primitive object={marks} /><primitive object={smoke} /></>;
+}
+
+/** White water: foam trails and bow spray behind moving boats. */
+function Wakes() {
+  const N = 140, glow = getTextures().glow;
+  const mesh = useMemo(() => { const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glow, color: '#eef6ff', transparent: true, depthWrite: false, opacity: 0.75 }), N); m.frustumCulled = false; return m; }, [glow]);
+  const S = useMemo(() => ({ p: Array.from({ length: N }, () => ({ x: 0, z: 0, y: -99, t: 0, s: 1, g: 1 })), i: 0, acc: 0 }), []);
+  const m4 = useMemo(() => new THREE.Matrix4(), []), q = useMemo(() => new THREE.Quaternion(), []), p3 = useMemo(() => new THREE.Vector3(), []), s3 = useMemo(() => new THREE.Vector3(), []);
+  useFrame((_, dt) => {
+    S.acc += dt;
+    if (S.acc > 0.06) { S.acc = 0; for (const v of vehicles) { if (!isBoat(v.def.kind)) continue; const sp = Math.hypot(v.vx, v.vz); if (sp < 2) continue; const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw); for (const side of [-1, 1]) { const P = S.p[S.i]; S.i = (S.i + 1) % N; P.x = v.x - fx * v.def.len * 0.48 + fz * side * v.def.wid * 0.3; P.z = v.z - fz * v.def.len * 0.48 - fx * side * v.def.wid * 0.3; P.y = v.y + 0.12; P.t = 2.6; P.s = v.def.wid * 0.6; P.g = 0.6 + sp * 0.12; } } }
+    for (let i = 0; i < N; i++) { const P = S.p[i]; if (P.t > 0) { P.t -= dt; P.s += dt * P.g; } p3.set(P.x, P.y, P.z); s3.set(P.t > 0 ? P.s : 0.0001, 1, P.t > 0 ? P.s * 1.6 : 0.0001); m4.compose(p3, q, s3); mesh.setMatrixAt(i, m4); }
+    mesh.instanceMatrix.needsUpdate = true; (mesh.material as THREE.MeshBasicMaterial).opacity = 0.7;
+  });
+  return <primitive object={mesh} />;
 }
 
 function Smoke() {
@@ -133,6 +149,9 @@ function VehicleView({ v }: { v: Veh }) {
     m.lights.tail.emissiveIntensity = v.dead ? 0 : v.braking ? 3 : mine ? 0.6 + nightK * 0.9 : 0.25;
     if (m.lights.bar) { const on = !v.dead && !!v.ai && v.ai.mode === 'chase' && game.wanted > 0, ph = Math.floor(performance.now() / 160) % 2; m.lights.bar[0].emissiveIntensity = on ? (ph ? 5 : 0.3) : 0.15; m.lights.bar[1].emissiveIntensity = on ? (ph ? 0.3 : 5) : 0.15; }
     if (m.door) m.door.rotation.y = -1.15 * v.door;
+    if (m.steering) m.steering.rotation.x = -v.steer * 4.5;
+    if (m.burner) for (const b of m.burner) { const mm = b.material as THREE.MeshBasicMaterial; mm.opacity = v.dead ? 0 : v.nitroOn ? 0.95 : v.rotor * 0.35; b.scale.set(v.nitroOn ? 1.4 + Math.random() * 0.3 : 0.6 + v.rotor * 0.5, 1, 1); }
+    if (m.gear) m.gear.visible = !v.air;
     const blinkOn = Math.floor(performance.now() / 360) % 2 === 0;
     if (m.lights.blinkL) { m.lights.blinkL.emissiveIntensity = (v.blink === 1 || v.blink === 2) && blinkOn ? 3.5 : 0; m.lights.blinkR!.emissiveIntensity = (v.blink === -1 || v.blink === 2) && blinkOn ? 3.5 : 0; m.lights.rev!.emissiveIntensity = v.reversing && !v.dead ? 2.5 : 0; }
     m.wheels.forEach((w, i) => { w.rotation.z = -v.spin; const front = v.def.kind === 'bike' ? i === 0 : w.position.x > 0; w.rotation.y = front ? v.steer : 0; });
@@ -158,7 +177,7 @@ export default function Vehicles() {
     const sub = 2, h = dt / sub;
     for (let s = 0; s < sub; s++) {
       for (const v of vehicles) {
-        if (v === me) drive(v, game.started && !law.over && !game.carAnim && !(race.id && race.count > 0) ? driveInput() : null, h);
+        if (v === me) drive(v, game.started && !law.over && !game.carAnim && !(race.id && race.count > 0) ? driveInput(v.def.kind) : null, h);
         else if (v.ai) drive(v, v.ai.ctl, h);
         else if (Math.abs(v.vx) + Math.abs(v.vz) > 0.02) drive(v, null, h);
       }
@@ -182,7 +201,7 @@ export default function Vehicles() {
     for (const v of vehicles) if (v.nitroOn) { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw); flash(v.x - fx * (v.def.len / 2 + 0.3), v.y + 0.38, v.z - fz * (v.def.len / 2 + 0.3), 0.7 + Math.random() * 0.4); }
     // burnt-out owned cars are towed back to the garage (repaired) once you walk away
     for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && v.exploded && v.owned >= 0 && v.id !== game.inCar && Math.hypot(v.x - fx, v.z - fz) > 45) { remove(v); toast(v.def.name + 'はガレージで修理された', 2.4); }
-    if (me) { const c = driveInput(); engine(game.started, me.rpm, me.gear, c.thr, me.slip, me.def.kind); game.speed = Math.hypot(me.vx, me.vz); }
+    if (me) { const c = driveInput(me.def.kind); engine(game.started, me.rpm, me.gear, c.thr, me.slip, me.def.kind); game.speed = Math.hypot(me.vx, me.vz); }
     else engine(false, 0, 0, 0, 0, '');
     // headlight cone for the player's car at night
     const L = headSpot.current;
@@ -195,6 +214,7 @@ export default function Vehicles() {
       {vehicles.map((v) => <VehicleView key={v.id} v={v} />)}
       <Smoke />
       <TireFX />
+      <Wakes />
       <GarageSign />
       <primitive object={target} />
       <spotLight ref={headSpot} target={target} angle={0.55} penumbra={0.6} distance={75} decay={1.5} color="#fff1d0" intensity={0} />

@@ -13,6 +13,12 @@ import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
 import { nearBDoor, bdoorById, genInterior } from '../world/bldgInteriors';
 import { roofTrip } from '../crime/crime';
+import { models } from '../vehicles/Vehicles';
+import { vehicleToWorld } from '../vehicles/models';
+import { vehicleGuns } from '../combat/weapons';
+import { isBoat } from '../vehicles/defs';
+const EYE = new THREE.Vector3(), FWD = new THREE.Vector3(), UPV = new THREE.Vector3(), WUP = new THREE.Vector3(0, 1, 0);
+const rider = (k: string) => k === 'bike' || k === 'jetski';
 import { combat, fire, findLock, cycleWeapon, armed, startReload } from '../combat/weapons';
 import { peds, nearestPed, mug, ejectPed, scare } from '../ai/peds';
 import { copSees, setWanted } from '../crime/crime';
@@ -58,7 +64,7 @@ export default function Player() {
   const exitCar = (me: Veh) => {
     const p = game.player, sp = Math.hypot(me.vx, me.vz);
     if (sp > 9) { toast('スピードを落とすと降りられる', 1.4); return; }
-    if (me.def.kind === 'heli' && me.air) { toast('ヘリは着陸してから降りよう', 1.6); return; }
+    if ((me.def.kind === 'heli' || me.def.kind === 'jet') && me.air) { toast(me.def.kind === 'jet' ? '滑走路に着陸してから降りよう' : 'ヘリは着陸してから降りよう', 1.6); return; }
     const lx = Math.cos(me.yaw), lz = -Math.sin(me.yaw), fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), off = me.def.wid / 2 + 0.6;
     const spots = [[lx * off, lz * off], [-lx * off, -lz * off], [-fx * (me.def.len / 2 + 0.8), -fz * (me.def.len / 2 + 0.8)], [fx * (me.def.len / 2 + 0.8), fz * (me.def.len / 2 + 0.8)]];
     let ok: number[] | null = null;
@@ -87,8 +93,9 @@ export default function Player() {
       if (input.lookDX || input.lookDY) st.lookT = 1.4;
       st.look -= input.lookDX * 0.0055; st.lookP = clamp(st.lookP + input.lookDY * 0.004, -0.15, 0.9); input.lookDX = 0; input.lookDY = 0;
       st.lookT -= dt; if (st.lookT <= 0 && game.speed > 3) { st.look *= 1 - Math.min(1, dt * 2.5); st.lookP *= 1 - Math.min(1, dt * 2.5); }
-      if (input.camCycle) { input.camCycle = false; game.cam.carMode = (game.cam.carMode + 1) % 3; toast(['追従カメラ', '遠景カメラ', 'ボンネットカメラ'][game.cam.carMode], 1.2); }
-      input.jump = false; input.crouchToggle = false; input.fire = false; input.wcycle = false; combat.lock = null;
+      if (input.camCycle) { input.camCycle = false; game.cam.carMode = (game.cam.carMode + 1) % 3; toast(['追従カメラ', '遠景カメラ', '車内視点（コックピット）'][game.cam.carMode], 1.2); }
+      if (me.def.kind === 'jet' && input.fire && !me.dead) vehicleGuns(me);
+      input.jump = false; input.crouchToggle = false; if (me.def.kind !== 'jet') input.fire = false; input.wcycle = false; combat.lock = null;
       if (input.radio) { input.radio = false; game.radio = (game.radio + 1) % (STATIONS.length + 1); toast(game.radio ? '📻 ' + STATIONS[game.radio - 1].name + '（' + STATIONS[game.radio - 1].genre + '）' : '📻 ラジオ オフ', 1.6); }
       p.x = me.x; p.z = me.z; p.y = me.y; p.yaw = me.yaw; p.speed = 0; p.vy = 0; p.grounded = true; p.crouch = false; st.vx = st.vz = 0;
       game.stamina = clamp(game.stamina + 12 * dt, 0, 100);
@@ -170,7 +177,7 @@ export default function Player() {
       if (!inside && !game.near) {
         let best: Veh | null = null, bd = 1e9;
         for (const v of vehicles) { if (v.dead || v.role === 'armored') continue; const dx = p.x - v.x, dz = p.z - v.z; if (Math.abs(dx) > 8 || Math.abs(dz) > 8) continue; const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), d = Math.hypot(Math.max(0, Math.abs(dx * fx + dz * fz) - v.def.len / 2), Math.max(0, Math.abs(dx * fz - dz * fx) - v.def.wid / 2)); if (d < 1.7 && d < bd) { bd = d; best = v; } }
-        if (best) game.near = { kind: 'car', label: best.def.name + (best.owned >= 0 ? '（自分の車）' : best.role === 'traffic' && best.ai ? 'を奪う' : '') + (best.role === 'traffic' && best.ai ? '' : 'に乗る'), id: String(best.id), btn: best.role === 'traffic' && best.ai ? '奪う' : '乗る' };
+        if (best) game.near = { kind: 'car', label: best.def.name + (best.owned >= 0 ? (best.def.kind === 'jet' || best.def.kind === 'heli' ? '（自分の機体）' : isBoat(best.def.kind) ? '（自分の船）' : '（自分の車）') : best.role === 'traffic' && best.ai ? 'を奪う' : '') + (best.role === 'traffic' && best.ai ? '' : 'に乗る'), id: String(best.id), btn: best.role === 'traffic' && best.ai ? '奪う' : '乗る' };
       }
       if (input.action) {
         input.action = false;
@@ -197,6 +204,8 @@ export default function Player() {
             st.carYaw = v.yaw; st.look = 0; st.lookP = 0; st.lookT = 0; game.near = null;
             toast(v.def.name + (v.owned < 0 ? '' : ''), 1.2);
           }
+        } else if (n && n.kind === 'exit' && game.where === 'yacht' && vehicles.some((v) => v.id === game.yachtId)) {
+          const y = vehicles.find((v) => v.id === game.yachtId)!; game.where = 'out'; game.inCar = y.id; p.x = y.x; p.z = y.z; p.y = y.y; st.vx = st.vz = 0; st.carYaw = y.yaw; game.fadeT = 0.6; sfx('door'); toast('操舵席に戻った', 1.4);
         } else if (n && n.kind === 'exit') {
           const o = game.outsidePos; game.where = 'out'; p.x = o.x; p.z = o.z; p.y = groundAt(o.x, o.z); p.vy = 0; p.yaw = o.yaw; game.cam.yaw = o.yaw + Math.PI; st.vx = st.vz = 0; save();
         }
@@ -237,7 +246,7 @@ export default function Player() {
       else A.surrender(P0, now);
     } else if (st.downT > 0) { A.lying(P0, st.downDir, 0.3, 5); P0.fall = A.smooth(1.5, 1.25, st.downT); }
     else if (st.upT > 0) A.getUp(P0, st.downDir, 1 - st.upT / 0.9);
-    else if (me && me.def.kind === 'bike') A.ride(P0, game.speed);
+    else if (me && rider(me.def.kind)) A.ride(P0, game.speed);
     else if (me && st.enterK < 1) A.enterCar(P0, 0.3 + st.enterK * 0.7);
     else if (me) { const S = A.seatFor(me.def.kind); A.seated(P0, -me.steer / Math.max(0.2, me.def.steer), S.recline, now); }
     else if (st.exitK < 1) A.enterCar(P0, 0.5 + st.exitK * 0.5);
@@ -268,14 +277,14 @@ export default function Player() {
     guns.pistol.visible = !me && game.arms.cur === 'pistol'; guns.smg.visible = !me && game.arms.cur === 'smg';
     if (grp.current) {
       const G = grp.current;
-      if (me && me.def.kind !== 'bike') { // sit in the driver's seat (left side), sliding in from the door
+      if (me && !rider(me.def.kind)) { // sit in the driver's seat (left side), sliding in from the door
         const S = A.seatFor(me.def.kind), lx = Math.cos(me.yaw), lz = -Math.sin(me.yaw), fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
         const sx = me.x + lx * me.def.wid * S.side + fx * S.fwd, sz = me.z + lz * me.def.wid * S.side + fz * S.fwd;
         const k = st.enterCar === me ? A.smooth(0.25, 1, st.enterK) : 1, dx = st.enterFrom.x, dz = st.enterFrom.z;
         G.position.set(lerp(dx, sx, k), me.y + S.y * k, lerp(dz, sz, k)); G.rotation.set(0, me.yaw, 0); G.rotateX(-me.pitch); G.rotateZ(me.roll);
       } else {
         G.position.set(pl.x, pl.y, pl.z); G.rotation.set(0, pl.yaw, 0);
-        if (me && me.def.kind === 'bike') { G.rotateX(-me.pitch); G.rotateZ(me.lean); }
+        if (me && rider(me.def.kind)) { G.position.y = me.y + (me.def.kind === 'jetski' ? 0.15 : 0); G.rotateX(-me.pitch); G.rotateZ(me.def.kind === 'bike' ? me.lean : me.roll); }
       }
       G.visible = me ? game.cam.carMode !== 2 : game.cam.mode !== 2 || !game.started;
     }
@@ -293,17 +302,25 @@ export default function Player() {
     const wantFov = me ? 60 + Math.min(16, game.speed * 0.22) + (me.nitroOn ? 12 : 0) : 62 - st.aimK * 12;
     if (Math.abs(st.fov - wantFov) > 0.05) { st.fov += (wantFov - st.fov) * Math.min(1, dt * (st.aimK > 0.05 ? 10 : 3)); cam.fov = st.fov; cam.updateProjectionMatrix(); }
     game.shake = Math.max(0, game.shake - dt * 2.2);
+    camera.up.copy(WUP);
     if (me) {
       st.carYaw += angDiff(st.carYaw, me.yaw) * Math.min(1, dt * (3.5 + game.speed * 0.06));
       const cyaw = st.carYaw + Math.PI + st.look, cm = game.cam.carMode; game.cam.yaw = cyaw;
       const sh = game.shake * 0.25, jx = (Math.random() - 0.5) * sh, jy = (Math.random() - 0.5) * sh;
+      const cmod = models.get(me.id);
+      if (cm === 2 && cmod && cmod.eye) { // cockpit: driver's eye position, looking through the windscreen, banking with the vehicle
+        vehicleToWorld(me, cmod.eye, EYE, FWD, UPV);
+        if (st.look) FWD.applyAxisAngle(UPV, st.look);
+        camera.position.set(EYE.x + jx * 0.3, EYE.y + jy * 0.3, EYE.z); camera.up.copy(UPV);
+        want.copy(EYE).addScaledVector(FWD, 10).addScaledVector(UPV, -(me.def.kind === 'jet' ? 1.6 : 0.35) - st.lookP * 4); camera.lookAt(want); return;
+      }
       if (cm === 2) { // hood camera
         const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), hy = me.def.kind === 'bike' ? 1.55 : me.def.kind === 'truck' ? 2.7 : me.def.hgt * 0.82;
         camera.position.set(me.x + fx * (me.def.kind === 'bike' ? -0.1 : me.def.len * 0.12) + jx, me.y + hy + jy, me.z + fz * (me.def.kind === 'bike' ? -0.1 : me.def.len * 0.12));
         const ly = me.yaw + st.look; want.set(camera.position.x + Math.sin(ly) * 10, camera.position.y - 0.6 - st.lookP * 6 - me.pitch * 10, camera.position.z + Math.cos(ly) * 10);
         camera.lookAt(want); return;
       }
-      const L = me.def.len, dist2 = cm === 0 ? 3.6 + L * 0.75 : 7 + L * 1.1, ht = me.def.hgt * 0.9 + (cm === 0 ? 0.55 : 1.3), pitch2 = (cm === 0 ? 0.1 : 0.18) + st.lookP;
+      const L = me.def.len, jet = me.def.kind === 'jet', dist2 = jet ? (cm === 0 ? 20 : 34) : cm === 0 ? 3.6 + L * 0.75 : 7 + L * 1.1, ht = me.def.hgt * 0.9 + (cm === 0 ? 0.55 : 1.3), pitch2 = (cm === 0 ? 0.1 : 0.18) + st.lookP - (jet ? me.pitch * 0.85 : 0);
       camTgt.set(me.x, me.y + ht, me.z);
       const cx = Math.sin(cyaw) * Math.cos(pitch2), cz = Math.cos(cyaw) * Math.cos(pitch2), cy = Math.sin(pitch2);
       let d2 = dist2;

@@ -1,5 +1,5 @@
-import { VDEFS, VDef, VKind, Mods, stockMods } from './defs';
-import { parkSlots, GARAGE, collide, groundAt, isWater, floorAt, pointBlocked } from '../world/cityGen';
+import { VDEFS, VDef, VKind, Mods, stockMods, isBoat, mediumOf } from './defs';
+import { parkSlots, GARAGE, MARINA, JETPARK, WATER_Y, collide, groundAt, isWater, floorAt, pointBlocked } from '../world/cityGen';
 import { clamp } from '../world/rng';
 import { game, toast, ownedCars } from '../state/store';
 import { sfx } from '../audio';
@@ -11,7 +11,7 @@ export interface Veh {
   braking: boolean; reversing: boolean; spin: number; pitch: number; roll: number; slip: number; dead: boolean; burn: number; lean: number;
   role: '' | 'police' | 'armored' | 'traffic' | 'racer'; ai: AI | null;
   door: number; squat: number; blink: number; blinkT: number; gearPrev: number; fvPrev: number; // animation state
-  mods: Mods; air: boolean; vy: number; gyPrev: number; climb: number; airT: number; rotor: number; nitro: number; nitroOn: boolean; exploded: boolean; // AI-driven cars carry their driver state
+  mods: Mods; spd: number; air: boolean; vy: number; gyPrev: number; climb: number; airT: number; rotor: number; nitro: number; nitroOn: boolean; exploded: boolean; // AI-driven cars carry their driver state
 }
 /** Per-car AI driver: route on the road grid plus the controls it decided on this frame. */
 export interface AI { ctl: Drive | null; ni: number; nj: number; pi: number; pj: number; stuck: number; rev: number; revSteer: number; direct: number; t: number; [k: string]: any }
@@ -24,19 +24,27 @@ export const owned = ownedCars;
 
 export function spawn(kind: VKind, x: number, z: number, yaw: number, color?: string, slot = -1, ownedIdx = -1): Veh {
   const def = VDEFS[kind];
-  const v: Veh = { id: nextId++, def, color: color || def.colors[0], x, z, y: groundAt(x, z), yaw, vx: 0, vz: 0, yr: 0, steer: 0, hp: def.hp, slot, owned: ownedIdx, touched: false, drift: false, gear: 0, rpm: 0, braking: false, reversing: false, spin: 0, pitch: 0, roll: 0, slip: 0, dead: false, burn: 0, lean: 0, role: '', ai: null, door: 0, squat: 0, blink: 0, blinkT: 0, gearPrev: 0, fvPrev: 0, mods: stockMods(), air: false, vy: 0, gyPrev: 0, climb: 0, airT: 0, rotor: 0, nitro: 1, nitroOn: false, exploded: false };
+  const v: Veh = { id: nextId++, def, color: color || def.colors[0], x, z, y: groundAt(x, z), yaw, vx: 0, vz: 0, yr: 0, steer: 0, hp: def.hp, slot, owned: ownedIdx, touched: false, drift: false, gear: 0, rpm: 0, braking: false, reversing: false, spin: 0, pitch: 0, roll: 0, slip: 0, dead: false, burn: 0, lean: 0, role: '', ai: null, door: 0, squat: 0, blink: 0, blinkT: 0, gearPrev: 0, fvPrev: 0, mods: stockMods(), spd: 0, air: false, vy: 0, gyPrev: 0, climb: 0, airT: 0, rotor: 0, nitro: 1, nitroOn: false, exploded: false };
   if (def.kind === 'heli') { v.y = floorAt(x, z, 1e4); v.gyPrev = v.y; }
+  if (isBoat(kind)) v.y = WATER_Y;
   vehicles.push(v); if (slot >= 0) activeSlot.add(slot); return v;
 }
 export function remove(v: Veh) { const i = vehicles.indexOf(v); if (i >= 0) vehicles.splice(i, 1); if (v.slot >= 0 && !v.touched) activeSlot.delete(v.slot); }
 export const playerCar = () => vehicles.find((v) => v.id === game.inCar) || null;
 
+/** Where owned vehicle #i lives: garage bays for cars and helicopters, the marina for boats, the airport apron for jets. */
+export function ownedSpot(i: number) {
+  const o = owned[i], m = mediumOf(o.kind), list = m === 'water' ? MARINA.slots : m === 'air' ? JETPARK.slots : GARAGE.slots;
+  let n = 0; for (let j = 0; j < i; j++) if (mediumOf(owned[j].kind) === m) n++;
+  const sl = list[n % list.length], def = VDEFS[o.kind];
+  return m === 'water' ? { x: sl.x, z: sl.z - def.wid / 2 - (o.kind === 'yacht' ? 1.4 : 0.4), yaw: sl.yaw } : sl;
+}
 /** Keep nearby parked cars instantiated (streaming), plus owned cars at the garage. */
 let streamT = 0;
 export function stream(px: number, pz: number, dt: number) {
   streamT -= dt; if (streamT > 0) return; streamT = 0.5;
   for (let i = vehicles.length - 1; i >= 0; i--) {
-    const v = vehicles[i]; if (v.id === game.inCar || v.owned >= 0 || v.role) continue;
+    const v = vehicles[i]; if (v.id === game.inCar || v.owned >= 0 || v.role || (v.id === game.yachtId && game.where === 'yacht')) continue;
     const d = Math.hypot(v.x - px, v.z - pz);
     if (d > 240 && !v.touched) remove(v);
     else if (d > 520) remove(v); // abandoned cars far away disappear
@@ -49,8 +57,8 @@ export function stream(px: number, pz: number, dt: number) {
   // owned cars: present in their garage bay unless already somewhere in the world
   owned.forEach((o, i) => {
     if (vehicles.some((v) => v.owned === i)) return;
-    if (Math.hypot(GARAGE.x - px, GARAGE.z - pz) > 420) return;
-    const sl = GARAGE.slots[i % GARAGE.slots.length]; const nv = spawn(o.kind, sl.x, sl.z, sl.yaw, o.color, -1, i); if (o.mods) nv.mods = { ...stockMods(), ...o.mods };
+    const sl = ownedSpot(i); if (Math.hypot(sl.x - px, sl.z - pz) > 420) return;
+    const nv = spawn(o.kind, sl.x, sl.z, sl.yaw, o.color, -1, i); if (o.mods) nv.mods = { ...stockMods(), ...o.mods };
   });
 }
 
@@ -60,6 +68,8 @@ const angWrap = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a 
 /** Arcade bicycle model: grip-limited yaw, tyre slip, gears, handbrake drift, slopes, damage-limited power. */
 export function drive(v: Veh, c: Drive | null, dt: number) {
   if (v.def.kind === 'heli') return fly(v, c, dt);
+  if (v.def.kind === 'jet') return flyJet(v, c, dt);
+  if (isBoat(v.def.kind)) return sail(v, c, dt);
   if (v.air) return airborne(v, dt);
   const d = v.def, fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
   let fv = v.vx * fx + v.vz * fz, lv = v.vx * fz - v.vz * fx; // forward, lateral(right)
@@ -174,12 +184,75 @@ function fly(v: Veh, c: Drive | null, dt: number) {
   if (c && hs > 0.5) v.touched = true;
 }
 
+/** Boats: throttle, rudder that bites with speed, keel against sideslip, planing bow lift, swell. Land (and the pier) stops them. */
+function sail(v: Veh, c: Drive | null, dt: number) {
+  const d = v.def, on = !!c && !v.dead, fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
+  let fv = v.vx * fx + v.vz * fz, lv = v.vx * fz - v.vz * fx;
+  const thr = on ? c!.thr : 0, br = on ? c!.brake : 0, st = on ? -c!.steer : 0, nos = on && !!c!.nitro && v.mods.nitro && v.nitro > 0.02;
+  if (nos) v.nitro = Math.max(0, v.nitro - dt / 3); else v.nitro = Math.min(1, v.nitro + dt / 12); v.nitroOn = nos;
+  const top = d.top * (1 + v.mods.engine * 0.06) * (nos ? 1.3 : 1) * (v.dead ? 0 : 1);
+  if (thr > 0) fv += d.accel * (1 + v.mods.engine * 0.15) * (nos ? 1.8 : 1) * thr * Math.max(0, 1 - fv / top) * dt * 1.6;
+  if (br > 0) fv -= d.accel * 0.6 * br * dt;
+  fv = clamp(fv, -top * 0.3, top);
+  fv -= fv * Math.min(1, dt * (thr > 0 ? 0.08 : 0.4)); lv -= lv * Math.min(1, dt * 2.4);
+  const yr = st * d.steer * clamp(Math.abs(fv) / 5, 0, 1) * Math.sign(fv || 1);
+  v.yr += (yr - v.yr) * Math.min(1, dt * 2.5); v.yaw = angWrap(v.yaw + v.yr * dt);
+  const nx = Math.sin(v.yaw), nz = Math.cos(v.yaw); v.vx = nx * fv + nz * lv; v.vz = nz * fv - nx * lv;
+  const ox = v.x, oz = v.z; v.x += v.vx * dt; v.z += v.vz * dt;
+  const bowX = v.x + nx * d.len * 0.45, bowZ = v.z + nz * d.len * 0.45;
+  if (!isWater(v.x, v.z) || !isWater(bowX, bowZ) || pointBlocked(bowX, WATER_Y + 1, bowZ)) { v.x = ox; v.z = oz; const imp = Math.abs(fv); v.vx *= -0.25; v.vz *= -0.25; if (imp > 5) hurt(v, imp * 0.8); }
+  const t = performance.now() / 1000 + v.id, sp = Math.hypot(v.vx, v.vz), big = d.len > 15 ? 0.35 : 1;
+  v.y = WATER_Y + Math.sin(t * 1.3) * 0.08 * big - (v.dead ? Math.min(3, v.airT += dt * 0.2) : 0);
+  v.pitch += ((Math.min(0.13, sp * 0.007) * big + Math.sin(t * 1.1) * 0.025 * big) - v.pitch) * Math.min(1, dt * 3);
+  const bank = d.kind === 'jetski' ? clamp(-v.yr * sp * 0.04, -0.6, 0.6) : clamp(-v.yr * sp * 0.012, -0.15, 0.15);
+  v.roll += ((bank + Math.sin(t * 0.9) * 0.03 * big) - v.roll) * Math.min(1, dt * 3);
+  v.spin += sp * dt; v.rpm = clamp(sp / Math.max(1, top), 0, 1) * 0.8 + 0.2 * thr; v.gear = 0; v.slip = 0; v.braking = false; v.reversing = fv < -0.3; v.air = false;
+  if (c && sp > 0.5) v.touched = true;
+}
+
+/** Fighter jet: throttle (rotor = throttle setting), afterburner, pitch, bank-to-turn, stall below 60 m/s, runway take-off and landing. */
+function flyJet(v: Veh, c: Drive | null, dt: number) {
+  const d = v.def, on = !!c && !v.dead, STALL = 60;
+  v.rotor = clamp(v.rotor + (on ? (c!.thr - c!.brake) : -0.4) * dt * 0.45, 0, 1);
+  const ab = on && !!c!.nitro ? 1 : 0; v.nitroOn = ab > 0;
+  const ground = floorAt(v.x, v.z, v.y + 1), onGround = v.y <= ground + 0.06;
+  const drag = v.spd * v.spd * 0.00042 + (onGround ? (on && c!.brake > 0 && v.rotor < 0.05 ? 9 : 0.5) : 0);
+  v.spd = clamp(v.spd + ((v.rotor * d.accel + ab * 16) * (v.dead ? 0 : 1) - drag - Math.sin(v.pitch) * 9.81) * dt, 0, d.top * (1 + ab * 0.25));
+  const pitchIn = on ? clamp(c!.lift || 0, -1, 1) : 0, rollIn = on ? c!.steer : 0;
+  if (onGround) {
+    v.roll += (0 - v.roll) * Math.min(1, dt * 5);
+    v.yaw = angWrap(v.yaw - rollIn * 0.45 * clamp(v.spd / 12, 0, 1) * dt);
+    v.pitch += ((v.spd > STALL ? Math.max(0, pitchIn) * 0.28 : 0) - v.pitch) * Math.min(1, dt * 2);
+  } else {
+    const auth = clamp(v.spd / STALL, 0.25, 1.4);
+    v.roll += (rollIn * 1.15 - v.roll) * Math.min(1, dt * 2.6);
+    v.pitch = clamp(v.pitch + pitchIn * 0.85 * auth * dt, -1.25, 1.25);
+    v.yaw = angWrap(v.yaw - Math.tan(clamp(v.roll, -1.2, 1.2)) * 9.81 / Math.max(45, v.spd) * dt * 1.7);
+    if (v.spd < STALL) v.pitch -= ((STALL - v.spd) / STALL) * 0.9 * dt;
+  }
+  const cp = Math.cos(v.pitch), fx = Math.sin(v.yaw) * cp, fy = Math.sin(v.pitch), fz = Math.cos(v.yaw) * cp;
+  const sink = onGround ? 0 : clamp((STALL - v.spd) / STALL, 0, 1) * 16;
+  v.vx = fx * v.spd; v.vz = fz * v.spd; v.vy = fy * v.spd - sink;
+  v.x += v.vx * dt; v.z += v.vz * dt; v.y += v.vy * dt;
+  const crash = (why: string) => { if (v.dead) return; v.hp = 0; v.dead = true; v.burn = 0.05; v.spd = 0; v.vx = v.vz = v.vy = 0; if (v.id === game.inCar) { hooks.hurtPlayer(70); toast(why, 2.5); } };
+  if (pointBlocked(v.x + fx * 7, v.y + 2, v.z + fz * 7) || pointBlocked(v.x, v.y + 2, v.z)) crash('建物に激突した！');
+  const g2 = floorAt(v.x, v.z, v.y + 1);
+  if (v.y < g2) {
+    const ok = Math.abs(v.roll) < 0.35 && v.pitch > -0.2 && -v.vy < 7 && !isWater(v.x, v.z);
+    if (ok) { v.y = g2; v.pitch = Math.max(0, v.pitch); } else crash(isWater(v.x, v.z) ? '海に墜落した！' : '墜落した！');
+  }
+  if (v.y > 900) { v.y = 900; v.pitch = Math.min(v.pitch, 0); }
+  v.air = v.y > floorAt(v.x, v.z, v.y + 1) + 0.3; v.airT = v.air ? v.airT + dt : 0;
+  v.spin += (v.spd / 0.38) * dt * (v.air ? 0 : 1); v.rpm = v.rotor * 0.85 + ab * 0.15; v.gear = 0; v.slip = 0; v.braking = false; v.reversing = false; v.yr = 0;
+  if (c && v.spd > 0.5) v.touched = true;
+}
+
 /** Resolve car-vs-building and car-vs-car contacts with restitution and damage. Returns the biggest impact speed for the player car. */
 export function collisions(dt: number): number {
   let playerHit = 0;
-  const circles = (v: Veh) => { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), r = v.def.wid / 2 + 0.05, n = v.def.kind === 'bike' ? 1 : v.def.kind === 'truck' ? 3 : 2; const out: [number, number, number][] = []; for (let k = 0; k < n; k++) { const t = n === 1 ? 0 : (k / (n - 1) - 0.5) * (v.def.len - v.def.wid); out.push([v.x + fx * t, v.z + fz * t, r]); } return out; };
+  const circles = (v: Veh) => { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), r = v.def.colR ?? v.def.wid / 2 + 0.05, n = v.def.kind === 'bike' ? 1 : Math.max(2, Math.round(v.def.len / (r * 2))); const out: [number, number, number][] = []; for (let k = 0; k < n; k++) { const t = n === 1 ? 0 : (k / (n - 1) - 0.5) * (v.def.len - r * 2); out.push([v.x + fx * t, v.z + fz * t, r]); } return out; };
   for (const v of vehicles) {
-    const moving = Math.abs(v.vx) + Math.abs(v.vz) > 0.05 || v.id === game.inCar; if (!moving) continue;
+    const moving = Math.abs(v.vx) + Math.abs(v.vz) > 0.05 || v.id === game.inCar; if (!moving || v.def.kind === 'jet' || isBoat(v.def.kind)) continue;
     for (const [cx, cz, r] of circles(v)) {
       const p = { x: cx, z: cz }; if (!collide(p, r, v.y + 0.2, 1.4)) continue;
       const dx = p.x - cx, dz = p.z - cz, L = Math.hypot(dx, dz); if (L < 1e-5) continue;
@@ -211,6 +284,7 @@ export function hurt(v: Veh, imp: number) {
 /** Bring owned car #i to a free spot beside (px,pz). Returns false when no spot is free. */
 export function deliverNear(i: number, px: number, pz: number, yaw: number): boolean {
   const o = owned[i]; if (!o) return false;
+  if (mediumOf(o.kind) !== 'land' || o.kind === 'heli') return false; // boats, jets and helicopters stay at their berth / apron / garage
   let v = vehicles.find((q) => q.owned === i) || null;
   if (v && v.id === game.inCar) return false;
   const def = VDEFS[o.kind], r = Math.max(2.4, def.len / 2 + 0.3);
@@ -234,7 +308,7 @@ export function sellOwned(i: number): number {
   if (v) remove(v);
   owned.splice(i, 1); for (const q of vehicles) if (q.owned > i) q.owned--;
   // owned cars parked in the garage move to their new bay index
-  for (const q of vehicles) if (q.owned >= 0 && !q.touched) { const sl = GARAGE.slots[q.owned % GARAGE.slots.length]; q.x = sl.x; q.z = sl.z; q.yaw = sl.yaw; }
+  for (const q of vehicles) if (q.owned >= 0 && !q.touched) { const sl = ownedSpot(q.owned); q.x = sl.x; q.z = sl.z; q.yaw = sl.yaw; }
   return Math.round(VDEFS[o.kind].price * 0.5);
 }
 

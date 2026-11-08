@@ -325,7 +325,8 @@ function buildGround() {
   for (let z = LAND.z0 + 900; z < LAND.z1; z += 40) G.sand.quad([BEACH_X - 10, 0.01, z + 40], [LAND.x1, -2.2, z + 40], [LAND.x1, -2.2, z], [BEACH_X - 10, 0.01, z], [0, 1, 0], [[(BEACH_X - 10) / 6, -(z + 40) / 6], [LAND.x1 / 6, -(z + 40) / 6], [LAND.x1 / 6, -z / 6], [(BEACH_X - 10) / 6, -z / 6]], ONE);
   for (let z = -HALF + 40; z < HALF; z += 150) { const x = BEACH_X + 45; for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) G.misc.box(x + ox - 0.1, heightAt(x, z), z + oz - 0.1, x + ox + 0.1, 3, z + oz + 0.1, [0.9, 0.9, 0.9]); G.misc.box(x - 1.5, 3, z - 1.5, x + 1.5, 5.5, z + 1.5, [0.95, 0.35, 0.35]); }
   // pier
-  G.misc.box(LAND.x1 - 20, -0.2, 140, LAND.x1 + 220, 0.6, 156, [0.55, 0.4, 0.3]);
+  G.misc.box(785, -1.2, 140, HALF + 380, -0.1, 156, [0.55, 0.4, 0.3]);
+  for (let x = 800; x < HALF + 380; x += 12) for (const z of [140.4, 155.6]) G.misc.box(x - 0.25, -4, z - 0.25, x + 0.25, 0.9, z + 0.25, [0.4, 0.3, 0.22]);
   return G;
 }
 

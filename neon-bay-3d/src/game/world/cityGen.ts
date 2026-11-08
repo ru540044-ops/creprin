@@ -67,7 +67,12 @@ export function heightAt(x: number, z: number): number {
   }
   return h;
 }
-export const isWater = (x: number, z: number) => heightAt(x, z) < WATER_Y + 0.25;
+/** Marina pier (walkable deck over the sea, east of South Beach). */
+export const PIER = { x0: 785, x1: HALF + 380, z0: 140, z1: 156, y: -0.1 };
+const onPier = (x: number, z: number) => x > PIER.x0 && x < PIER.x1 && z > PIER.z0 && z < PIER.z1;
+/** Cruise liner moored south of the port quay (hull / promenade deck / sun deck heights). */
+export const CRUISE = { x0: 290, x1: 490, z0: HALF + 338, z1: HALF + 368, deck: 14, sun: 30 };
+export const isWater = (x: number, z: number) => !onPier(x, z) && heightAt(x, z) < WATER_Y + 0.25;
 
 /* ---------- city ---------- */
 const rng = mulberry(20261107);
@@ -320,6 +325,23 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
   }
 }
 
+/* ---------- marina, jet park, cruise liner ---------- */
+export const MARINA = { x: 900, z: PIER.z0 - 2, slots: Array.from({ length: 8 }, (_, n) => ({ x: 880 + n * 26, z: PIER.z0 - 1.2, yaw: Math.PI / 2 })) };
+export const JETPARK = { x: AIRPORT.x0 + 130, z: 150, slots: [0, 1, 2, 3].map((n) => ({ x: AIRPORT.x0 + 100 + n * 22, z: 150, yaw: Math.PI / 2 })) };
+{
+  // public boats on the north side of the pier, a fighter jet waiting on the runway threshold
+  const boats: [string, number][] = [['jetski', 870], ['jetski', 878], ['speedboat', 900], ['speedboat', 930], ['yacht', 985], ['speedboat', 1030], ['jetski', 1058]];
+  for (const [k, x] of boats) parkSlots.push({ x, z: PIER.z1 + 1.2 + (k === 'yacht' ? 3.6 : k === 'speedboat' ? 1.6 : 0.7), yaw: -Math.PI / 2, kind: k, ci: Math.floor(x) % 5 });
+  parkSlots.push({ x: AIRPORT.x0 + 90, z: -165, yaw: Math.PI / 2, kind: 'jet', ci: 0 });
+  parkSlots.push({ x: AIRPORT.x0 + 60, z: 150, yaw: Math.PI / 2, kind: 'jet', ci: 1 });
+  // cruise liner: hull, superstructure and funnel are solid, so you can stand on the promenade and sun decks
+  const C = CRUISE;
+  solids.push({ x0: C.x0, z0: C.z0, x1: C.x1, z1: C.z1, y0: -14, y1: C.deck });
+  solids.push({ x0: C.x0 + 14, z0: C.z0 + 3, x1: C.x1 - 36, z1: C.z1 - 3, y0: C.deck, y1: C.sun });
+  solids.push({ x0: C.x0 + 34, z0: C.z0 + 9, x1: C.x0 + 52, z1: C.z1 - 9, y0: C.sun, y1: C.sun + 14 });
+  doors.push({ id: 'cruise', x: (C.x0 + C.x1) / 2, z: PORT.z1 - 0.8, ang: Math.PI, label: 'NEON BAY PRINCESS 乗船口', interior: 'ship_atrium', color: '#ffd23a' });
+}
+
 /* ---------- collision grid ---------- */
 const CELL = 40, grid = new Map<string, number[]>();
 solids.forEach((s, idx) => {
@@ -364,6 +386,7 @@ export function groundAt(x: number, z: number): number {
     if (i >= 0 && j >= 0 && i < N && j < N && lx - ROAD - i * PITCH < BLOCK && lz - ROAD - j * PITCH < BLOCK) return 0.15;
     return rampAt(x, z);
   }
+  if (onPier(x, z)) return PIER.y;
   return Math.max(heightAt(x, z), rampAt(x, z));
 }
 /** Height of the walkable surface under (x,z) at or below height y: ground, ramps, or a building roof you are standing on. */

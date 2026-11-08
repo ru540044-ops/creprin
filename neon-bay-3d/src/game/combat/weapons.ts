@@ -134,3 +134,33 @@ export function buy(item: 'pistol' | 'smg' | 'pistolAmmo' | 'smgAmmo' | 'armor' 
   for (const g of ['pistol', 'smg'] as const) if (A.owned[g] && A.mag[g] < MAG[g]) { const n = Math.min(MAG[g] - A.mag[g], A.ammo[g]); A.mag[g] += n; A.ammo[g] -= n; }
   sfx('buy'); save(); return null;
 }
+
+/** Fighter jet nose cannons: alternate left/right barrels along the jet's heading (pitch included), with a light aim assist. */
+let gunAt = 0, gunSide = 1;
+export function vehicleGuns(v: Veh) {
+  const now = performance.now(); if (now - gunAt < 75) return; gunAt = now; gunSide = -gunSide;
+  const cp = Math.cos(v.pitch), dx = Math.sin(v.yaw) * cp, dy = Math.sin(v.pitch), dz = Math.cos(v.yaw) * cp;
+  const rx = Math.cos(v.yaw), rz = -Math.sin(v.yaw), nose = v.def.len * 0.5 + 0.6, R = 420;
+  const ox = v.x + dx * nose + rx * gunSide * 1.1, oy = v.y + v.def.hgt * 0.45 + dy * nose, oz = v.z + dz * nose + rz * gunSide * 1.1;
+  flash(ox, oy, oz, 1.3); sfx('shot', 0.45); scare(ox, oz, 120);
+  if (copSees(ox, oz, 160)) setWanted(Math.max(3, game.wanted), '戦闘機の機銃掃射');
+  let hx = ox + dx * R, hy = oy + dy * R, hz = oz + dz * R, what: Target | null = null;
+  const L = findLock(ox, oy, oz, dx, dy, dz, R);
+  if (L && Math.random() < 0.55) { const p = tPos(L); hx = p.x; hy = p.y; hz = p.z; what = L; }
+  else {
+    outer: for (let t = 2; t < R; t += 1.2) {
+      const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
+      if (y < -0.3 || pointBlocked(x, y, z)) { hx = x; hy = Math.max(y, 0); hz = z; break; }
+      for (const p of peds) if (p.state !== 'dead' && Math.abs(p.x - x) < 0.7 && Math.abs(p.z - z) < 0.7 && y > p.y - 0.2 && y < p.y + 2) { what = { ped: p }; hx = x; hy = y; hz = z; break outer; }
+      for (const o of vehicles) {
+        if (o === v || o.dead) continue; const vx = x - o.x, vz = z - o.z; if (Math.abs(vx) > 14 || Math.abs(vz) > 14) continue;
+        const fx = Math.sin(o.yaw), fz = Math.cos(o.yaw);
+        if (Math.abs(vx * fx + vz * fz) < o.def.len / 2 + 0.3 && Math.abs(vx * fz - vz * fx) < o.def.wid / 2 + 0.3 && y > o.y - 0.3 && y < o.y + o.def.hgt + 0.3) { what = { veh: o }; hx = x; hy = y; hz = z; break outer; }
+      }
+    }
+  }
+  tracer(ox, oy, oz, hx, hy, hz);
+  if (what && 'ped' in what) { hitPed(what.ped, 80, dx * 4, dz * 4, true); impact(hx, hy, hz, true); }
+  else if (what && 'veh' in what) { damageVehicle(what.veh, 34); impact(hx, hy, hz, false); }
+  else impact(hx, hy, hz, false);
+}

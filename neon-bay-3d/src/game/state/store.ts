@@ -21,6 +21,7 @@ export const game = {
   arms: { owned: { pistol: false, smg: false }, ammo: { pistol: 0, smg: 0, grenade: 0 }, mag: { pistol: 0, smg: 0 }, cur: 'fist' as string, armor: 0 },
   ui: '' as string,
   phone: false, // in-game phone open (the character holds it)
+  yachtId: 0, // the yacht whose cabin you are in
   homes: [] as string[], // properties the player owns
   fadeT: 0, // black fade (sleeping)
   carAnim: 0, // 1 while getting into a car (driving is blocked)
@@ -43,7 +44,8 @@ export const game = {
 };
 
 /** Persistent progress: best time-trial times. */
-export const progress = { trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0 };
+export const progress = { trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
+  gift: { last: '', streak: 0, boxes: [] as number[], claimed: [] as string[], made: [] as string[], used: [] as string[] } };
 
 /** Cars the player owns; index = garage bay. */
 export const ownedCars: { kind: VKind; color: string; mods?: Mods }[] = [];
@@ -56,7 +58,7 @@ export function save() {
   if (wiped) return;
   try {
     const p = game.where === 'out' ? game.player : { ...game.player, x: game.outsidePos.x, z: game.outsidePos.z, yaw: game.outsidePos.yaw };
-    localStorage.setItem(KEY, JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, homes: game.homes, arms: game.arms, radio: game.radio }));
+    localStorage.setItem(KEY, JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, homes: game.homes, arms: game.arms, radio: game.radio }));
   } catch { /* storage unavailable */ }
 }
 export function load(): boolean {
@@ -71,6 +73,8 @@ export function load(): boolean {
     if (s.tb && typeof s.tb === 'object') Object.assign(progress.trialBest, s.tb);
     if (s.st && typeof s.st === 'object') Object.assign(progress.stunts, s.st);
     if (typeof s.story === 'number') progress.story = s.story;
+    if (s.gift && typeof s.gift === 'object') { const g = s.gift, G = progress.gift, arr = (a: unknown, t: string) => (Array.isArray(a) ? a.filter((x) => typeof x === t) : []);
+      G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = arr(g.boxes, 'number') as number[]; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
     if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
     if (typeof s.ccam === 'number') game.cam.carMode = s.ccam; if (s.mute) audio.muted = true;
     if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI; }
