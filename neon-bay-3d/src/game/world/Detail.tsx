@@ -53,7 +53,8 @@ export default function Detail() {
   const D = useMemo(() => {
     const r = mulberry(4242), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
     const boxes: { m: THREE.Matrix4; c: THREE.Color }[] = [], cyls: { m: THREE.Matrix4; c: THREE.Color }[] = [], beacons: THREE.Vector3[] = [];
-    const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [];
+    const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [];
+    const AWN = ['#c0392b', '#1e7a4a', '#1f4e8c', '#d4a017', '#6b2d5c', '#2b2b30', '#d35400', '#117a7a'];
     const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
     const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
     for (const b of buildings) {
@@ -74,6 +75,16 @@ export default function Detail() {
       // street-level neon
       const k = blockOf(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas')) continue;
       for (const f of streetFaces(b, k)) {
+        // striped shop awnings along the ground floor
+        if (b.type === 'shop' && f.len > 6) {
+          const n = Math.max(1, Math.floor(f.len / 6.5)), seg = f.len / n, col = new THREE.Color(AWN[Math.floor(r() * AWN.length)]);
+          for (let j = 0; j < n; j++) {
+            if (r() < 0.2) continue;
+            const along = -f.len / 2 + seg * (j + 0.5), x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.8, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.8;
+            const e = new THREE.Euler(0.38, Math.atan2(f.nx, f.nz), 0, 'YXZ'); Q.setFromEuler(e); P.set(x, b.y0 + 3.05, z); S.set(seg - 0.6, 0.06, 1.7);
+            aw.push({ m: M.compose(P, Q, S).clone(), c: col });
+          }
+        }
         if (f.len < 8 || r() < 0.25) continue;
         const n = f.len > 30 ? 2 : 1;
         for (let j = 0; j < n; j++) {
@@ -97,9 +108,11 @@ export default function Detail() {
     const plane = () => new THREE.PlaneGeometry(1, 1);
     const withOff = (list: { m: THREE.Matrix4; o: [number, number] }[], mat: THREE.Material) => { const g = plane(); g.setAttribute('uvOff', new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, list.length) * 2), 2)); const im = mk(g, mat, list); const a = g.getAttribute('uvOff') as THREE.InstancedBufferAttribute; list.forEach((it, i) => a.setXY(i, it.o[0], it.o[1])); im.receiveShadow = false; return im; };
     const signs = withOff(hs, hMat), blades = withOff(vs, vMat);
+    const stripe = (() => { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 8; const c = cv.getContext('2d')!; for (let x = 0; x < 64; x += 16) { c.fillStyle = '#ffffff'; c.fillRect(x, 0, 8, 8); c.fillStyle = '#9a9a9a'; c.fillRect(x + 8, 0, 8, 8); } const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(6, 1); return t; })();
+    const awnings = mk(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }), aw); awnings.castShadow = true;
     const beaconMat = new THREE.MeshBasicMaterial({ map: getTextures().glow, color: '#ff2020', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
     const bl = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.6, 1.6), beaconMat, Math.max(1, beacons.length)); bl.count = beacons.length; bl.frustumCulled = false;
-    return { roofBoxes, roofCyl, signs, blades, hMat, vMat, bl, beacons, beaconMat, counts: { roof: boxes.length + cyls.length, signs: hs.length + vs.length, beacons: beacons.length } };
+    return { awnings, roofBoxes, roofCyl, signs, blades, hMat, vMat, bl, beacons, beaconMat, counts: { awnings: aw.length, roof: boxes.length + cyls.length, signs: hs.length + vs.length, beacons: beacons.length } };
   }, []);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
   useFrame(({ camera, clock }) => {
@@ -109,5 +122,5 @@ export default function Detail() {
     for (let i = 0; i < D.beacons.length; i++) { tmp.m.compose(D.beacons[i], camera.quaternion, tmp.s); D.bl.setMatrixAt(i, tmp.m); }
     D.bl.instanceMatrix.needsUpdate = true;
   });
-  return <><primitive object={D.roofBoxes} /><primitive object={D.roofCyl} /><primitive object={D.signs} /><primitive object={D.blades} /><primitive object={D.bl} /></>;
+  return <><primitive object={D.awnings} /><primitive object={D.roofBoxes} /><primitive object={D.roofCyl} /><primitive object={D.signs} /><primitive object={D.blades} /><primitive object={D.bl} /></>;
 }

@@ -300,6 +300,21 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
   doors.push({ id: 'h_villa', x: vx0 - 0.8, z: (vz0 + vz1) / 2, ang: -Math.PI / 2, label: 'MODERN VILLA', interior: 'villa', color: '#ffffff' });
 }
 
+/* ---------- street trees along downtown / commercial sidewalks ---------- */
+{
+  const r = mulberry(777);
+  for (const b of blocks) {
+    if ((b.zone !== 'downtown' && b.zone !== 'commercial') || b === GARAGE.block) continue;
+    const sides: [number, number, number, number][] = [[b.x0 + 1.5, b.z0, 0, 1], [b.x1 - 1.5, b.z0, 0, 1], [b.x0, b.z0 + 1.5, 1, 0], [b.x0, b.z1 - 1.5, 1, 0]];
+    for (const [sx, sz, ax, az] of sides) for (let t = 11; t < BLOCK - 10; t += 17) {
+      const x = sx + ax * t, z = sz + az * t;
+      if (doors.some((d) => Math.hypot(d.x - x, d.z - z) < 7)) continue;
+      if (props.lamps.some((l) => Math.abs(l.x - x) < 3 && Math.abs(l.z - z) < 3)) continue;
+      props.trees.push({ x, z, s: 0.72 + r() * 0.22, y: 0.15 });
+    }
+  }
+}
+
 /* ---------- collision grid ---------- */
 const CELL = 40, grid = new Map<string, number[]>();
 solids.forEach((s, idx) => {

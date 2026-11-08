@@ -15,7 +15,20 @@ function noise(c: Ctx, w: number, h: number, amt: number, seed: number, size = 2
   for (let i = 0; i < (w * h) / (size * size) / 3; i++) { const v = Math.floor(r() * 255); c.fillStyle = `rgba(${v},${v},${v},${amt})`; c.fillRect(r() * w, r() * h, size, size); }
 }
 
-export interface FacadeSet { map: THREE.Texture; emissive: THREE.Texture; rough: THREE.Texture; su: number; sv: number; }
+export interface FacadeSet { map: THREE.Texture; emissive: THREE.Texture; rough: THREE.Texture; normal: THREE.Texture; su: number; sv: number; }
+
+/** Height canvas (white = out, black = in) -> tangent-space normal map. */
+function normalFromHeight(hc: HTMLCanvasElement, strength: number) {
+  const w = hc.width, h = hc.height, src = hc.getContext('2d')!.getImageData(0, 0, w, h).data;
+  const out = document.createElement('canvas'); out.width = w; out.height = h; const oc = out.getContext('2d')!, id = oc.createImageData(w, h);
+  const H = (x: number, y: number) => src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+    const l = Math.hypot(dx, dy, 1), k = (y * w + x) * 4;
+    id.data[k] = (-dx / l * 0.5 + 0.5) * 255; id.data[k + 1] = (dy / l * 0.5 + 0.5) * 255; id.data[k + 2] = (1 / l * 0.5 + 0.5) * 255; id.data[k + 3] = 255;
+  }
+  oc.putImageData(id, 0, 0); return out;
+}
 
 /** Facade with a window grid. cols x rows windows per texture repeat; su/sv = meters covered by one repeat. */
 function facade(opts: { cols: number; rows: number; su: number; sv: number; wall: string; glass: string; frame: string; winW: number; winH: number; shop?: boolean; brick?: boolean; corrug?: boolean; seed: number }): FacadeSet {
@@ -56,7 +69,22 @@ function facade(opts: { cols: number; rows: number; su: number; sv: number; wall
     c.fillStyle = '#e0e0e0'; c.fillRect(0, 0, W, H);
     for (let cy = 0; cy < opts.rows; cy++) for (let cx = 0; cx < opts.cols; cx++) { if (opts.corrug && cy !== 1) continue; let [x, y, ww, hh] = rectOf(cx, cy); if (isShopRow(cy)) { x = cx * cw + 2; ww = cw - 4; y = cy * ch + ch * 0.12; hh = ch * 0.78; } c.fillStyle = '#202020'; c.fillRect(x, y, ww, hh); }
   });
-  return { map: tex(map), emissive: tex(emissive), rough: tex(rough, false), su: opts.su, sv: opts.sv };
+  // relief: wall mid-grey, frames stand out, glass sits back, sills cast a lip; brick mortar and corrugation grooves
+  const height = canvas(W, H, (c) => {
+    c.fillStyle = '#808080'; c.fillRect(0, 0, W, H);
+    if (opts.brick) { c.fillStyle = '#5a5a5a'; for (let y = 0; y < H; y += 8) { c.fillRect(0, y, W, 1.5); for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) c.fillRect(x, y, 1.5, 8); } }
+    if (opts.corrug) for (let x = 0; x < W; x += 6) { c.fillStyle = x % 12 ? '#9a9a9a' : '#606060'; c.fillRect(x, 0, 3, H); }
+    for (let cy = 0; cy < opts.rows; cy++) for (let cx = 0; cx < opts.cols; cx++) {
+      if (opts.corrug && cy !== 1) continue;
+      let [x, y, ww, hh] = rectOf(cx, cy);
+      if (isShopRow(cy)) { x = cx * cw + 2; ww = cw - 4; y = cy * ch + ch * 0.12; hh = ch * 0.78; }
+      c.fillStyle = '#b8b8b8'; c.fillRect(x - 3, y - 3, ww + 6, hh + 6);
+      c.fillStyle = '#202020'; c.fillRect(x, y, ww, hh);
+      if (!opts.corrug) { c.fillStyle = '#d0d0d0'; c.fillRect(x - 5, y + hh + 2, ww + 10, 4); }
+      if (ww > 30) { c.fillStyle = '#707070'; c.fillRect(x + ww / 2 - 1, y, 2, hh); } // mullion
+    }
+  });
+  return { map: tex(map), emissive: tex(emissive), rough: tex(rough, false), normal: tex(normalFromHeight(height, opts.brick ? 3.2 : 2.4), false), su: opts.su, sv: opts.sv };
 }
 
 let cache: ReturnType<typeof build> | null = null;

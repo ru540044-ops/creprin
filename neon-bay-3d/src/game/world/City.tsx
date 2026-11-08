@@ -18,7 +18,7 @@ function useMaterials() {
   return useMemo(() => {
     const T = getTextures();
     const fac = (s: typeof T.glass, metal: number, k = 1.1) => {
-      const m = new THREE.MeshStandardMaterial({ map: s.map, emissiveMap: s.emissive, roughnessMap: s.rough, emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0, roughness: 1, metalness: metal, vertexColors: true, envMapIntensity: 1.2 });
+      const m = new THREE.MeshStandardMaterial({ map: s.map, emissiveMap: s.emissive, roughnessMap: s.rough, normalMap: s.normal, normalScale: new THREE.Vector2(1.1, 1.1), emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0, roughness: 1, metalness: metal, vertexColors: true, envMapIntensity: 1.35 });
       nightMats.push({ m, k, kind: 'emissive' }); return m;
     };
     const rep = (t: THREE.Texture) => t;
@@ -121,7 +121,14 @@ function usePropGeos() {
     const signalPole = merge([tr(new THREE.CylinderGeometry(0.1, 0.12, 5.5, 6), 0, 2.75, 0), tr(new THREE.BoxGeometry(0.12, 0.12, 4.2), 0, 5.3, -2.1), tr(new THREE.BoxGeometry(0.35, 1.1, 0.35), 0, 4.8, -4)]);
     const signalBulb = tr(new THREE.SphereGeometry(0.13, 6, 4), 0, 4.8, -4.2);
     const trunk = tr(new THREE.CylinderGeometry(0.16, 0.24, 3, 5), 0, 1.5, 0);
-    const canopy = merge([tr(new THREE.IcosahedronGeometry(2.1, 0), 0, 4.2, 0), tr(new THREE.IcosahedronGeometry(1.5, 0), 0.8, 5.2, -0.4)]);
+    // canopy: a cluster of lumpy blobs, smooth-shaded, darker underneath (vertex colour, multiplied by the per-tree tint)
+    const blob = (r: number, x: number, y: number, z: number, seed: number) => {
+      const g = new THREE.IcosahedronGeometry(r, 1), p = g.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < p.count; i++) { const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), n = 1 + 0.16 * Math.sin(vx * 3.1 + seed) * Math.cos(vz * 2.7 + seed * 1.7) + 0.08 * Math.sin(vy * 5 + seed); p.setXYZ(i, vx * n, vy * n * 0.85, vz * n); }
+      g.computeVertexNormals(); g.translate(x, y, z); return g;
+    };
+    const canopy = merge([blob(2.0, 0, 4.3, 0, 1), blob(1.45, 1.1, 4.0, 0.5, 2), blob(1.5, -0.9, 4.6, -0.7, 3), blob(1.3, 0.3, 5.6, -0.2, 4), blob(1.2, -0.5, 3.8, 1.0, 5)]);
+    { const p = canopy.attributes.position as THREE.BufferAttribute, col = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const k = 0.55 + 0.45 * Math.min(1, Math.max(0, (p.getY(i) - 2.6) / 3.6)); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = k; } canopy.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
     const palmTrunk = tr(new THREE.CylinderGeometry(0.16, 0.3, 9, 6), 0, 4.5, 0);
     const fronds: THREE.BufferGeometry[] = []; for (let k = 0; k < 7; k++) { const f = new THREE.ConeGeometry(0.7, 4.2, 3, 1); f.rotateZ(Math.PI / 2 + 0.35); f.translate(2, 8.6, 0); f.rotateY((k / 7) * Math.PI * 2); fronds.push(f); }
     const palmTop = merge(fronds);
@@ -170,7 +177,7 @@ function bucket<T extends { x: number; z: number }>(list: T[]) {
 function PropsChunk({ k, B, mats, pg, adMats }: { k: string; B: Record<string, Map<string, any[]>>; mats: Mats; pg: ReturnType<typeof usePropGeos>; adMats: THREE.Material[] }) {
   const pm = useMemo(() => ({
     pole: new THREE.MeshStandardMaterial({ color: '#2b2d33', roughness: 0.5, metalness: 0.6 }), trunk: new THREE.MeshStandardMaterial({ color: '#5a4030', roughness: 1 }),
-    leaf: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, flatShading: true }), palm: new THREE.MeshStandardMaterial({ color: '#3d7a3a', roughness: 0.9, side: THREE.DoubleSide, flatShading: true }),
+    leaf: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, vertexColors: true }), palm: new THREE.MeshStandardMaterial({ color: '#3d7a3a', roughness: 0.9, side: THREE.DoubleSide, flatShading: true }),
     pine: new THREE.MeshStandardMaterial({ color: '#2a4d32', roughness: 1, flatShading: true }), wood: new THREE.MeshStandardMaterial({ color: '#7a5236', roughness: 0.8 }),
     bin: new THREE.MeshStandardMaterial({ color: '#2f4f3a', roughness: 0.6 }), red: new THREE.MeshStandardMaterial({ color: '#c2271d', roughness: 0.5 }),
     cont: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55, metalness: 0.4 }), cloth: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 }),

@@ -9,6 +9,8 @@ import { smooth } from './rng';
 
 /** Sun, sky, fog and day/night cycle. One in-game day = game.dayLen real seconds. */
 /** Lighting balance, tweakable from the debug hook. */
+/** Current key-light direction (normalised, world space) and whether it is the sun (vs the moon). */
+export const sunState = { dir: new THREE.Vector3(0, 1, 0), isSun: true, day: 1, dusk: 0 };
 export const look = { sun: 3.2, hemi: 0.55, env: 1.0, exposure: 0.95 };
 
 export default function Environment({ shadows, shadowSize }: { shadows: boolean; shadowSize: number }) {
@@ -77,13 +79,14 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
     (scene as any).environmentIntensity = (0.45 + day * 0.55) * look.env;
     if (stars.current) (stars.current.material as THREE.PointsMaterial).opacity = night * (1 - W.cloud);
     envGen(h, day, dusk, night, sunPos, W.cloud);
+    sunState.dir.copy(sunPos); sunState.isSun = elev > -0.05; sunState.day = day; sunState.dusk = dusk;
     const lit = smooth(0.15, -0.1, elev);
     for (const n of nightMats) { if (n.kind === 'emissive') (n.m as THREE.MeshStandardMaterial).emissiveIntensity = lit * n.k + (n.k > 2 ? 0.05 : 0); else { (n.m as THREE.MeshBasicMaterial).opacity = lit * n.k; } }
   });
 
   return (
     <>
-      <Sky ref={sky} distance={4500} sunPosition={[100, 20, 100]} mieCoefficient={0.005} mieDirectionalG={0.8} />
+      <Sky ref={sky} distance={4500} sunPosition={[100, 20, 100]} mieCoefficient={0.0025} mieDirectionalG={0.86} />
       <Stars ref={stars as any} radius={1800} depth={200} count={1500} factor={10} fade saturation={0} />
       <hemisphereLight ref={hemi} args={['#bcd0ea', '#5a4a3a', 1]} />
       <directionalLight ref={sun} castShadow={shadows} shadow-mapSize-width={shadowSize} shadow-mapSize-height={shadowSize} shadow-camera-near={10} shadow-camera-far={600} shadow-camera-left={-90} shadow-camera-right={90} shadow-camera-top={90} shadow-camera-bottom={-90} shadow-bias={-0.0004} shadow-normalBias={0.04} />
