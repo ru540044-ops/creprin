@@ -1,5 +1,5 @@
 import { RACES } from '../crime/race';
-import { GARAGE, LANDMARKS, EXPORT_DOCK, TRIALS, CUSTOMS, HELIPADS, RAMPS, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD, HWY_LINKS } from '../world/cityGen';
+import { GARAGE, LANDMARKS, EXPORT_DOCK, TRIALS, CUSTOMS, HELIPADS, RAMPS, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD, HWY_LINKS, MIDTOWN, O } from '../world/cityGen';
 
 /** World bounds of the map image and its scale. */
 export const MAP = { x0: LAND.x0 - 60, z0: LAND.z0 - 60, x1: HALF + 413, z1: HALF + 413, s: 0.3 };
@@ -30,7 +30,8 @@ export function mapImage() {
   c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '600 13px system-ui, sans-serif'; c.textAlign = 'center';
   const lab = (t: string, x: number, z: number) => { const [a, b] = toMap(x, z); c.fillText(t, a, b); };
   lab('ダウンタウン', 0, 0); lab('ネオンマイル', -380, -300); lab('パームホロウ', -560, 420); lab('コーラルハイツ', 520, -560); lab('ファウンドリー', -560, 620);
-  const rg = HALF - 150; lab('ノースゲート', -150, -rg); lab('ベイフロント', rg, 120); lab('ドックサイド', -150, rg); lab('エアポートシティ', -rg, -120); lab('アップタウン', rg, -rg);
+  const rg = 857; lab('ノースゲート', -150, -rg); lab('ベイフロント', rg, 120); lab('ドックサイド', -150, rg); lab('エアポートシティ', -rg, -120); lab('アップタウン', rg, -rg);
+  const og = HALF - 450; lab('ミッドタウン', roadC(MIDTOWN.ci + O), roadC(MIDTOWN.cj + O)); lab('イーストベイ', og, 100); lab('テックパーク', og - 100, og - 100); lab('ポートサイド', 0, og); lab('オールドタウン', -og + 100, og - 100); lab('ウエストゲート', -og, 0); lab('グリーンバレー', -og + 100, -og + 100); lab('ノースヒルズ', -100, -og);
   lab('サウスビーチ', HALF + 110, 0); lab('ポート', (PORT.x0 + PORT.x1) / 2, HALF + 220); lab('ベイ国際空港', (AIRPORT.x0 + AIRPORT.x1) / 2, 60); lab('パリセード・ヒルズ', -200, (LAND.z0 - HALF) / 2);
   img = cv; return cv;
 }

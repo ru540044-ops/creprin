@@ -19,7 +19,7 @@ export const PROF: Partial<Record<VKind, { lower: number[][]; glass: number[][];
   suv: { lower: [[-2.42, 0.45], [2.42, 0.45], [2.45, 0.85], [2.3, 1.1], [1.35, 1.2], [-2.35, 1.2], [-2.45, 0.85]], glass: [[-2.3, 1.18], [1.3, 1.18], [0.85, 1.78], [-2.25, 1.8]], roofY: 1.8 },
 };
 
-export interface CarModel { root: THREE.Group; tilt: THREE.Group; body: THREE.Group; wheels: THREE.Group[]; paint: THREE.MeshStandardMaterial; glass?: THREE.MeshStandardMaterial; rim?: THREE.MeshStandardMaterial; neon?: THREE.Mesh; rotors?: { main: THREE.Group; tail: THREE.Group }; modKey?: string; eye?: THREE.Vector3; steering?: THREE.Object3D; burner?: THREE.Mesh[]; gear?: THREE.Group; lights: { head: THREE.MeshStandardMaterial; tail: THREE.MeshStandardMaterial; bar?: [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial]; blinkL?: THREE.MeshStandardMaterial; blinkR?: THREE.MeshStandardMaterial; rev?: THREE.MeshStandardMaterial }; door?: THREE.Group }
+export interface CarModel { cabin?: THREE.Object3D[]; small?: THREE.Object3D[]; root: THREE.Group; tilt: THREE.Group; body: THREE.Group; wheels: THREE.Group[]; paint: THREE.MeshStandardMaterial; glass?: THREE.MeshStandardMaterial; rim?: THREE.MeshStandardMaterial; neon?: THREE.Mesh; rotors?: { main: THREE.Group; tail: THREE.Group }; modKey?: string; eye?: THREE.Vector3; steering?: THREE.Object3D; burner?: THREE.Mesh[]; gear?: THREE.Group; lights: { head: THREE.MeshStandardMaterial; tail: THREE.MeshStandardMaterial; bar?: [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial]; blinkL?: THREE.MeshStandardMaterial; blinkR?: THREE.MeshStandardMaterial; rev?: THREE.MeshStandardMaterial }; door?: THREE.Group }
 
 export const shared = (() => {
   let s: any = null;
@@ -74,7 +74,9 @@ export function buildCarModel(def: VDef, color: string): CarModel {
     const neon = new THREE.Mesh(new THREE.PlaneGeometry(def.len * 1.25, def.wid * 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: getTextures().glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, opacity: 0.95 }));
     neon.position.y = 0.06; neon.visible = false; m.root.add(neon); m.neon = neon;
   }
-  return { ...m, root: outer, tilt };
+  // the interior (seats, dashboard, wheel) is only drawn close up: collect it so the view can switch it off at a distance
+  const cabin: THREE.Object3D[] = [], small: THREE.Object3D[] = []; outer.traverse((o) => { if (o.userData.cabin) cabin.push(o); else if (o.userData.small) small.push(o); });
+  return { ...m, root: outer, tilt, cabin, small };
 }
 
 /** Apply Bay Customs visuals: paint finish, neon colour, wheel colour, window tint. */
@@ -183,14 +185,15 @@ function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
   // turn signals (inner -z = the car's left), reverse lights, and a driver's door hinged at its front edge
   const amber = () => new THREE.MeshStandardMaterial({ color: '#5a3a00', emissive: new THREE.Color('#ffa21a'), emissiveIntensity: 0 });
   const blinkL = amber(), blinkR = amber(), rev = new THREE.MeshStandardMaterial({ color: '#cfcfcf', emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0 });
-  for (const [sz, m] of [[-1, blinkL], [1, blinkR]] as const) { add(box(0.07, 0.07, 0.14, nose + 0.01, hy, sz * W * 0.46), m, false); add(box(0.07, 0.07, 0.12, rear - 0.01, ty - 0.1, sz * W * 0.45), m, false); }
-  for (const sz of [-1, 1]) add(box(0.05, 0.06, 0.12, rear - 0.008, ty - 0.12, sz * W * 0.16), rev, false);
+  const small = (mm: THREE.Mesh) => { mm.userData.small = true; };
+  for (const [sz, m] of [[-1, blinkL], [1, blinkR]] as const) { small(add(box(0.07, 0.07, 0.14, nose + 0.01, hy, sz * W * 0.46), m, false)); small(add(box(0.07, 0.07, 0.12, rear - 0.01, ty - 0.1, sz * W * 0.45), m, false)); }
+  for (const sz of [-1, 1]) small(add(box(0.05, 0.06, 0.12, rear - 0.008, ty - 0.12, sz * W * 0.16), rev, false));
   const door = new THREE.Group(), xf = Math.min(gx1 * 0.9, L - 0.9), dl = 1.25, belt = P.lower[4][1] - 0.02;
   door.position.set(xf, 0, -W / 2 - 0.012);
   const panel = new THREE.Mesh(box(dl, belt - 0.36, 0.045, -dl / 2, (belt + 0.36) / 2, 0), paint); panel.castShadow = true; door.add(panel);
   const win = new THREE.Mesh(box(dl * 0.78, Math.min(0.36, P.roofY - belt - 0.12), 0.03, -dl * 0.45, belt + Math.min(0.36, P.roofY - belt - 0.12) / 2 + 0.02, 0.005), glass); door.add(win);
   const handle = new THREE.Mesh(box(0.14, 0.03, 0.03, -dl * 0.82, belt - 0.12, -0.03), S.chrome); door.add(handle);
-  root.add(door);
+  door.userData.small = true; root.add(door);
   // per-model extras
   if (def.kind === 'taxi') {
     const lab = new THREE.MeshBasicMaterial({ map: labelTexture('TAXI', '#ffcc00'), toneMapped: false });
@@ -211,4 +214,14 @@ export function vehicleToWorld(v: { x: number; y: number; z: number; yaw: number
   out.copy(local); _i.localToWorld(out);
   if (fwd) fwd.set(1, 0, 0).transformDirection(_i.matrixWorld);
   if (up) up.set(0, 1, 0).transformDirection(_i.matrixWorld);
+}
+
+/** Free a car model's own geometries and materials (the shared glass / trim / chrome / tyre materials and textures stay). */
+export function disposeCarModel(m: CarModel) {
+  const keep = new Set<THREE.Material>(Object.values(shared()) as THREE.Material[]);
+  m.root.traverse((o) => {
+    const mesh = o as THREE.Mesh; if (!mesh.isMesh) return;
+    mesh.geometry?.dispose();
+    for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) if (mat && !keep.has(mat)) mat.dispose();
+  });
 }

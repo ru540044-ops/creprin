@@ -25,7 +25,7 @@ import Effects from './game/world/Effects';
 import LightFX from './game/world/LightFX';
 import Detail from './game/world/Detail';
 import Clouds from './game/world/Clouds';
-import { wind } from './game/world/City';
+import { wind, cityStream } from './game/world/City';
 import { look } from './game/world/Environment';
 import { PedsView, FXView, AmbientProps } from './game/ai/PedsView';
 import { peds } from './game/ai/peds';
@@ -53,7 +53,7 @@ import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLI
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -83,7 +83,7 @@ function Ticker({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
     D.t += dt; if (D.t > 2.5 && game.started) { D.t = 0; const nd = game.fps < 32 ? Math.max(min, D.dpr - 0.25) : game.fps > 56 ? Math.min(max, D.dpr + 0.25) : D.dpr; if (nd !== D.dpr) { D.dpr = nd; setDpr(nd); } }
     // auto quality: if the frame rate stays low even at the lowest render scale, step the quality down (once per level)
     const W = slow.current; if (game.started && settings.quality === 'auto' && quality !== 'low') { W.t += dt; if (W.t > 1) { W.bad = D.dpr <= min + 0.01 && game.fps < 24 ? W.bad + W.t : 0; W.t = 0; if (W.bad > 8) { W.bad = 0; onSlow(); } } }
-    boot.frames++; if (!boot.ready && boot.frames > 12) boot.ready = true;
+    boot.frames++; if (!boot.ready && boot.frames > 12 && (cityStream.pending === 0 || boot.frames > 1200)) boot.ready = true; // wait until the streamed city around the camera is built
     updateProgression(dt);
     // ambient sound
     const p = game.where === 'out' ? game.player : game.outsidePos, me = playerCar(), h = game.hour, day = h > 6.5 && h < 18.5 ? 1 : 0;

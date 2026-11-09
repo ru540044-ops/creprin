@@ -74,31 +74,53 @@ function Minimap({ onOpen }: { onOpen: () => void }) {
   return <canvas ref={ref} className="minimap" onClick={onOpen} aria-label="ミニマップ（タップで全体マップ）" />;
 }
 
+/** Full map with zoom and pan (drag, pinch, wheel, + / − buttons); a tap without dragging sets the waypoint. */
 function FullMap({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const view = useRef({ z: 0, cx: 0, cy: 0, W: 0, H: 0, fit: 1 });
+  const ptrs = useRef(new Map<number, { x: number; y: number }>()), gest = useRef({ moved: 0, dist: 0 });
+  const clampV = () => { const v = view.current, img = mapImage(); v.z = Math.max(v.fit, Math.min(4, v.z)); const hw = v.W / 2 / v.z, hh = v.H / 2 / v.z; v.cx = Math.max(Math.min(hw, img.width / 2), Math.min(img.width - Math.min(hw, img.width / 2), v.cx)); v.cy = Math.max(Math.min(hh, img.height / 2), Math.min(img.height - Math.min(hh, img.height / 2), v.cy)); };
+  const centerOnPlayer = (z?: number) => { const v = view.current, p = game.where !== 'out' ? game.outsidePos : game.player, [a, b] = toMap(p.x, p.z); v.cx = a; v.cy = b; if (z) v.z = z; clampV(); };
   useEffect(() => {
-    const cv = ref.current!; const img = mapImage(), ar = img.width / img.height;
-    const W = Math.min(innerWidth - 32, (innerHeight - 120) * ar), H = W / ar, dpr = Math.min(2, devicePixelRatio || 1);
-    cv.style.width = W + 'px'; cv.style.height = H + 'px'; cv.width = W * dpr; cv.height = H * dpr;
+    const cv = ref.current!, img = mapImage(), v = view.current, dpr = Math.min(2, devicePixelRatio || 1);
+    v.W = Math.max(200, innerWidth - 32); v.H = Math.max(160, innerHeight - 128); v.fit = Math.min(v.W / img.width, v.H / img.height);
+    cv.style.width = v.W + 'px'; cv.style.height = v.H + 'px'; cv.width = v.W * dpr; cv.height = v.H * dpr;
+    centerOnPlayer(Math.max(v.fit, v.W / (1600 * MAP.s))); // start at about 1.6 km across, around the player
     let raf = 0; const draw = () => {
-      raf = requestAnimationFrame(draw); const c = cv.getContext('2d')!, k = (W / img.width) * dpr; c.setTransform(k, 0, 0, k, 0, 0); c.drawImage(img, 0, 0);
-      for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 6, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1.5; c.stroke(); }
-      drawDynamic(c, 1.6, performance.now());
-      if (game.waypoint) { const [a, b] = toMap(game.waypoint.x, game.waypoint.z); c.fillStyle = '#ffd84a'; c.beginPath(); c.arc(a, b, 8, 0, Math.PI * 2); c.fill(); c.stroke(); }
+      raf = requestAnimationFrame(draw); const c = cv.getContext('2d')!, k = v.z * dpr;
+      c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#16405e'; c.fillRect(0, 0, cv.width, cv.height);
+      c.setTransform(k, 0, 0, k, (v.W / 2 - v.cx * v.z) * dpr, (v.H / 2 - v.cy * v.z) * dpr); c.imageSmoothingEnabled = v.z < 1.5; c.drawImage(img, 0, 0);
+      const s = 1 / v.z; // marker sizes stay the same on screen whatever the zoom
+      for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 6 * s, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1.5 * s; c.stroke(); }
+      drawDynamic(c, 1.6 * s, performance.now());
+      if (game.waypoint) { const [a, b] = toMap(game.waypoint.x, game.waypoint.z); c.fillStyle = '#ffd84a'; c.beginPath(); c.arc(a, b, 8 * s, 0, Math.PI * 2); c.fill(); c.stroke(); }
       const p = game.where !== 'out' ? game.outsidePos : game.player, [a, b] = toMap(p.x, p.z);
-      c.save(); c.translate(a, b); c.rotate(Math.PI - p.yaw); c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, -12); c.lineTo(-8, 9); c.lineTo(0, 4); c.lineTo(8, 9); c.closePath(); c.fill(); c.stroke(); c.restore();
+      c.save(); c.translate(a, b); c.scale(s, s); c.rotate(Math.PI - p.yaw); c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, -12); c.lineTo(-8, 9); c.lineTo(0, 4); c.lineTo(8, 9); c.closePath(); c.fill(); c.stroke(); c.restore();
     };
     draw(); return () => cancelAnimationFrame(raf);
   }, []);
-  const tap = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const r = (e.target as HTMLCanvasElement).getBoundingClientRect(), img = mapImage();
-    const [x, z] = fromMap(((e.clientX - r.left) / r.width) * img.width, ((e.clientY - r.top) / r.height) * img.height);
+  const zoomAt = (f: number, sx = view.current.W / 2, sy = view.current.H / 2) => { const v = view.current, ix = v.cx + (sx - v.W / 2) / v.z, iy = v.cy + (sy - v.H / 2) / v.z; v.z *= f; clampV(); v.cx = ix - (sx - v.W / 2) / v.z; v.cy = iy - (sy - v.H / 2) / v.z; clampV(); };
+  const local = (e: { clientX: number; clientY: number }) => { const r = ref.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const down = (e: React.PointerEvent<HTMLCanvasElement>) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); ptrs.current.set(e.pointerId, local(e)); gest.current.moved = 0; if (ptrs.current.size === 2) { const [p1, p2] = [...ptrs.current.values()]; gest.current.dist = Math.hypot(p1.x - p2.x, p1.y - p2.y); } };
+  const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const P = ptrs.current, prev = P.get(e.pointerId); if (!prev) return; const cur = local(e), v = view.current;
+    if (P.size === 1) { v.cx -= (cur.x - prev.x) / v.z; v.cy -= (cur.y - prev.y) / v.z; clampV(); gest.current.moved += Math.abs(cur.x - prev.x) + Math.abs(cur.y - prev.y); }
+    P.set(e.pointerId, cur);
+    if (P.size === 2) { const [p1, p2] = [...P.values()], d = Math.hypot(p1.x - p2.x, p1.y - p2.y); if (gest.current.dist > 0) zoomAt(d / gest.current.dist, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2); gest.current.dist = d; gest.current.moved += 99; }
+  };
+  const up = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const P = ptrs.current, single = P.size === 1; P.delete(e.pointerId); gest.current.dist = 0;
+    if (!single || gest.current.moved > 8) return;
+    const v = view.current, l = local(e), ix = v.cx + (l.x - v.W / 2) / v.z, iy = v.cy + (l.y - v.H / 2) / v.z, [x, z] = fromMap(ix, iy);
     game.waypoint = { x, z }; toast('目的地を設定しました'); save(); onClose();
   };
   return (
     <div className="overlay map">
-      <div className="mapHead"><b>ベイ全体マップ</b><span>タップで目的地を設定</span></div>
-      <canvas ref={ref} onPointerDown={tap} />
+      <div className="mapHead"><b>ベイ全体マップ</b><span>ドラッグで移動・ピンチで拡大・タップで目的地</span></div>
+      <div className="mapBox">
+        <canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); }} onWheel={(e) => { const l = local(e); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, l.x, l.y); }} style={{ touchAction: 'none' }} />
+        <div className="mapZoom"><button type="button" aria-label="拡大" onClick={() => zoomAt(1.4)}>＋</button><button type="button" aria-label="縮小" onClick={() => zoomAt(1 / 1.4)}>−</button><button type="button" onClick={() => centerOnPlayer()}>現在地</button><button type="button" onClick={() => { view.current.z = view.current.fit; const img = mapImage(); view.current.cx = img.width / 2; view.current.cy = img.height / 2; clampV(); }}>全体</button></div>
+      </div>
       <div className="row"><button type="button" onClick={() => { game.waypoint = null; save(); onClose(); }}>目的地を消す</button><button type="button" className="pri" onClick={onClose}>閉じる</button></div>
       <div className="legend">{POI().filter((q, i, a) => a.findIndex((o) => o.t === q.t) === i).map((q) => <span key={q.t}><i style={{ background: q.c }} />{q.t}</span>)}<span><i style={{ background: '#3dffb0' }} />$ 現金輸送車</span><span><i style={{ background: '#ffd84a' }} />目的地</span></div>
     </div>

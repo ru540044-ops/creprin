@@ -1,18 +1,27 @@
 import { mulberry, fbm, smooth, clamp } from './rng';
 
 /* World units are meters. x = east, z = south, y = up. */
-export const ROAD = 14, BLOCK = 86, PITCH = ROAD + BLOCK, N = 20;
+export const ROAD = 14, BLOCK = 86, PITCH = ROAD + BLOCK, N = 40;
 /** The original 14x14 city is the core; a ring of O blocks was added around it (same generator, same seeds for the core). */
 export const CORE = 14, O = (N - CORE) / 2;
-export const CITY = N * PITCH + ROAD; // 2014 m
+/** The 20x20 city of the previous release (core + first ring) is kept exactly; the outer districts surround it. */
+export const MID = 3;
+export const CITY = N * PITCH + ROAD; // 4014 m
 export const HALF = CITY / 2; // city spans -HALF..HALF on x and z
 export const HWY_W = 26, HWY_C = HALF + 33; // ring highway centerline offset
 /** Road lines that connect the city edge to the ring highway. */
-export const HWY_LINKS = [2, 6, 10, 14, 18];
+export const HWY_LINKS = Array.from({ length: N / 4 }, (_, k) => 2 + k * 4);
 export const WATER_Y = -0.8;
 
 export const roadC = (k: number) => -HALF + k * PITCH + ROAD / 2; // center of road line k (0..N)
 export const blockX0 = (i: number) => -HALF + i * PITCH + ROAD;
+/** Block containing (x, z), or undefined on a road / outside the city. */
+export function blockAt(x: number, z: number): BlockInfo | undefined {
+  const i = Math.floor((x + HALF - ROAD) / PITCH), j = Math.floor((z + HALF - ROAD) / PITCH);
+  if (i < 0 || j < 0 || i >= N || j >= N) return undefined;
+  const b = blocks[j * N + i]; return b && x >= b.x0 - 1 && x <= b.x1 + 1 && z >= b.z0 - 1 && z <= b.z1 + 1 ? b : undefined;
+}
+export const blockOfB = (b: { x0: number; x1: number; z0: number; z1: number }) => blockAt((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2);
 
 export type Zone = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'park' | 'parking' | 'gas';
 export type BType = 'glass' | 'office' | 'brick' | 'house' | 'warehouse' | 'shop' | 'terminal' | 'hangar';
@@ -54,8 +63,47 @@ export function ringOf(ci: number, cj: number): Ring {
   if (ci < 0) return 'west';
   return 'north';
 }
+/** Outer districts (beyond the 20x20 city): eight sectors around the core. */
+export type Outer = 'midtown' | 'eastbay' | 'techpark' | 'portside' | 'oldtown' | 'westgate' | 'greenvalley' | 'northhills' | '';
+export const OUTER_NAMES: Record<Exclude<Outer, ''>, string> = { midtown: 'ミッドタウン', eastbay: 'イーストベイ', techpark: 'テックパーク', portside: 'ポートサイド', oldtown: 'オールドタウン', westgate: 'ウエストゲート', greenvalley: 'グリーンバレー', northhills: 'ノースヒルズ' };
+export const MIDTOWN = { ci: 21, cj: -8 }; // centre of the second skyline (core block coordinates)
+export function outerOf(ci: number, cj: number): Outer {
+  if (ci >= -MID && ci < CORE + MID && cj >= -MID && cj < CORE + MID) return '';
+  const rx = ci - (CORE - 1) / 2, rz = cj - (CORE - 1) / 2, a = Math.atan2(rz, rx) * 180 / Math.PI; // 0 = east, 90 = south
+  if (a >= -22.5 && a < 22.5) return 'eastbay';
+  if (a >= 22.5 && a < 67.5) return 'techpark';
+  if (a >= 67.5 && a < 112.5) return 'portside';
+  if (a >= 112.5 && a < 157.5) return 'oldtown';
+  if (a >= 157.5 || a < -157.5) return 'westgate';
+  if (a >= -157.5 && a < -112.5) return 'greenvalley';
+  if (a >= -112.5 && a < -67.5) return 'northhills';
+  return 'midtown';
+}
+function outerZone(o: Exclude<Outer, ''>, ci: number, cj: number): Zone {
+  const h = (ci * 83492791) ^ (cj * 2971215073), u = ((h >>> 0) % 1000) / 1000;
+  if (u > 0.993 && o !== 'portside' && o !== 'midtown') return 'gas';
+  switch (o) {
+    case 'midtown': { const d = Math.hypot(ci - MIDTOWN.ci, cj - MIDTOWN.cj); return d < 4.6 ? (u < 0.06 ? 'park' : 'downtown') : u < 0.12 ? 'park' : u < 0.7 ? 'commercial' : 'residential'; }
+    case 'eastbay': return u < 0.07 ? 'park' : cj % 3 === 0 ? 'downtown' : u < 0.75 ? 'commercial' : 'residential';
+    case 'techpark': return u < 0.14 ? 'park' : u < 0.55 ? 'downtown' : u < 0.94 ? 'commercial' : 'parking';
+    case 'portside': return u < 0.82 ? 'industrial' : u < 0.86 ? 'parking' : 'commercial';
+    case 'oldtown': return u < 0.08 ? 'park' : u < 0.42 ? 'commercial' : 'residential';
+    case 'westgate': return u < 0.07 ? 'parking' : u < 0.36 ? 'commercial' : u < 0.45 ? 'park' : 'residential';
+    case 'greenvalley': return u < 0.22 ? 'park' : 'residential';
+    case 'northhills': return u < 0.13 ? 'park' : u < 0.2 ? 'commercial' : 'residential';
+  }
+}
+/** Tower height falloff for a downtown block (0 = tallest). */
+function towerFall(ci: number, cj: number) {
+  const o = outerOf(ci, cj);
+  if (o === 'midtown') return Math.min(1.25, Math.hypot(ci - MIDTOWN.ci, cj - MIDTOWN.cj) / 4.6);
+  if (o) return o === 'eastbay' ? 0.95 : 1.15;
+  const c = (CORE - 1) / 2; return Math.min(1.25, Math.hypot(ci - c, cj - c) / c) * (ringOf(ci, cj) ? 0.62 : 1);
+}
 function zoneOf(i: number, j: number): Zone {
-  const ci = i - O, cj = j - O, ring = ringOf(ci, cj);
+  const ci = i - O, cj = j - O, outer = outerOf(ci, cj);
+  if (outer) return outerZone(outer, ci, cj);
+  const ring = ringOf(ci, cj);
   if (ring) {
     const s = RING_SPECIAL[ci + ',' + cj]; if (s) return s;
     const h = (ci * 73856093) ^ (cj * 19349663), u = ((h >>> 0) % 1000) / 1000;
@@ -129,7 +177,7 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
   if (zone === 'downtown') {
     const alongX = r() < 0.5, mid = alongX ? (ix0 + ix1) / 2 : (iz0 + iz1) / 2, a = 3;
     const halves = alongX ? [[ix0, iz0, mid - a, iz1], [mid + a, iz0, ix1, iz1]] : [[ix0, iz0, ix1, mid - a], [ix0, mid + a, ix1, iz1]];
-    const c = (CORE - 1) / 2, dc = Math.min(1.25, Math.hypot(ci - c, cj - c) / c) * (core ? 1 : 0.62);
+    const dc = towerFall(ci, cj);
     for (const [a0, b0, a1, b1] of halves) {
       const glass = r() < 0.65, h = (60 + r() * 150) * (1.25 - dc * 0.7);
       addB({ x0: a0, z0: b0, x1: a1, z1: b1, y0: S, h: Math.max(40, h), type: glass ? 'glass' : 'office', tint: pick(glass ? GLASS_T : OFFICE_T, r) });
@@ -241,12 +289,12 @@ function landmark(id: string, label: string, color: string, tx: number, tz: numb
   let best: Building | null = null, bd = 1e9;
   for (const b of buildings) {
     if (b.type !== 'office' && b.type !== 'brick' && b.type !== 'glass') continue;
-    const blk = blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
+    const blk = blockOfB(b);
     if (!blk || blk === GARAGE.block || b.z0 - blk.z0 > 7 || b.x1 - b.x0 < 14) continue;
     const cx = (b.x0 + b.x1) / 2; if (doors.some((d) => Math.hypot(d.x - cx, d.z - b.z0) < 30)) continue;
     const d = Math.hypot(cx - tx, b.z0 - tz); if (d < bd) { bd = d; best = b; }
   }
-  const b = best!, cx = (b.x0 + b.x1) / 2, blk = blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1)!;
+  const b = best!, cx = (b.x0 + b.x1) / 2, blk = blockOfB(b)!;
   return { id, label, color, x: cx, z: b.z0 - 0.8, spawn: { x: cx, z: blk.z0 - 2.2, yaw: Math.PI } };
 }
 export const POLICE_HQ = landmark('pd', 'BAY PD', '#2b6bff', -380, -220);
@@ -296,7 +344,7 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
   const r = mulberry(99);
   for (let z = -HALF; z < HALF; z += 26) { props.palms.push({ x: BEACH_X + 8 + r() * 10, z: z + r() * 10, s: 0.9 + r() * 0.4, y: heightAt(BEACH_X + 10, z) }); if (r() < 0.6) { const ux = BEACH_X + 15 + r() * 12; props.umbrellas.push({ x: ux, z: z + r() * 14, y: heightAt(ux, z) - 0.1, c: pick([[1, 0.3, 0.4], [0.2, 0.7, 1], [1, 0.8, 0.2], [1, 1, 1]], r) }); } }
   // port: container stacks + warehouses
-  for (let row = 0; row < 6; row++) for (let col = 0; col < 22; col++) {
+  for (let row = 0; row < 6; row++) for (let col = 0; col < 30; col++) {
     if (r() < 0.25) continue;
     const x = PORT.x0 + 60 + col * 14, z = PORT.z0 + 40 + row * 9, stack = 1 + Math.floor(r() * 3);
     for (let s = 0; s < stack; s++) props.containers.push({ x, z, y: 1.2 + s * 2.6, a: 0, c: pick([[0.75, 0.2, 0.15], [0.15, 0.35, 0.65], [0.85, 0.6, 0.15], [0.25, 0.55, 0.3], [0.6, 0.6, 0.62]], r) });
@@ -309,7 +357,7 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
   for (let k = 0; k < 3; k++) addB({ x0: AIRPORT.x0 + 40 + k * 70, z0: 260, x1: AIRPORT.x0 + 95 + k * 70, z1: 320, y0: 0, h: 16, type: 'hangar', tint: [0.72, 0.74, 0.78] });
   addB({ x0: AIRPORT.x0 + 580, z0: 190, x1: AIRPORT.x0 + 592, z1: 202, y0: 0, h: 38, type: 'office', tint: [0.85, 0.85, 0.88] });
   // hills: pines
-  for (let k = 0; k < 1150; k++) {
+  for (let k = 0; k < 1900; k++) {
     const x = LAND.x0 + 60 + r() * (LAND.x1 - LAND.x0 - 120), z = LAND.z0 + 60 + r() * (-HALF - 120 - LAND.z0 - 60), h = heightAt(x, z);
     if (h < 3) continue; props.pines.push({ x, z, s: 0.7 + r() * 0.8, y: h });
   }
@@ -319,7 +367,7 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
 
 /* ---------- homes you can walk into (danchi flat, family house, tower penthouse, beach villa) ---------- */
 {
-  const blkOf = (b: Building) => blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
+  const blkOf = (b: Building) => blockOfB(b);
   const free = (x: number, z: number) => !doors.some((d) => Math.hypot(d.x - x, d.z - z) < 30);
   const pick = (test: (b: Building, blk: BlockInfo) => boolean, tx: number, tz: number, maxSet = 9) => {
     let best: Building | null = null, bd = 1e9;
@@ -461,6 +509,7 @@ export function districtAt(x: number, z: number): string {
   if (z < -HALF - 60) return 'パリセード・ヒルズ';
   if (x > HALF + 40) return 'サウスビーチ';
   const lx = x + HALF, lz = z + HALF, i = clamp(Math.floor(lx / PITCH), 0, N - 1), j = clamp(Math.floor(lz / PITCH), 0, N - 1);
+  const outer = outerOf(i - O, j - O); if (outer) return OUTER_NAMES[outer];
   const ring = ringOf(i - O, j - O), zn = zoneOf(i, j);
   if (ring) return { north: 'ノースゲート', east: 'ベイフロント', south: 'ドックサイド', west: 'エアポートシティ', uptown: 'アップタウン' }[ring];
   return ({ downtown: 'ダウンタウン', commercial: 'ネオンマイル', residential: i < N / 2 ? 'パームホロウ' : 'コーラルハイツ', industrial: 'ファウンドリー', park: 'ベイパーク', parking: 'パーキング', gas: 'ハイウェイサイド' } as Record<Zone, string>)[zn];

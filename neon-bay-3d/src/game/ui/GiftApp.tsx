@@ -71,7 +71,7 @@ export default function GiftApp({ close, refresh }: { close: () => void; refresh
 
       <div className="jobCard gift">
         <b>📦 隠しギフトボックス</b>
-        <p>街のどこかに光るギフトボックスが {boxes.length} 個。歩くか車で触れると開く。10個・20個・30個でボーナス、全部集めるとApex F1。</p>
+        <p>街のどこかに光るギフトボックスが {boxes.length} 個。歩くか車で触れると開く。10個・25個・40個でボーナス、全部集めるとApex F1。</p>
         <span className="pay">発見 {found}/{boxes.length}</span>
         <div className="jobBtns"><button type="button" disabled={found >= boxes.length || game.money < 500} onClick={() => {
           const o = game.where === 'out' ? game.player : game.outsidePos, b = nearestBox(o.x, o.z); if (!b) return;

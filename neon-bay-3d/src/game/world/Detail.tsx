@@ -1,16 +1,18 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { buildings, blocks, Building, BlockInfo, topFoot } from './cityGen';
-import { BDOORS } from './bldgInteriors';
+import { buildings, Building, BlockInfo, topFoot, blockOfB } from './cityGen';
+import type { BDoor } from './bldgInteriors';
 import { game } from '../state/store';
 import { getTextures } from './textures';
 import { mulberry } from './rng';
 
 /**
- * City detail layer (all instanced, a handful of draw calls):
- *  - rooftops: parapets, AC units, stair huts, water tanks, antennas with blinking red aircraft lights,
- *  - street-level neon: wall signs facing the street + Japanese-style vertical blade signs (glow at night).
+ * City detail layer, built per chunk by the city streamer (City.tsx) so only the area around the player exists:
+ *  - rooftops: parapets, AC units, stair huts, water tanks, antennas,
+ *  - street-level neon: wall signs facing the street + Japanese-style vertical blade signs (glow at night),
+ *  - shop awnings and entrance doors.
+ * The blinking red aircraft lights on tall towers are city-wide (they show the skyline from afar).
  */
 const H_WORDS: [string, string][] = [['RAMEN', '#ff4a4a'], ['BAR', '#ff3f93'], ['HOTEL', '#2be4ff'], ['カラオケ', '#ffd23a'], ['24H', '#3dffb0'], ['ゲーム', '#c07aff'], ['PIZZA', '#ff8a2a'], ['寿司', '#ff4a6a'], ['CLUB', '#b07aff'], ['SUSHI', '#3dffb0'], ['COFFEE', '#ffcf8a'], ['居酒屋', '#ff6a3a'], ['ARCADE', '#2be4ff'], ['BEER', '#ffd23a'], ['TACOS', '#ff8a2a'], ['焼肉', '#ff3a3a'], ['JAZZ', '#7ab8ff'], ['CAFE', '#ff9ad5'], ['MOTEL', '#ff3f93'], ['薬局', '#3dffb0'], ['BOOKS', '#ffffff'], ['GYM', '#9dff3a'], ['DANCE', '#ff3f93'], ['LIVE', '#2be4ff'], ['NOODLE', '#ffd23a'], ['HOSTEL', '#7ab8ff'], ['DONUTS', '#ff9ad5'], ['麺', '#ffcf8a'], ['NAILS', '#ff6ad5'], ['TATTOO', '#ff4a4a'], ['PAWN', '#ffd23a'], ['BAY FM', '#2be4ff']];
 const V_WORDS: [string, string][] = [['カラオケ', '#ffd23a'], ['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['ホテル', '#2be4ff'], ['薬局', '#3dffb0'], ['焼肉', '#ff3a3a'], ['寿司', '#ff4a6a'], ['喫茶', '#ffcf8a']];
@@ -35,10 +37,26 @@ function atlasMaterial(tex: THREE.Texture, sx: number, sy: number) {
   m.onBeforeCompile = (sh) => {
     sh.vertexShader = 'attribute vec2 uvOff;\n' + sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>\n  vMapUv = vMapUv * vec2(${sx.toFixed(4)}, ${sy.toFixed(4)}) + uvOff;`);
   };
+  m.customProgramCacheKey = () => 'atlas' + sx + 'x' + sy;
   return m;
 }
 
-const blockOf = (b: Building) => blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
+/* ---------------- shared materials and geometries (created once) ---------------- */
+let SH: ReturnType<typeof makeShared> | null = null;
+function makeShared() {
+  const stripe = (() => { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 8; const c = cv.getContext('2d')!; for (let x = 0; x < 64; x += 16) { c.fillStyle = '#ffffff'; c.fillRect(x, 0, 8, 8); c.fillStyle = '#9a9a9a'; c.fillRect(x + 8, 0, 8, 8); } const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(6, 1); return t; })();
+  return {
+    box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(1, 1, 1, 10), plane: new THREE.PlaneGeometry(1, 1),
+    roofMat: new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.1 }),
+    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), vMat: atlasMaterial(atlas(V_WORDS, 8, 1, 128, 512, true), 0.125, 1),
+    awnMat: new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }),
+    doorMat: new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }),
+    doorGlassMat: new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false }), doorLampMat: new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false }),
+    beaconMat: new THREE.MeshBasicMaterial({ map: getTextures().glow, color: '#ff2020', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+  };
+}
+const shared = () => (SH ||= makeShared());
+
 type Face = { nx: number; nz: number; cx: number; cz: number; len: number };
 /** Building faces that look onto a street. */
 function streetFaces(b: Building, k: BlockInfo): Face[] {
@@ -49,93 +67,112 @@ function streetFaces(b: Building, k: BlockInfo): Face[] {
   if (k.x1 - b.x1 < 8) f.push({ nx: 1, nz: 0, cx: b.x1, cz, len: b.z1 - b.z0 });
   return f;
 }
+const seedOf = (b: Building) => ((Math.floor(b.x0 * 7.31) * 73856093) ^ (Math.floor(b.z0 * 13.7) * 19349663)) >>> 0;
+const GREYS = ['#8a8c90', '#9a958c', '#7d8186', '#a5a39d'], AWN = ['#c0392b', '#1e7a4a', '#1f4e8c', '#d4a017', '#6b2d5c', '#2b2b30', '#d35400', '#117a7a'];
+const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 
+/** Rooftop clutter of one building, deterministic per building (so the city-wide beacon list matches the chunk detail). */
+function roofPlan(b: Building, box: (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw?: number) => void, cyl: (x: number, y: number, z: number, rr: number, h: number, col: string) => void): THREE.Vector3 | null {
+  const r = mulberry(seedOf(b)), T = topFoot(b), top = b.y0 + b.h, w = T.x1 - T.x0, d = T.z1 - T.z0, grey = GREYS[Math.floor(r() * 4)];
+  const pt = 0.35, ph = 0.9;
+  box((T.x0 + T.x1) / 2, top, T.z0 + pt / 2, w, ph, pt, grey); box((T.x0 + T.x1) / 2, top, T.z1 - pt / 2, w, ph, pt, grey);
+  box(T.x0 + pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); box(T.x1 - pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey);
+  const rx = () => T.x0 + 2 + r() * Math.max(0.1, w - 4), rz = () => T.z0 + 2 + r() * Math.max(0.1, d - 4);
+  let beacon: THREE.Vector3 | null = null;
+  if (w > 8 && d > 8) {
+    const n = 1 + Math.floor(r() * (w * d > 600 ? 5 : 3));
+    for (let k = 0; k < n; k++) box(rx(), top, rz(), 1.4, 1.0, 1.1, '#c9ccd0', r() * Math.PI);
+    if (r() < 0.65) box(rx(), top, rz(), 3.2, 2.6, 2.6, grey);
+    if ((b.type === 'brick' || b.type === 'office' || b.type === 'shop') && r() < 0.4) { const x = rx(), z = rz(); cyl(x, top + 1.2, z, 1.25, 2.4, '#8a6a4a'); box(x, top, z, 2.2, 1.2, 2.2, '#3a3a3e'); }
+    if (b.h > 70) { const x = rx(), z = rz(), ah = 8 + r() * 10; cyl(x, top, z, 0.12, ah, '#c9ccd0'); beacon = new THREE.Vector3(x, top + ah + 0.2, z); if (r() < 0.5) box((T.x0 + T.x1) / 2, top, (T.z0 + T.z1) / 2, w * 0.55, 3 + r() * 5, d * 0.55, '#2a3038'); }
+  }
+  return beacon;
+}
+const noop = () => {};
+
+/** Instanced detail meshes for the buildings and doors of one chunk (the caller disposes them). */
+export function buildDetail(list: Building[], doorList: BDoor[]): THREE.InstancedMesh[] {
+  const D = shared();
+  const boxes: { m: THREE.Matrix4; c: THREE.Color }[] = [], cyls: { m: THREE.Matrix4; c: THREE.Color }[] = [];
+  const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [];
+  const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
+  const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
+  for (const b of list) {
+    if (b.gable || b.type === 'hangar') continue;
+    roofPlan(b, box, cyl);
+    // street-level neon
+    const k = blockOfB(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas')) continue;
+    const r = mulberry(seedOf(b) + 1);
+    for (const f of streetFaces(b, k)) {
+      if (b.type === 'shop' && f.len > 6) { // striped shop awnings along the ground floor
+        const n = Math.max(1, Math.floor(f.len / 6.5)), seg = f.len / n, col = new THREE.Color(AWN[Math.floor(r() * AWN.length)]);
+        for (let j = 0; j < n; j++) {
+          if (r() < 0.2) continue;
+          const along = -f.len / 2 + seg * (j + 0.5), x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.8, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.8;
+          Q.setFromEuler(new THREE.Euler(0.38, Math.atan2(f.nx, f.nz), 0, 'YXZ')); P.set(x, b.y0 + 3.05, z); S.set(seg - 0.6, 0.06, 1.7);
+          aw.push({ m: M.compose(P, Q, S).clone(), c: col });
+        }
+      }
+      if (f.len < 8 || r() < 0.25) continue;
+      const n = f.len > 30 ? 2 : 1;
+      for (let j = 0; j < n; j++) {
+        const along = (j - (n - 1) / 2) * (f.len / n) + (r() - 0.5) * f.len * 0.2, sw = 3.5 + r() * 3, y = b.y0 + 3.4 + r() * 2.5;
+        const x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.12, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.12;
+        Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz)); P.set(x, y, z); S.set(sw, sw / 2, 1);
+        const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
+        if (k.zone === 'commercial' && r() < 0.55) { // vertical blade sign sticking out from the wall
+          const vx = f.cx + (f.nz !== 0 ? along + sw / 2 + 1.2 : 0) + f.nx * 0.9, vz = f.cz + (f.nx !== 0 ? along + sw / 2 + 1.2 : 0) + f.nz * 0.9;
+          Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, y + 2.6, vz); S.set(1.3, 5.2, 1);
+          const vc = Math.floor(r() * V_WORDS.length); vs.push({ m: M.compose(P, Q, S).clone(), o: [vc * 0.125, 0] });
+        }
+      }
+    }
+  }
+  const frameM: { m: THREE.Matrix4 }[] = [], glassM: { m: THREE.Matrix4 }[] = [], lampM: { m: THREE.Matrix4 }[] = [];
+  for (const dd of doorList) {
+    const nx = Math.sin(dd.ang), nz = Math.cos(dd.ang), wide = dd.kind === 'lobby' || dd.kind === 'terminal' ? 2.6 : dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 1.8, hh = dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 2.6;
+    Q.setFromAxisAngle(UP, dd.ang);
+    P.set(dd.fx + nx * 0.06, dd.y + hh / 2, dd.fz + nz * 0.06); S.set(wide + 0.3, hh + 0.2, 0.14); frameM.push({ m: M.compose(P, Q, S).clone() });
+    P.set(dd.fx + nx * 0.14, dd.y + hh / 2 - 0.05, dd.fz + nz * 0.14); S.set(wide, hh - 0.1, 1); glassM.push({ m: M.compose(P, Q, S).clone() });
+    P.set(dd.fx + nx * 0.4, dd.y + hh + 0.35, dd.fz + nz * 0.4); S.set(0.5, 0.12, 0.25); lampM.push({ m: M.compose(P, Q, S).clone() });
+  }
+  const out: THREE.InstancedMesh[] = [];
+  const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, list2: { m: THREE.Matrix4; c?: THREE.Color }[], receive = true) => {
+    if (!list2.length) return null;
+    const im = new THREE.InstancedMesh(geo, mat, list2.length); list2.forEach((it, i) => { im.setMatrixAt(i, it.m); if (it.c) im.setColorAt(i, it.c); });
+    im.receiveShadow = receive; im.computeBoundingSphere(); out.push(im); return im;
+  };
+  const withOff = (list2: { m: THREE.Matrix4; o: [number, number] }[], mat: THREE.Material) => {
+    if (!list2.length) return;
+    const g = D.plane.clone(); const a = new THREE.InstancedBufferAttribute(new Float32Array(list2.length * 2), 2); list2.forEach((it, i) => a.setXY(i, it.o[0], it.o[1])); g.setAttribute('uvOff', a);
+    const im = mk(g, mat, list2, false); if (im) im.userData.ownGeo = true;
+  };
+  mk(D.box, D.roofMat, boxes); mk(D.cyl, D.roofMat, cyls);
+  withOff(hs, D.hMat); withOff(vs, D.vMat);
+  const awn = mk(D.box, D.awnMat, aw); if (awn) awn.castShadow = true;
+  mk(D.box, D.doorMat, frameM); mk(D.plane, D.doorGlassMat, glassM, false); mk(D.box, D.doorLampMat, lampM, false);
+  return out;
+}
+export function disposeDetail(list: THREE.InstancedMesh[]) { for (const im of list) { if (im.userData.ownGeo) im.geometry.dispose(); im.dispose(); } }
+
+/** City-wide: aircraft warning lights on tall towers, and the night glow of signs and doors. */
 export default function Detail() {
   const D = useMemo(() => {
-    const r = mulberry(4242), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
-    const boxes: { m: THREE.Matrix4; c: THREE.Color }[] = [], cyls: { m: THREE.Matrix4; c: THREE.Color }[] = [], beacons: THREE.Vector3[] = [];
-    const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [];
-    const AWN = ['#c0392b', '#1e7a4a', '#1f4e8c', '#d4a017', '#6b2d5c', '#2b2b30', '#d35400', '#117a7a'];
-    const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
-    const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
-    for (const b of buildings) {
-      if (b.gable || b.type === 'hangar') continue;
-      const T = topFoot(b), top = b.y0 + b.h, w = T.x1 - T.x0, d = T.z1 - T.z0, grey = ['#8a8c90', '#9a958c', '#7d8186', '#a5a39d'][Math.floor(r() * 4)];
-      // parapet ring
-      const pt = 0.35, ph = 0.9;
-      box((T.x0 + T.x1) / 2, top, T.z0 + pt / 2, w, ph, pt, grey); box((T.x0 + T.x1) / 2, top, T.z1 - pt / 2, w, ph, pt, grey);
-      box(T.x0 + pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); box(T.x1 - pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey);
-      const rx = () => T.x0 + 2 + r() * Math.max(0.1, w - 4), rz = () => T.z0 + 2 + r() * Math.max(0.1, d - 4);
-      if (w > 8 && d > 8) {
-        const n = 1 + Math.floor(r() * (w * d > 600 ? 5 : 3));
-        for (let k = 0; k < n; k++) { box(rx(), top, rz(), 1.4, 1.0, 1.1, '#c9ccd0', r() * Math.PI); }
-        if (r() < 0.65) box(rx(), top, rz(), 3.2, 2.6, 2.6, grey);
-        if ((b.type === 'brick' || b.type === 'office' || b.type === 'shop') && r() < 0.4) { const x = rx(), z = rz(); cyl(x, top + 1.2, z, 1.25, 2.4, '#8a6a4a'); box(x, top, z, 2.2, 1.2, 2.2, '#3a3a3e'); }
-        if (b.h > 70) { const x = rx(), z = rz(), ah = 8 + r() * 10; cyl(x, top, z, 0.12, ah, '#c9ccd0'); beacons.push(new THREE.Vector3(x, top + ah + 0.2, z)); if (r() < 0.5) box((T.x0 + T.x1) / 2, top, (T.z0 + T.z1) / 2, w * 0.55, 3 + r() * 5, d * 0.55, '#2a3038'); }
-      }
-      // street-level neon
-      const k = blockOf(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas')) continue;
-      for (const f of streetFaces(b, k)) {
-        // striped shop awnings along the ground floor
-        if (b.type === 'shop' && f.len > 6) {
-          const n = Math.max(1, Math.floor(f.len / 6.5)), seg = f.len / n, col = new THREE.Color(AWN[Math.floor(r() * AWN.length)]);
-          for (let j = 0; j < n; j++) {
-            if (r() < 0.2) continue;
-            const along = -f.len / 2 + seg * (j + 0.5), x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.8, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.8;
-            const e = new THREE.Euler(0.38, Math.atan2(f.nx, f.nz), 0, 'YXZ'); Q.setFromEuler(e); P.set(x, b.y0 + 3.05, z); S.set(seg - 0.6, 0.06, 1.7);
-            aw.push({ m: M.compose(P, Q, S).clone(), c: col });
-          }
-        }
-        if (f.len < 8 || r() < 0.25) continue;
-        const n = f.len > 30 ? 2 : 1;
-        for (let j = 0; j < n; j++) {
-          const along = (j - (n - 1) / 2) * (f.len / n) + (r() - 0.5) * f.len * 0.2, sw = 3.5 + r() * 3, y = b.y0 + 3.4 + r() * 2.5;
-          const x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.12, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.12;
-          Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz)); P.set(x, y, z); S.set(sw, sw / 2, 1);
-          const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
-          if (k.zone === 'commercial' && r() < 0.55) { // vertical blade sign sticking out from the wall
-            const vx = f.cx + (f.nz !== 0 ? along + sw / 2 + 1.2 : 0) + f.nx * 0.9, vz = f.cz + (f.nx !== 0 ? along + sw / 2 + 1.2 : 0) + f.nz * 0.9;
-            Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, y + 2.6, vz); S.set(1.3, 5.2, 1);
-            const vc = Math.floor(r() * V_WORDS.length); vs.push({ m: M.compose(P, Q, S).clone(), o: [vc * 0.125, 0] });
-          }
-        }
-      }
-    }
-    const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, list: { m: THREE.Matrix4; c?: THREE.Color }[]) => { const im = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)); list.forEach((it, i) => { im.setMatrixAt(i, it.m); if (it.c) im.setColorAt(i, it.c); }); im.count = list.length; im.receiveShadow = true; im.computeBoundingSphere(); return im; };
-    const roofMat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.1 });
-    const roofBoxes = mk(new THREE.BoxGeometry(1, 1, 1), roofMat, boxes), roofCyl = mk(new THREE.CylinderGeometry(1, 1, 1, 10), roofMat, cyls);
-    const hTex = atlas(H_WORDS, 4, 8, 256, 128, false), vTex = atlas(V_WORDS, 8, 1, 128, 512, true);
-    const hMat = atlasMaterial(hTex, 0.25, 0.125), vMat = atlasMaterial(vTex, 0.125, 1);
-    const plane = () => new THREE.PlaneGeometry(1, 1);
-    const withOff = (list: { m: THREE.Matrix4; o: [number, number] }[], mat: THREE.Material) => { const g = plane(); g.setAttribute('uvOff', new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, list.length) * 2), 2)); const im = mk(g, mat, list); const a = g.getAttribute('uvOff') as THREE.InstancedBufferAttribute; list.forEach((it, i) => a.setXY(i, it.o[0], it.o[1])); im.receiveShadow = false; return im; };
-    const signs = withOff(hs, hMat), blades = withOff(vs, vMat);
-    const stripe = (() => { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 8; const c = cv.getContext('2d')!; for (let x = 0; x < 64; x += 16) { c.fillStyle = '#ffffff'; c.fillRect(x, 0, 8, 8); c.fillStyle = '#9a9a9a'; c.fillRect(x + 8, 0, 8, 8); } const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(6, 1); return t; })();
-    const awnings = mk(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }), aw); awnings.castShadow = true;
-    const beaconMat = new THREE.MeshBasicMaterial({ map: getTextures().glow, color: '#ff2020', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
-    const bl = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.6, 1.6), beaconMat, Math.max(1, beacons.length)); bl.count = beacons.length; bl.frustumCulled = false;
-    const frameM: { m: THREE.Matrix4 }[] = [], glassM: { m: THREE.Matrix4 }[] = [], lampM: { m: THREE.Matrix4 }[] = [];
-    for (const dd of BDOORS) {
-      const nx = Math.sin(dd.ang), nz = Math.cos(dd.ang), wide = dd.kind === 'lobby' || dd.kind === 'terminal' ? 2.6 : dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 1.8, hh = dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 2.6;
-      Q.setFromAxisAngle(UP, dd.ang);
-      P.set(dd.fx + nx * 0.06, dd.y + hh / 2, dd.fz + nz * 0.06); S.set(wide + 0.3, hh + 0.2, 0.14); frameM.push({ m: M.compose(P, Q, S).clone() });
-      P.set(dd.fx + nx * 0.14, dd.y + hh / 2 - 0.05, dd.fz + nz * 0.14); S.set(wide, hh - 0.1, 1); glassM.push({ m: M.compose(P, Q, S).clone() });
-      P.set(dd.fx + nx * 0.4, dd.y + hh + 0.35, dd.fz + nz * 0.4); S.set(0.5, 0.12, 0.25); lampM.push({ m: M.compose(P, Q, S).clone() });
-    }
-    const doorFrames = mk(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }), frameM);
-    const doorGlassMat = new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false });
-    const doorGlass = mk(new THREE.PlaneGeometry(1, 1), doorGlassMat, glassM); doorGlass.receiveShadow = false;
-    const doorLampMat = new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false });
-    const doorLamps = mk(new THREE.BoxGeometry(1, 1, 1), doorLampMat, lampM); doorLamps.receiveShadow = false;
-    return { doorFrames, doorGlass, doorGlassMat, doorLamps, doorLampMat, awnings, roofBoxes, roofCyl, signs, blades, hMat, vMat, bl, beacons, beaconMat, counts: { awnings: aw.length, roof: boxes.length + cyls.length, signs: hs.length + vs.length, beacons: beacons.length } };
+    const beacons: THREE.Vector3[] = [];
+    for (const b of buildings) if (b.h > 70 && !b.gable && b.type !== 'hangar') { const v = roofPlan(b, noop, noop); if (v) beacons.push(v); }
+    const sh = shared();
+    const bl = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.6, 1.6), sh.beaconMat, Math.max(1, beacons.length)); bl.count = beacons.length; bl.frustumCulled = false;
+    return { bl, beacons, sh };
   }, []);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
   useFrame(({ camera, clock }) => {
-    const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2);
-    const k = night ? 1.7 : dusk ? 1.1 : 0.55; D.hMat.color.setScalar(k); D.vMat.color.setScalar(k);
-    D.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); D.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
-    const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; D.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
-    for (let i = 0; i < D.beacons.length; i++) { tmp.m.compose(D.beacons[i], camera.quaternion, tmp.s); D.bl.setMatrixAt(i, tmp.m); }
-    D.bl.instanceMatrix.needsUpdate = true;
+    const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2), sh = D.sh;
+    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k);
+    sh.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); sh.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
+    const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; sh.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
+    let n = 0; const cx = camera.position.x, cz = camera.position.z;
+    for (const v of D.beacons) { if (Math.abs(v.x - cx) > 1600 || Math.abs(v.z - cz) > 1600) continue; tmp.m.compose(v, camera.quaternion, tmp.s); D.bl.setMatrixAt(n++, tmp.m); }
+    D.bl.count = n; D.bl.instanceMatrix.needsUpdate = true;
   });
-  return <><primitive object={D.doorFrames} /><primitive object={D.doorGlass} /><primitive object={D.doorLamps} /><primitive object={D.awnings} /><primitive object={D.roofBoxes} /><primitive object={D.roofCyl} /><primitive object={D.signs} /><primitive object={D.blades} /><primitive object={D.bl} /></>;
+  return <primitive object={D.bl} />;
 }

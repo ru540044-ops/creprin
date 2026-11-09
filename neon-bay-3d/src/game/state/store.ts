@@ -51,7 +51,7 @@ export interface Stats { time: number; walk: number; drive: number; fly: number;
 export const newStats = (): Stats => ({ time: 0, walk: 0, drive: 0, fly: 0, sail: 0, earned: 0, vehicles: [], top: 0, maxWanted: 0, districts: [], escapes: 0, flags: {} });
 export const progress = {
   stats: newStats(), ach: [] as string[], look: { ...DEFAULT_LOOK }, wardrobe: [] as string[], trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
-  gift: { bv: 2, last: '', streak: 0, boxes: [] as number[], claimed: [] as string[], made: [] as string[], used: [] as string[] } };
+  gift: { bv: 3, last: '', streak: 0, boxes: [] as number[], claimed: [] as string[], made: [] as string[], used: [] as string[] } };
 
 /** Cars the player owns; index = garage bay. */
 export const ownedCars: { kind: VKind; color: string; mods?: Mods }[] = [];
@@ -92,7 +92,7 @@ export function load(): boolean {
     if (s.look) { const L = sanitizeLook(s.look); if (L.watch && !progress.wardrobe.includes(L.watch)) L.watch = ''; if (L.bag && !progress.wardrobe.includes(L.bag)) L.bag = ''; progress.look = L; }
     if (typeof s.cityStyle === 'string' && s.cityStyle in CITY_STYLE_NAMES) setCityStyle(s.cityStyle as CityStyle);
     if (s.gift && typeof s.gift === 'object') { const g = s.gift, G = progress.gift, arr = (a: unknown, t: string) => (Array.isArray(a) ? a.filter((x) => typeof x === t) : []);
-      G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = g.bv === 2 ? (arr(g.boxes, 'number') as number[]) : [] /* box layout changed with the bigger city */; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
+      G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = g.bv === 3 ? (arr(g.boxes, 'number') as number[]) : [] /* box layout changed with the bigger city */; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
     if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
     if (typeof s.ccam === 'number') game.cam.carMode = s.ccam;
     if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI;

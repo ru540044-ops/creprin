@@ -1,9 +1,9 @@
 import { music } from '../audio';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { vehicles, stream, drive, collisions, Veh, playerCar, remove } from './sim';
-import { buildCarModel, CarModel, applyMods } from './models';
+import { buildCarModel, CarModel, applyMods, disposeCarModel } from './models';
 import { isBoat } from './defs';
 import { explode, tickExplosives } from '../combat/explode';
 import { game, toast } from '../state/store';
@@ -134,9 +134,13 @@ function GarageSign() {
 
 function VehicleView({ v }: { v: Veh }) {
   const m = useMemo(() => { const mm = buildCarModel(v.def, v.color); models.set(v.id, mm); return mm; }, [v]);
+  useEffect(() => () => disposeCarModel(m), [m]); // free the car's GPU memory when it leaves the world
   useFrame(({ camera }) => {
     m.root.visible = Math.abs(v.x - camera.position.x) < 220 && Math.abs(v.z - camera.position.z) < 220;
     if (!m.root.visible) return;
+    { const dx = v.x - camera.position.x, dz = v.z - camera.position.z, d2 = dx * dx + dz * dz, mine = v.id === game.inCar; // interior and small parts only close up
+      if (m.cabin && m.cabin.length) { const show = d2 < 1225 || mine; if (m.cabin[0].visible !== show) for (const c of m.cabin) c.visible = show; }
+      if (m.small && m.small.length) { const show = d2 < 4900 || mine; if (m.small[0].visible !== show) for (const c of m.small) c.visible = show; } }
     m.root.position.set(v.x, v.y, v.z); m.root.rotation.y = v.yaw;
     m.tilt.rotation.x = -v.pitch - v.squat; m.tilt.rotation.z = v.def.kind === 'bike' ? v.lean : v.roll;
     const key = v.color + JSON.stringify(v.mods) + v.exploded;

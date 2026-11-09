@@ -1,5 +1,5 @@
 import type { InteriorDef, Furn, View } from './Interiors';
-import { buildings, blocks, doors, Building, BlockInfo, topFoot } from './cityGen';
+import { buildings, blocks, doors, Building, BlockInfo, topFoot, blockOfB } from './cityGen';
 import { mulberry } from './rng';
 
 /**
@@ -35,7 +35,7 @@ const kindOf = (b: Building): BKind => b.type === 'glass' ? 'lobby' : b.type ===
 export const BDOORS: BDoor[] = [];
 const grid = new Map<string, number[]>(), CELL = 30;
 {
-  const blockOf = (b: Building): BlockInfo | undefined => blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
+  const blockOf = (b: Building): BlockInfo | undefined => blockOfB(b) ?? blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
   buildings.forEach((b, i) => {
     if (b.x1 - b.x0 < 6 || b.z1 - b.z0 < 6) return;
     if (doors.some((d) => d.x > b.x0 - 3 && d.x < b.x1 + 3 && d.z > b.z0 - 3 && d.z < b.z1 + 3)) return; // has a hand-made interior

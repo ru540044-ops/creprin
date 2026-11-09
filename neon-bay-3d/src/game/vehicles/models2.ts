@@ -14,7 +14,7 @@ function lights() {
   return { head: new THREE.MeshStandardMaterial({ color: '#fff7e0', emissive: new THREE.Color('#fff2cc'), emissiveIntensity: 0.3 }), tail: new THREE.MeshStandardMaterial({ color: '#5a0a0a', emissive: new THREE.Color('#ff1a1a'), emissiveIntensity: 0.4 }) };
 }
 function steeringWheel(r: number, x: number, y: number, z: number, tilt: number, parent: THREE.Object3D) {
-  const col = new THREE.Group(); col.position.set(x, y, z); col.rotation.z = tilt; parent.add(col);
+  const col = new THREE.Group(); col.position.set(x, y, z); col.rotation.z = tilt; col.userData.cabin = true; parent.add(col);
   const wheelG = new THREE.Group(); col.add(wheelG);
   const S = shared();
   const rim = new THREE.Mesh(new THREE.TorusGeometry(r, r * 0.13, 8, 28).rotateY(Math.PI / 2), ds('#141416', 0.5)); wheelG.add(rim);
@@ -30,7 +30,7 @@ export function addCabin(def: VDef, P: { lower: number[][]; glass: number[][]; r
   const sport = def.kind === 'super' || def.kind === 'hyper' || def.kind === 'sport' || def.kind === 'muscle';
   const leather = ds(def.kind === 'limo' || def.kind === 'sedan' ? '#c9b08a' : sport ? '#1c1c20' : def.kind === 'taxi' || def.kind === 'police' ? '#2a2c33' : '#3a3c44', 0.55);
   const stitch = ds(sport ? '#c0161c' : '#6a5a48', 0.5), dark = ds('#18191d', 0.7), trimM = ds('#2a2b30', 0.4, 0.3);
-  const add = (g: THREE.BufferGeometry, m: THREE.Material) => { const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = true; body.add(mesh); return mesh; };
+  const add = (g: THREE.BufferGeometry, m: THREE.Material) => { const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = true; mesh.userData.cabin = true; body.add(mesh); return mesh; };
   const limo = def.kind === 'limo', sx = limo ? gx1 - 1.2 : Math.max(gx0 + 0.75, gx1 - 1.25), headTop = Math.min(belt + 0.36, P.roofY - 0.1);
   for (const z of [-W * 0.22, W * 0.22]) {
     add(box(0.56, 0.14, 0.5, sx, floorY + 0.22, z), leather);
