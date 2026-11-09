@@ -19,6 +19,18 @@ export interface RegionDef {
   station: string;
   /** the city's landmark: kind, label on the map, and the park block (core coordinates) it stands in */
   landmark: { kind: Landmark3D; label: string; ci: number; cj: number };
+  /** a water channel through a row (axis x) or column (axis z) of blocks, core coordinates */
+  canals?: { axis: 'x' | 'z'; at: number; from: number; to: number; name: string; w?: number }[];
+  /** park blocks (core coordinates) with a pond */
+  ponds?: [number, number][];
+  /** where the sea cuts into the city */
+  bay?: 'southeast' | 'west' | 'north';
+  /** the shopping street with a lit arch at both ends */
+  arch: string;
+  /** street food sold at the stalls: name, price */
+  food: [string, number][];
+  /** bullet-train line: the city reached from each end of it */
+  shinkansen?: { north?: RegionId; south?: RegionId };
   /** elevated railway: label and number of cars */
   rail: { name: string; cars: number; color: string };
   roofs: [number, number, number][];
@@ -29,33 +41,42 @@ const JROOF: [number, number, number][] = [[0.26, 0.28, 0.32], [0.3, 0.34, 0.42]
 const JWALL: [number, number, number][] = [[0.97, 0.96, 0.93], [0.92, 0.9, 0.86], [0.88, 0.86, 0.82], [0.95, 0.92, 0.85], [0.84, 0.86, 0.88], [0.93, 0.88, 0.8]];
 export const REGIONS: Record<RegionId, RegionDef> = {
   tokyo: {
-    id: 'tokyo', idx: 0, name: '東京', en: 'TOKYO', N: 40, heightMul: 1, map: [0.7, 0.47],
+    id: 'tokyo', idx: 0, name: '東京', en: 'TOKYO', N: 48, heightMul: 1, map: [0.7, 0.47],
     intro: '日本の首都。超高層ビルの街、高架を走る電車、赤い電波塔。',
     names: { downtown: '新宿', commercial: ['渋谷', '銀座'], residential: ['世田谷', '目黒'], industrial: '大田', park: '代々木公園', beach: 'お台場', port: '東京港', airport: '羽田空港', hills: '奥多摩', sea: '東京湾' },
+    canals: [{ axis: 'z', at: 17, from: -3, to: 18, name: '隅田川', w: 38 }], bay: 'southeast',
     ring: { north: '池袋', east: '日本橋', south: '品川', west: '中野', uptown: '六本木' },
     outer: { midtown: '丸の内', eastbay: '豊洲', techpark: '天王洲', portside: '京浜', oldtown: '浅草', westgate: '吉祥寺', greenvalley: '練馬', northhills: '赤羽' },
+    arch: 'ネオン一番街', food: [['人形焼', 5], ['たい焼き', 4], ['焼きそば', 7], ['もんじゃ焼き', 9]],
+    shinkansen: { south: 'osaka' },
     station: '東京駅', landmark: { kind: 'tower', label: '電波塔', ci: 10, cj: 11 }, rail: { name: '環状線', cars: 8, color: '#3aa85a' },
     roofs: JROOF, walls: JWALL, palmStreets: false,
   },
   osaka: {
-    id: 'osaka', idx: 1, name: '大阪', en: 'OSAKA', N: 28, heightMul: 0.8, map: [0.53, 0.57],
+    id: 'osaka', idx: 1, name: '大阪', en: 'OSAKA', N: 36, heightMul: 0.8, map: [0.53, 0.57],
     intro: '天下の台所。キタの高層ビル、ミナミのネオン、大阪城。',
     names: { downtown: '梅田', commercial: ['心斎橋', '難波'], residential: ['天王寺', '福島'], industrial: '此花', park: '大阪城公園', beach: '南港', port: '大阪港', airport: '関西空港', hills: '生駒山', sea: '大阪湾' },
+    canals: [{ axis: 'x', at: 9, from: -2, to: 15, name: '道頓堀川' }, { axis: 'x', at: -3, from: 0, to: 20, name: '大川', w: 44 }], bay: 'west', arch: '道頓堀', food: [['たこ焼き', 6], ['串カツ', 8], ['お好み焼き', 9], ['いか焼き', 5]],
+    shinkansen: { north: 'tokyo', south: 'fukuoka' },
     station: '新大阪駅', landmark: { kind: 'castle', label: '大阪城', ci: 9, cj: 4 }, rail: { name: '環状線', cars: 6, color: '#ff6a2a' },
     roofs: JROOF, walls: JWALL, palmStreets: false,
   },
   fukuoka: {
-    id: 'fukuoka', idx: 2, name: '福岡', en: 'FUKUOKA', N: 24, heightMul: 0.42, map: [0.27, 0.66],
+    id: 'fukuoka', idx: 2, name: '福岡', en: 'FUKUOKA', N: 32, heightMul: 0.42, map: [0.27, 0.66],
     intro: '九州の玄関口。中洲のネオン、海辺のガラスのタワー、空港が近い低い街並み。',
     names: { downtown: '天神', commercial: ['博多', '中洲'], residential: ['薬院', '大濠'], industrial: '箱崎', park: '大濠公園', beach: '百道浜', port: '博多港', airport: '福岡空港', hills: '油山', sea: '博多湾' },
+    canals: [{ axis: 'z', at: 10, from: -6, to: 21, name: '那珂川', w: 32 }], ponds: [[-6, 4], [-5, 4], [-6, 5], [-5, 5]], bay: 'north', arch: '中洲大通り', food: [['博多ラーメン', 8], ['おでん', 6], ['焼きラーメン', 9], ['もつ鍋', 12]],
+    shinkansen: { north: 'osaka' },
     station: '博多駅', landmark: { kind: 'seatower', label: 'シーサイドタワー', ci: 0, cj: 0 }, rail: { name: '空港線', cars: 4, color: '#2b6bff' },
     roofs: JROOF, walls: JWALL, palmStreets: false,
   },
   naha: {
-    id: 'naha', idx: 3, name: '那覇', en: 'NAHA', N: 20, heightMul: 0.3, map: [0.1, 0.92],
+    id: 'naha', idx: 3, name: '那覇', en: 'NAHA', N: 28, heightMul: 0.3, map: [0.1, 0.92],
     intro: '南国の地方都市。赤瓦の家、ヤシ並木、青い海、モノレール。',
     names: { downtown: 'おもろまち', commercial: ['国際通り', '牧志'], residential: ['首里', '小禄'], industrial: '港町', park: '首里城公園', beach: '波の上ビーチ', port: '那覇港', airport: '那覇空港', hills: '首里の丘', sea: '東シナ海' },
-    station: '', landmark: { kind: 'redcastle', label: '首里城', ci: 4, cj: 9 }, rail: { name: 'モノレール', cars: 2, color: '#2bb0c8' },
+    ponds: [[10, 1]], bay: 'west',
+    arch: '国際通り', food: [['サーターアンダギー', 3], ['沖縄そば', 8], ['タコス', 6], ['紅いもアイス', 4]],
+    station: '', landmark: { kind: 'redcastle', label: '首里城', ci: 13, cj: 9 }, rail: { name: 'モノレール', cars: 2, color: '#2bb0c8' },
     roofs: [[0.78, 0.33, 0.22], [0.72, 0.3, 0.2], [0.85, 0.4, 0.26], [0.7, 0.36, 0.26]], walls: [[0.98, 0.97, 0.94], [0.95, 0.93, 0.86], [0.92, 0.95, 0.96], [0.97, 0.9, 0.82]], palmStreets: true,
   },
 };

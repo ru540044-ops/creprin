@@ -1,14 +1,15 @@
+import { travelTo, TRAVEL_KEY } from './travel';
 import { useEffect, useState } from 'react';
 import { game, toast, save } from '../state/store';
 import { playerCar } from '../vehicles/sim';
 import { law, trial } from '../crime/crime';
 import { race } from '../crime/race';
 import { mission } from '../crime/story';
-import { REGION, REGIONS, REGION_ORDER, RegionId, route, setRegion, ARRIVE_KEY } from '../world/region';
+import { REGION, REGIONS, REGION_ORDER, RegionId, route } from '../world/region';
 import { STATION, AIRPORT } from '../world/cityGen';
 import { sfx } from '../audio';
 
-export const TRAVEL_KEY = 'neonbay3d.travelling';
+export { TRAVEL_KEY };
 
 /** Simplified outline of Japan in a 100 x 100 box (x east, y south): Hokkaido, Honshu, Shikoku, Kyushu, Okinawa. */
 const ISLANDS = [
@@ -40,12 +41,7 @@ export default function TravelApp({ close }: { close: () => void }) {
     if (why || poor || going) return;
     if (!arm) { setArm(true); sfx('ui'); return; }
     setGoing(true); setArm(false);
-    game.money -= R.fare; game.hour = (game.hour + R.hours) % 24; game.waypoint = null;
-    sfx('buy'); toast(`${R.icon} ${R.label}で${D.name}へ出発（${R.hours}時間）`, 3);
-    save();
-    try { localStorage.setItem(ARRIVE_KEY, R.mode); localStorage.setItem(TRAVEL_KEY, JSON.stringify({ from: REGION.id, to: sel, mode: R.mode })); } catch { /* ignore */ }
-    setRegion(sel);
-    setTimeout(() => location.reload(), 900);
+    travelTo(sel, R.mode, R.fare, R.hours, `${R.icon} ${R.label}で${D.name}へ出発（${R.hours}時間）`);
   };
   const ST = STATION;
   const P = (id: RegionId) => [REGIONS[id].map[0] * 100, REGIONS[id].map[1] * 100] as const;

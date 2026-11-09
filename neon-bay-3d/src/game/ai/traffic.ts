@@ -1,9 +1,9 @@
 import { game } from '../state/store';
 import { vehicles, spawn, remove, playerCar, Veh, Drive } from '../vehicles/sim';
 import { VDEFS, VKind } from '../vehicles/defs';
-import { roadC, N, HALF } from '../world/cityGen';
+import { roadC, N, HALF, nodeOpen } from '../world/cityGen';
 import { signalState } from '../world/City';
-import { steer, newAI, nodeIdx } from './driver';
+import { steer, newAI, nodeIdx, edgeOpen } from './driver';
 import { clamp } from '../world/rng';
 import { admin } from '../admin';
 
@@ -48,7 +48,8 @@ function spawnTraffic(px: number, pz: number, role: '' | 'police' = '') {
   const pi = nodeIdx(px), pj = nodeIdx(pz), bx = Math.sin(game.cam.yaw), bz = Math.cos(game.cam.yaw);
   for (let k = 0; k < 20; k++) {
     const i = clamp(pi + Math.round((Math.random() - 0.5) * 6), 0, N), j = clamp(pj + Math.round((Math.random() - 0.5) * 6), 0, N);
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, b]) => i + a >= 0 && i + a <= N && j + b >= 0 && j + b <= N);
+    if (!nodeOpen(i, j)) continue;
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, b]) => i + a >= 0 && i + a <= N && j + b >= 0 && j + b <= N && edgeOpen(i, j, i + a, j + b)); if (!dirs.length) continue;
     const [di, dj] = dirs[Math.floor(Math.random() * dirs.length)];
     const ax = roadC(i), az = roadC(j), ux = di, uz = dj; // unit direction (grid aligned)
     const x = ax + ux * 22 + uz * LANE, z = az + uz * 22 - ux * LANE; // left of the centre line (Japan)

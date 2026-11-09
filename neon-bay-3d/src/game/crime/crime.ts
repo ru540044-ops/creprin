@@ -1,8 +1,9 @@
+import { japanNear, japanAction, shinNear } from './japan';
 import { game, toast, save, progress } from '../state/store';
 import { vehicles, spawn, remove, playerCar, hooks, Veh } from '../vehicles/sim';
 import { VDEFS, VKind } from '../vehicles/defs';
 import { newAI, steer, clearLine, nodeIdx } from '../ai/driver';
-import { CUSTOMS, roadC, N, POLICE_HQ, HOSPITAL, EXPORT_DOCK, TRIALS, Trial, HALF, groundAt } from '../world/cityGen';
+import { nodeOpen, CUSTOMS, roadC, N, POLICE_HQ, HOSPITAL, EXPORT_DOCK, TRIALS, Trial, HALF, groundAt } from '../world/cityGen';
 import { INTERIORS } from '../world/Interiors';
 import { releaseDrive } from '../input';
 import { sfx, siren } from '../audio';
@@ -54,7 +55,7 @@ function spawnCop(px: number, pz: number) {
   for (let k = 0; k < 24; k++) {
     const i = clamp(pi + Math.round((Math.random() - 0.5) * 5), 0, N), j = clamp(pj + Math.round((Math.random() - 0.5) * 5), 0, N);
     const x = roadC(i), z = roadC(j), d = Math.hypot(x - px, z - pz);
-    if (d < 110 || d > 260) continue;
+    if (d < 110 || d > 260 || !nodeOpen(i, j)) continue;
     if (vehicles.some((v) => Math.hypot(v.x - x, v.z - z) < 9)) continue;
     fallback = fallback || [i, j];
     if ((x - px) * bx + (z - pz) * bz > 0) { pick = [i, j]; break; } // behind the camera: not seen popping in
@@ -167,7 +168,7 @@ function spawnArmored(px: number, pz: number) {
   for (let k = 0; k < 30; k++) {
     const i = clamp(pi + Math.round((Math.random() - 0.5) * 6), 0, N), j = clamp(pj + Math.round((Math.random() - 0.5) * 6), 0, N);
     const x = roadC(i), z = roadC(j), d = Math.hypot(x - px, z - pz);
-    if (d < 130 || d > 260 || vehicles.some((v) => Math.hypot(v.x - x, v.z - z) < 10)) continue;
+    if (d < 130 || d > 260 || !nodeOpen(i, j) || vehicles.some((v) => Math.hypot(v.x - x, v.z - z) < 10)) continue;
     const v = spawn('armored', x, z, (Math.floor(Math.random() * 4) * Math.PI) / 2, '#3e4650');
     v.role = 'armored'; v.touched = true; v.ai = newAI(x, z); armored.v = v; armored.state = 'drive'; armored.dmg = 0; armored.pry = 0; armored.cash = 2500 + Math.round(Math.random() * 35) * 100;
     toast('現金輸送車が近くを走っている！体当たりして止めろ（マップの $）', 3.6); return;
@@ -265,9 +266,10 @@ export function jobNear(): Near | null {
   if (game.where !== 'out') return null;
   if (!me) {
     if (armored.v && (armored.state === 'stopped') && nearArmoredRear()) return { kind: 'job', id: 'pry', label: armored.pry > 0 ? 'こじ開け中…' : '後部ドアをこじ開ける', btn: 'こじ開け' };
-    return null;
+    return japanNear();
   }
   // in a car
+  if (me.def.kind === 'shinkansen') return shinNear(me);
   if (me.def.kind === 'yacht' && !me.dead && Math.hypot(me.vx, me.vz) < 1.5) return { kind: 'job', id: 'cabin', label: 'メインサロン（キャビン）に入る', btn: 'キャビン' };
   if (atDock(me) && Math.hypot(me.vx, me.vz) < 4) {
     if (me.owned >= 0 || me.role) return { kind: 'job', id: 'exportno', label: 'この車は輸出できない', btn: '輸出' };
@@ -294,6 +296,7 @@ export function jobAction(id: string) {
     me.vx = me.vz = 0; game.yachtId = me.id; game.inCar = 0; releaseDrive(); game.where = 'yacht';
     game.outsidePos = { x: me.x + Math.cos(me.yaw) * 4, z: me.z - Math.sin(me.yaw) * 4, yaw: me.yaw };
     p.x = C.ox + C.spawn.x; p.z = C.oz + C.spawn.z; p.y = -50; p.vy = 0; game.fadeT = 0.6; sfx('door'); toast(C.name + '（出口で操舵席に戻る）', 2);
+  } else if (id.startsWith('jp:')) { japanAction(id);
   } else if (id === 'style') { game.openStyle = true;
   } else if (id === 'story') { startMission();
   } else if (id === 'roofup') {
@@ -326,6 +329,8 @@ export function onEnterCar(v: Veh) { if (v.role === 'police') { v.ai = null; set
 /* =====================================================================
    Per-frame update (called from the vehicle loop before physics)
    ===================================================================== */
+// installed once every module has loaded (the vehicle module may still be initialising when this one runs: import cycle)
+queueMicrotask(() => {
 hooks.carHit = (a, b, imp) => {
   const me = a.id === game.inCar ? a : b.id === game.inCar ? b : null; if (!me) return;
   const o = me === a ? b : a;
@@ -337,6 +342,7 @@ hooks.carHit = (a, b, imp) => {
   }
 };
 hooks.hurtPlayer = (dmg) => damagePlayer(dmg);
+});
 
 export function updateCrime(dt: number) {
   updateGifts(dt);

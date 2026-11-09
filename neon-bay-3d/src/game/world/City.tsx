@@ -6,12 +6,21 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay,
 } from './cityGen';
+import { REGION } from './region';
 import { game } from '../state/store';
 import { BDOORS, BDoor } from './bldgInteriors';
 import { buildDetail, disposeDetail } from './Detail';
+import { blockOfB } from './cityGen';
 
+/** Road marking 止まれ ("stop"): white characters stretched along the lane, transparent around them. */
+function tomareTexture() {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 512; const c = cv.getContext('2d')!;
+  c.fillStyle = '#f2f2ee'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '900 84px "Hiragino Sans","Noto Sans JP",sans-serif';
+  c.setTransform(1, 0, 0, 5.2, 0, 0); c.fillText('止まれ', 128, 512 / 5.2 / 2 + 2);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
 /* Materials whose emissive brightness follows the time of day. */
 export const nightMats: { m: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial; k: number; kind: 'emissive' | 'opacity' }[] = [];
 
@@ -30,7 +39,7 @@ function useMaterials() {
     const pool = new THREE.MeshBasicMaterial({ map: T.glow, color: '#ffcf8a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
     nightMats.push({ m: pool, k: 0.55, kind: 'opacity' });
     return {
-      glass: fac(T.glass, 0.55), office: fac(T.office, 0.1), brick: fac(T.brick, 0.02), shop: fac(T.shop, 0.05, 1.3), house: fac(T.house, 0.02, 0.9), warehouse: fac(T.warehouse, 0.3, 0.6), terminal: fac(T.terminal, 0.5), hangar: fac(T.warehouse, 0.35, 0.4),
+      glass: fac(T.glass, 0.55), office: fac(T.office, 0.1), brick: fac(T.brick, 0.02), shop: fac(T.shop, 0.05, 1.3), house: fac(T.house, 0.02, 0.9), machiya: fac(T.machiya, 0.02, 0.8), okinawa: fac(T.okinawa, 0.02, 0.9), warehouse: fac(T.warehouse, 0.3, 0.6), terminal: fac(T.terminal, 0.5), hangar: fac(T.warehouse, 0.35, 0.4),
       roof: std({ map: rep(T.roof), vertexColors: true, roughness: 0.95 }),
       tiles: std({ map: T.tiles, vertexColors: true, roughness: 0.75 }),
       misc: std({ vertexColors: true, roughness: 0.7, metalness: 0.15 }),
@@ -43,13 +52,14 @@ function useMaterials() {
       concrete: std({ map: T.concrete, roughness: 0.85 }),
       dirt: std({ map: T.dirt, roughness: 1, vertexColors: true }),
       paint: std({ vertexColors: true, roughness: 0.6 }),
+      tomare: std({ map: tomareTexture(), transparent: true, alphaTest: 0.35, roughness: 0.6, depthWrite: false }),
       water: std({ color: '#1d5f7a', roughness: 0.12, metalness: 0.25, normalMap: T.waterN, normalScale: new THREE.Vector2(0.28, 0.28), transparent: true, opacity: 0.93, envMapIntensity: 1.5 }),
     };
   }, []);
 }
 type Mats = ReturnType<typeof useMaterials>;
 
-const FAC_SET = (t: BType) => { const T = getTextures(); return ({ glass: T.glass, office: T.office, brick: T.brick, shop: T.shop, house: T.house, warehouse: T.warehouse, terminal: T.terminal, hangar: T.warehouse } as const)[t]; };
+const FAC_SET = (t: BType | 'machiya' | 'okinawa') => { const T = getTextures(); return ({ glass: T.glass, office: T.office, brick: T.brick, shop: T.shop, house: T.house, machiya: T.machiya, okinawa: T.okinawa, warehouse: T.warehouse, terminal: T.terminal, hangar: T.warehouse } as const)[t]; };
 
 /* ---------- chunked buildings with two LOD levels ---------- */
 const CH = 300;
@@ -105,18 +115,36 @@ function buildChunkLevel(list: Building[], hi: boolean): Built {
   const rec: Record<string, Geo> = {}, g = (k: string) => (rec[k] ||= new Geo());
   for (const b of list) {
     const r = mulberry(seedOf(b));
-    const F = FAC_SET(b.type), top = b.y0 + b.h, col = b.tint;
+    const key = b.style || b.type, F = FAC_SET(key), top = b.y0 + b.h, col = b.tint;
     {
-      const wall = g(b.type);
+      const wall = g(key);
       if (b.gable) {
         wall.box(b.x0, b.y0, b.z0, b.x1, top, b.z1, col, F.su, F.sv, null, 8, true, b.y0);
-        g('tiles').gable(b.x0, b.z0, b.x1, b.z1, top, Math.min(4, (Math.min(b.x1 - b.x0, b.z1 - b.z0)) * 0.35), b.roofTint || [0.5, 0.3, 0.25], wall, col);
-        if (hi) { // Japanese house: front door, a first-floor balcony with a railing, an air-conditioner unit on the side wall
-          const m = g('misc'), mt = g('metal'), cx = (b.x0 + b.x1) / 2, bw = (b.x1 - b.x0) * 0.32, by = b.y0 + 3.05, bx = b.x0 + (b.x1 - b.x0) * (r() < 0.5 ? 0.3 : 0.7);
-          m.box(cx - 0.6 + (bx > cx ? -2.2 : 2.2), b.y0, b.z0 - 0.08, cx + 0.6 + (bx > cx ? -2.2 : 2.2), b.y0 + 2.1, b.z0, [0.35, 0.26, 0.2]);
-          m.solid(bx - bw, by - 0.14, b.z0 - 1.0, bx + bw, by, b.z0, [0.82, 0.8, 0.76]); mt.solid(bx - bw, by, b.z0 - 1.0, bx + bw, by + 1.0, b.z0 - 0.94, [0.55, 0.57, 0.6]);
-          mt.solid(bx - bw - 0.06, by, b.z0 - 1.0, bx - bw, by + 1.0, b.z0, [0.55, 0.57, 0.6]); mt.solid(bx + bw, by, b.z0 - 1.0, bx + bw + 0.06, by + 1.0, b.z0, [0.55, 0.57, 0.6]);
-          const az = b.z0 + 1.5 + r() * Math.max(0.5, b.z1 - b.z0 - 3.5); m.solid(b.x1, b.y0, az, b.x1 + 0.32, b.y0 + 0.62, az + 0.82, [0.9, 0.9, 0.88]);
+        const span = Math.min(b.x1 - b.x0, b.z1 - b.z0), rt = b.roofTint || [0.3, 0.32, 0.35];
+        if (b.roof === 'hip') g('tiles').hip(b.x0, b.z0, b.x1, b.z1, top, span * (b.style === 'okinawa' ? 0.2 : 0.24), rt, b.style === 'okinawa' ? 0.5 : 0.7);
+        else g('tiles').gable(b.x0, b.z0, b.x1, b.z1, top, Math.min(3.2, span * (b.style === 'machiya' ? 0.22 : 0.3)), rt, wall, col);
+        if (hi) {
+          const m = g('misc'), mt = g('metal'), bk = blockOfB(b), south = !!bk && bk.z1 - b.z1 < b.z0 - bk.z0, fz = south ? b.z1 : b.z0, out = south ? 1 : -1;
+          const slab = (x0: number, x1: number, y0: number, y1: number, d: number, c: number[], G = m) => G.solid(x0, y0, Math.min(fz, fz + out * d), x1, y1, Math.max(fz, fz + out * d), c);
+          if (b.style === 'machiya') { // timber townhouse: a tiled eave all along the ground floor, a sliding door, a hanging sign
+            slab(b.x0 - 0.05, b.x1 + 0.05, b.y0 + 2.7, b.y0 + 2.9, 0.95, rt);
+            slab((b.x0 + b.x1) / 2 - 0.9, (b.x0 + b.x1) / 2 + 0.9, b.y0, b.y0 + 2.2, 0.06, [0.22, 0.16, 0.12]);
+            if (r() < 0.25) slab((b.x0 + b.x1) / 2 + 1.2, (b.x0 + b.x1) / 2 + 1.35, b.y0 + 1.5, b.y0 + 2.6, 0.5, [0.85, 0.2, 0.15]); // noren / lantern sign
+          } else if (b.style === 'okinawa') { // low red-tiled house: a deep veranda eave, a stone shisa plinth on the ridge is placed by the generator
+            slab(b.x0 + 0.4, b.x1 - 0.4, b.y0 + 2.45, b.y0 + 2.6, 1.4, rt);
+            for (const x of [b.x0 + 0.6, b.x1 - 0.6]) slab(x - 0.12, x + 0.12, b.y0, b.y0 + 2.45, 1.3, [0.5, 0.36, 0.24]);
+          } else { // modern two-storey house: door with a canopy, an eave over the ground-floor windows, a balcony with a laundry pole, AC unit
+            const cx = (b.x0 + b.x1) / 2, bw = (b.x1 - b.x0) * 0.32, by = b.y0 + 3.05, bx = b.x0 + (b.x1 - b.x0) * (r() < 0.5 ? 0.3 : 0.7), dx = cx + (bx > cx ? -2.2 : 2.2);
+            slab(dx - 0.6, dx + 0.6, b.y0, b.y0 + 2.1, 0.08, [0.35, 0.26, 0.2]);
+            slab(dx - 1.0, dx + 1.0, b.y0 + 2.3, b.y0 + 2.42, 1.1, [0.85, 0.85, 0.86]);
+            slab(bx - bw - 0.3, bx + bw + 0.3, b.y0 + 2.5, b.y0 + 2.62, 0.55, [0.32, 0.33, 0.36]);
+            slab(bx - bw, bx + bw, by - 0.14, by, 1.0, [0.82, 0.8, 0.76]);
+            mt.solid(bx - bw, by, Math.min(fz + out * 1.0, fz + out * 0.94), bx + bw, by + 1.0, Math.max(fz + out * 1.0, fz + out * 0.94), [0.55, 0.57, 0.6]);
+            for (const sx of [bx - bw, bx + bw]) mt.solid(sx - 0.03, by, Math.min(fz, fz + out), sx + 0.03, by + 1.0, Math.max(fz, fz + out), [0.55, 0.57, 0.6]);
+            mt.solid(bx - bw + 0.3, by + 1.32, Math.min(fz + out * 0.62, fz + out * 0.7), bx + bw - 0.3, by + 1.37, Math.max(fz + out * 0.62, fz + out * 0.7), [0.8, 0.82, 0.85]); // laundry pole
+            const az = b.z0 + 1.5 + r() * Math.max(0.5, b.z1 - b.z0 - 3.5); m.solid(b.x1, b.y0, az, b.x1 + 0.32, b.y0 + 0.62, az + 0.82, [0.9, 0.9, 0.88]);
+            if (b.carport) { const x0 = b.x1 + 0.8, x1 = x0 + 3.2, z0 = Math.min(fz, fz + out * 5.4), z1 = Math.max(fz, fz + out * 5.4) ; for (const [px, pz] of [[x1, z0], [x1, z1]]) m.solid(px - 0.08, b.y0, pz - 0.08, px + 0.08, b.y0 + 2.4, pz + 0.08, [0.75, 0.75, 0.78]); mt.solid(x0 - 0.2, b.y0 + 2.4, z0, x1 + 0.2, b.y0 + 2.5, z1, [0.7, 0.74, 0.78]); }
+          }
         }
         continue;
       }
@@ -131,6 +159,7 @@ function buildChunkLevel(list: Building[], hi: boolean): Built {
       const m = g('misc'), cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, tf = topFoot(b);
       // rooftop machinery (on the top tier)
       if (b.type !== 'terminal' && b.type !== 'hangar' && tf.x1 - tf.x0 > 10 && tf.z1 - tf.z0 > 8) for (let n = 0; n < 2 + Math.floor(r() * 3); n++) { const ax = tf.x0 + 3 + r() * (tf.x1 - tf.x0 - 9), az = tf.z0 + 3 + r() * (tf.z1 - tf.z0 - 7); m.box(ax, top, az, ax + 3 + r() * 3, top + 1.5 + r() * 1.5, az + 2 + r() * 2, [0.55, 0.56, 0.6]); }
+      if (b.style === 'okinawa') { const tx = b.x0 + 2.2, tz = b.z1 - 2.2; m.box(tx - 0.6, top, tz - 0.6, tx + 0.6, top + 0.7, tz + 0.6, [0.6, 0.6, 0.6]); g('metal').box(tx - 0.75, top + 0.7, tz - 0.75, tx + 0.75, top + 2.0, tz + 0.75, [0.1, 0.1, 0.12]); }
       if (b.type === 'glass' && b.h > 70) { g('metal').box(cx - 0.3, top, cz - 0.3, cx + 0.3, top + 14, cz + 0.3, [0.7, 0.7, 0.75]); g('glow').box(cx - 0.6, top + 14, cz - 0.6, cx + 0.6, top + 15, cz + 0.6, [1, 0.15, 0.15]); }
       if (b.type === 'brick' && r() < 0.5) { const tx = b.x1 - 6, tz = b.z1 - 6; for (const [ox, oz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) m.box(tx + ox - 0.15, top, tz + oz - 0.15, tx + ox + 0.15, top + 3, tz + oz + 0.15, [0.3, 0.25, 0.2]); m.box(tx - 2, top + 3, tz - 2, tx + 2, top + 6.5, tz + 2, [0.5, 0.38, 0.28]); }
       if (b.type === 'shop') {
@@ -171,8 +200,8 @@ function usePropGeos() {
     const tr = (g: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, rz = 0) => { g.rotateX(rx); g.rotateZ(rz); g.translate(x, y, z); return g; };
     const lampPole = merge([tr(new THREE.CylinderGeometry(0.09, 0.13, 7.5, 6), 0, 3.75, 0), tr(new THREE.BoxGeometry(0.1, 0.1, 2.2), 0, 7.4, 1.05)]);
     const lampHead = tr(new THREE.BoxGeometry(0.35, 0.12, 0.7), 0, 7.3, 2.1);
-    const signalPole = merge([tr(new THREE.CylinderGeometry(0.1, 0.12, 5.5, 6), 0, 2.75, 0), tr(new THREE.BoxGeometry(0.12, 0.12, 4.2), 0, 5.3, -2.1), tr(new THREE.BoxGeometry(0.35, 1.1, 0.35), 0, 4.8, -4)]);
-    const signalBulb = tr(new THREE.SphereGeometry(0.13, 6, 4), 0, 4.8, -4.2);
+    const signalPole = merge([tr(new THREE.CylinderGeometry(0.1, 0.12, 5.5, 6), 0, 2.75, 0), tr(new THREE.BoxGeometry(0.12, 0.12, 4.2), 0, 5.3, -2.1), tr(new THREE.BoxGeometry(1.25, 0.42, 0.3), 0, 5.05, -4)]); // Japanese signal: a horizontal head
+    const signalBulb = tr(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 10), 0, 5.05, -4.17, Math.PI / 2);
     const trunk = tr(new THREE.CylinderGeometry(0.16, 0.24, 3, 5), 0, 1.5, 0);
     // canopy: a cluster of lumpy blobs, smooth-shaded, darker underneath (vertex colour, multiplied by the per-tree tint)
     const blob = (r: number, x: number, y: number, z: number, seed: number) => {
@@ -200,7 +229,9 @@ function usePropGeos() {
     const transformer = merge([tr(new THREE.CylinderGeometry(0.3, 0.3, 1.05, 8), 0, 7.95, 0.5), tr(new THREE.BoxGeometry(0.1, 0.5, 0.36), 0, 7.95, 0.2)]);
     const vendBody = merge([tr(new THREE.BoxGeometry(1.0, 1.83, 0.75), 0, 0.15 + 0.915, 0), tr(new THREE.BoxGeometry(1.0, 0.08, 0.12), 0, 0.15 + 0.42, 0.42)]);
     const vendFace = new THREE.PlaneGeometry(0.84, 1.08); vendFace.translate(0, 0.15 + 1.2, 0.377);
-    return { pole, transformer, vendBody, vendFace, lampPole, lampHead, signalPole, signalBulb, trunk, canopy, palmTrunk, palmTop, pine, bench, bin, hydrant, container, umbrella, billboardFrame, billboardPanel, pool };
+    // shisa: a lion-dog guardian on a little plinth (Okinawa)
+    const shisa = merge([tr(new THREE.BoxGeometry(0.5, 0.12, 0.5), 0, 0.06, 0), tr(new THREE.SphereGeometry(0.2, 7, 5), 0, 0.3, -0.04), tr(new THREE.SphereGeometry(0.17, 7, 5), 0, 0.56, 0.08), tr(new THREE.ConeGeometry(0.06, 0.14, 4), -0.1, 0.72, 0.06), tr(new THREE.ConeGeometry(0.06, 0.14, 4), 0.1, 0.72, 0.06), tr(new THREE.BoxGeometry(0.2, 0.06, 0.08), 0, 0.5, 0.24)]);
+    return { shisa, pole, transformer, vendBody, vendFace, lampPole, lampHead, signalPole, signalBulb, trunk, canopy, palmTrunk, palmTop, pine, bench, bin, hydrant, container, umbrella, billboardFrame, billboardPanel, pool };
   }, []);
 }
 
@@ -243,7 +274,8 @@ function makePropMats() {
     cont: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55, metalness: 0.4 }), cloth: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 }),
     concrete: new THREE.MeshStandardMaterial({ color: '#a19f99', roughness: 0.9 }), trans: new THREE.MeshStandardMaterial({ color: '#7d8188', roughness: 0.5, metalness: 0.5 }),
     wire: new THREE.LineBasicMaterial({ color: '#16171a' }),
-    vend: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, metalness: 0.2 }), vendFace: new THREE.MeshBasicMaterial({ map: vendTexture(), toneMapped: false }),
+    vend: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, metalness: 0.2 }), shisa: new THREE.MeshStandardMaterial({ color: '#b5643a', roughness: 0.7 }),
+    wall: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95 }), vendFace: new THREE.MeshBasicMaterial({ map: vendTexture(), toneMapped: false }),
   };
   for (const m of [pm.leaf, pm.palm, pm.pine]) addWind(m);
   return pm;
@@ -273,6 +305,17 @@ function wireGeometry(spans: { x0: number; z0: number; x1: number; z1: number }[
     }
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.computeBoundingSphere(); return g;
+}
+/** Low walls around the housing plots: unit boxes scaled per instance (concrete blocks, or limestone in Naha). */
+function Walls({ items }: { items: { x0: number; z0: number; x1: number; z1: number; lime: boolean }[] }) {
+  const mesh = useMemo(() => {
+    const g = new THREE.BoxGeometry(1, 1, 1); g.translate(0, 0.5, 0);
+    const m = new THREE.InstancedMesh(g, propMats().wall, items.length), M4 = new THREE.Matrix4(), c0 = new THREE.Color(0.66, 0.66, 0.64), c1 = new THREE.Color(0.86, 0.8, 0.66);
+    items.forEach((w, i) => { M4.makeScale(Math.max(0.2, w.x1 - w.x0), 1.3, Math.max(0.2, w.z1 - w.z0)); M4.setPosition((w.x0 + w.x1) / 2, 0.1, (w.z0 + w.z1) / 2); m.setMatrixAt(i, M4); m.setColorAt(i, w.lime ? c1 : c0); });
+    m.receiveShadow = true; m.castShadow = true; m.computeBoundingSphere(); return m;
+  }, [items]);
+  useEffect(() => () => { mesh.geometry.dispose(); mesh.dispose(); }, [mesh]);
+  return <primitive object={mesh} />;
 }
 function Wires({ spans }: { spans: { x0: number; z0: number; x1: number; z1: number }[] }) {
   const geo = useMemo(() => wireGeometry(spans), [spans]);
@@ -309,7 +352,9 @@ function PropsChunk({ k, B, mats, pg, adMats }: { k: string; B: Record<string, M
         {L('wires').length > 0 && <Wires spans={L('wires')} />}
         <Inst geo={pg.vendBody} mat={pm.vend} items={vends} colors={vendCols} />
         <Inst geo={pg.vendFace} mat={pm.vendFace} items={vends} />
+        <Inst geo={pg.shisa} mat={pm.shisa} items={L('shisa')} />
       </group>
+      {L('walls').length > 0 && <Walls items={L('walls')} />}
       <Inst geo={pg.container} mat={pm.cont} items={conts} colors={contCols} shadow />
       <Inst geo={pg.umbrella} mat={pm.cloth} items={umbr} colors={umbrCols} />
       <Inst geo={pg.billboardFrame} mat={pm.pole} items={bills} />
@@ -322,15 +367,16 @@ function PropsChunk({ k, B, mats, pg, adMats }: { k: string; B: Record<string, M
 /* ---------- traffic signals (animated) ---------- */
 export const signalState = (i: number, j: number, axis: number, t: number) => { let p = (t + ((i * 7 + j * 13) % 12)) % 24; if (axis) p = (p + 12) % 24; return p < 10 ? 0 : p < 12 ? 1 : 2; };
 let SIG: { pole: THREE.MeshStandardMaterial; bulb: THREE.MeshBasicMaterial; cols: THREE.Color[] } | null = null;
-const sigMats = () => (SIG ||= { pole: new THREE.MeshStandardMaterial({ color: '#25272c', roughness: 0.5, metalness: 0.6 }), bulb: new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), cols: [new THREE.Color(0.2, 2, 0.6), new THREE.Color(2, 1.4, 0.1), new THREE.Color(2.2, 0.15, 0.1)] });
+const sigMats = () => (SIG ||= { pole: new THREE.MeshStandardMaterial({ color: '#8a8e94', roughness: 0.5, metalness: 0.6 }), bulb: new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), cols: [new THREE.Color(0.1, 1.9, 1.3), new THREE.Color(2, 1.3, 0.1), new THREE.Color(2.2, 0.15, 0.1)] });
+const SIG_OFF = new THREE.Color(0.08, 0.08, 0.09), LAMP_X = [-0.4, 0, 0.4]; // blue-green, amber, red from left to right
 function SignalsChunk({ items, pg }: { items: (typeof props.signals)[number][]; pg: ReturnType<typeof usePropGeos> }) {
   const S2 = sigMats();
-  const bulbs = useMemo(() => { const m = new THREE.InstancedMesh(pg.signalBulb, S2.bulb, Math.max(1, items.length)); items.forEach((it, i) => { tmpQ.setFromAxisAngle(UP, it.a); tmpP.set(it.x, 0, it.z); tmpS.setScalar(1); tmpM.compose(tmpP, tmpQ, tmpS); m.setMatrixAt(i, tmpM); m.setColorAt(i, S2.cols[0]); }); m.count = items.length; m.computeBoundingSphere(); return m; }, [items, pg, S2]);
+  const bulbs = useMemo(() => { const m = new THREE.InstancedMesh(pg.signalBulb, S2.bulb, Math.max(1, items.length * 3)); const off = new THREE.Vector3(); items.forEach((it, i) => { tmpQ.setFromAxisAngle(UP, it.a); tmpS.setScalar(1); for (let k = 0; k < 3; k++) { off.set(LAMP_X[k], 0, 0).applyQuaternion(tmpQ); tmpP.set(it.x + off.x, 0, it.z + off.z); tmpM.compose(tmpP, tmpQ, tmpS); m.setMatrixAt(i * 3 + k, tmpM); m.setColorAt(i * 3 + k, k ? SIG_OFF : S2.cols[0]); } }); m.count = items.length * 3; m.computeBoundingSphere(); return m; }, [items, pg, S2]);
   useEffect(() => () => bulbs.dispose(), [bulbs]);
   const last = useRef(-1);
   useFrame(() => {
     const tt = Math.floor(game.clock * 2) / 2; if (tt === last.current) return; last.current = tt;
-    items.forEach((it, i) => bulbs.setColorAt(i, S2.cols[signalState(it.i, it.j, it.axis, game.clock)]));
+    items.forEach((it, i) => { const st = signalState(it.i, it.j, it.axis, game.clock); for (let k = 0; k < 3; k++) bulbs.setColorAt(i * 3 + k, k === st ? S2.cols[st] : SIG_OFF); });
     bulbs.instanceColor!.needsUpdate = true;
   });
   return <group><Inst geo={pg.signalPole} mat={S2.pole} items={items} /><primitive object={bulbs} /></group>;
@@ -417,8 +463,8 @@ function buildPaint(tx: number, tz: number): Built {
     const c = roadC(k);
     for (let s2 = 0; s2 < N; s2++) {
       const a = -HALF + s2 * PITCH + ROAD + 2, b2 = a + PITCH - ROAD - 4, m = (a + b2) / 2;
-      if (inT(c, m)) { for (let t = a + 2; t < b2 - 3; t += 6) G.flat(c - 0.12, t, c + 0.12, t + 3, 0.02, Y); for (const o of [-ROAD / 2 + 0.5, ROAD / 2 - 0.6]) G.flat(c + o, a, c + o + 0.1, b2, 0.02, W); }
-      if (inT(m, c)) { for (let t = a + 2; t < b2 - 3; t += 6) G.flat(t, c - 0.12, t + 3, c + 0.12, 0.02, Y); for (const o of [-ROAD / 2 + 0.5, ROAD / 2 - 0.6]) G.flat(a, c + o, b2, c + o + 0.1, 0.02, W); }
+      if (inT(c, m) && segOpen('z', k, s2)) { for (let t = a + 2; t < b2 - 3; t += 6) G.flat(c - 0.12, t, c + 0.12, t + 3, 0.02, Y); for (const o of [-ROAD / 2 + 0.5, ROAD / 2 - 0.6]) G.flat(c + o, a, c + o + 0.1, b2, 0.02, W); }
+      if (inT(m, c) && segOpen('x', k, s2)) { for (let t = a + 2; t < b2 - 3; t += 6) G.flat(t, c - 0.12, t + 3, c + 0.12, 0.02, Y); for (const o of [-ROAD / 2 + 0.5, ROAD / 2 - 0.6]) G.flat(a, c + o, b2, c + o + 0.1, 0.02, W); }
     }
   }
   { // scramble crossing: diagonal zebra stripes across the busiest junction
@@ -429,15 +475,56 @@ function buildPaint(tx: number, tz: number): Built {
     }
   }
   for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
-    const x = roadC(i), z = roadC(j), h = ROAD / 2; if (!inT(x, z)) continue;
+    const x = roadC(i), z = roadC(j), h = ROAD / 2; if (!inT(x, z) || !nodeOpen(i, j)) continue;
     for (let o = -h + 1; o < h - 0.5; o += 1.4) { G.flat(x + o, z - h - 4, x + o + 0.7, z - h - 1, 0.02, W); G.flat(x + o, z + h + 1, x + o + 0.7, z + h + 4, 0.02, W); G.flat(x - h - 4, z + o, x - h - 1, z + o + 0.7, 0.02, W); G.flat(x + h + 1, z + o, x + h + 4, z + o + 0.7, 0.02, W); }
   }
-  return G.empty ? [] : [{ k: 'paint', geo: G.build() }];
+  // 止まれ: stop markings and stop lines on the approaches to junctions without signals (in the left-hand lane)
+  const TM = new Geo();
+  for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+    if ((i + j) % 2 === 0 || !nodeOpen(i, j)) continue;
+    const x = roadC(i), z = roadC(j), h = ROAD / 2; if (!inT(x, z)) continue;
+    for (const [hx, hz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      const ni = i - hx, nj = j - hz; if (ni < 0 || nj < 0 || ni > N || nj > N) continue;
+      if (hz !== 0 ? !segOpen('z', i, Math.min(j, nj)) : !segOpen('x', j, Math.min(i, ni))) continue;
+      const lx = hz, lz = -hx, cx = x - hx * (h + 8.6) + lx * 3.3, cz = z - hz * (h + 8.6) + lz * 3.3, W = 2.9, L = 4.6;
+      const P = (u: number, v: number) => [cx + lx * (0.5 - u) * W + hx * (v - 0.5) * L, 0.025, cz + lz * (0.5 - u) * W + hz * (v - 0.5) * L];
+      const A = P(0, 0), Bq = P(1, 0), C = P(1, 1), D = P(0, 1), up = (Bq[2] - A[2]) * (C[0] - Bq[0]) - (Bq[0] - A[0]) * (C[2] - Bq[2]) > 0;
+      if (up) TM.quad(A, Bq, C, D, [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1]); else TM.quad(D, C, Bq, A, [0, 1, 0], [[0, 1], [1, 1], [1, 0], [0, 0]], [1, 1, 1]);
+      const sx = x - hx * (h + 5.4), sz = z - hz * (h + 5.4); // stop line across the lane
+      G.flat(Math.min(sx + lx * 0.2, sx + lx * 6.4 + hx * 0.45), Math.min(sz + lz * 0.2, sz + lz * 6.4 + hz * 0.45), Math.max(sx + lx * 0.2, sx + lx * 6.4 + hx * 0.45), Math.max(sz + lz * 0.2, sz + lz * 6.4 + hz * 0.45), 0.021, W === 2.9 ? [0.92, 0.92, 0.9] : Y);
+    }
+  }
+  const out: Built = []; if (!G.empty) out.push({ k: 'paint', geo: G.build() }); if (!TM.empty) out.push({ k: 'tomare', geo: TM.build() });
+  return out;
 }
 function buildGround() {
-  const G = { side: new Geo(), grass: new Geo(), paint: new Geo(), misc: new Geo(), concrete: new Geo(), sand: new Geo(), asphalt2: new Geo(), metal: new Geo(), glow: new Geo() };
+  const G = { road: new Geo(), side: new Geo(), grass: new Geo(), paint: new Geo(), misc: new Geo(), concrete: new Geo(), sand: new Geo(), asphalt2: new Geo(), metal: new Geo(), glow: new Geo() };
   const W = [0.92, 0.92, 0.9], Y = [0.95, 0.75, 0.2], ONE = [1, 1, 1];
   for (const b of blocks) {
+    if (b.zone === 'canal') { // pavement on both banks, the channel open to the water, stone walls, promenade paving, railings
+      const R = CANAL_BLOCKS.get(b.j * N + b.i); if (!R) continue;
+      const ax = R.axis === 'x', STONE = [0.55, 0.53, 0.5], PAVE = [0.78, 0.68, 0.55], RAIL = [0.25, 0.25, 0.28];
+      if (ax) { G.side.box(b.x0, 0, b.z0, b.x1, 0.15, R.z0, ONE, 2, 2, G.side, 2); G.side.box(b.x0, 0, R.z1, b.x1, 0.15, b.z1, ONE, 2, 2, G.side, 2);
+        G.misc.flat(b.x0, R.z0 - PROM, b.x1, R.z0, 0.16, PAVE); G.misc.flat(b.x0, R.z1, b.x1, R.z1 + PROM, 0.16, PAVE);
+        G.misc.box(b.x0, -3, R.z0, b.x1, 0.15, R.z0 + 0.6, STONE, 4, 4, null); G.misc.box(b.x0, -3, R.z1 - 0.6, b.x1, 0.15, R.z1, STONE, 4, 4, null);
+        for (const z of [R.z0 - 0.2, R.z1]) { G.metal.box(b.x0, 1.0, z, b.x1, 1.08, z + 0.2, RAIL); for (let x = b.x0 + 1; x < b.x1; x += 3) G.metal.box(x, 0.15, z + 0.05, x + 0.1, 1.0, z + 0.15, RAIL); }
+        for (const x of [b.x0, b.x1]) { G.misc.box(x - 0.3, -1.8, R.z0, x + 0.3, 0.02, R.z1, STONE, 4, 4, null); G.metal.box(x - (x === b.x0 ? 0.2 : 0), 1.0, R.z0, x + (x === b.x0 ? 0 : 0.2), 1.08, R.z1, [0.75, 0.6, 0.3]); for (let z = R.z0; z <= R.z1; z += 2) G.metal.box(x - 0.08, 0, z - 0.06, x + 0.08, 1.0, z + 0.06, [0.75, 0.6, 0.3]); }
+      } else { G.side.box(b.x0, 0, b.z0, R.x0, 0.15, b.z1, ONE, 2, 2, G.side, 2); G.side.box(R.x1, 0, b.z0, b.x1, 0.15, b.z1, ONE, 2, 2, G.side, 2);
+        G.misc.flat(R.x0 - PROM, b.z0, R.x0, b.z1, 0.16, PAVE); G.misc.flat(R.x1, b.z0, R.x1 + PROM, b.z1, 0.16, PAVE);
+        G.misc.box(R.x0, -3, b.z0, R.x0 + 0.6, 0.15, b.z1, STONE, 4, 4, null); G.misc.box(R.x1 - 0.6, -3, b.z0, R.x1, 0.15, b.z1, STONE, 4, 4, null);
+        for (const x of [R.x0 - 0.2, R.x1]) { G.metal.box(x, 1.0, b.z0, x + 0.2, 1.08, b.z1, RAIL); for (let z = b.z0 + 1; z < b.z1; z += 3) G.metal.box(x + 0.05, 0.15, z, x + 0.15, 1.0, z + 0.1, RAIL); }
+        for (const z of [b.z0, b.z1]) { G.misc.box(R.x0, -1.8, z - 0.3, R.x1, 0.02, z + 0.3, STONE, 4, 4, null); G.metal.box(R.x0, 1.0, z - (z === b.z0 ? 0.2 : 0), R.x1, 1.08, z + (z === b.z0 ? 0 : 0.2), [0.75, 0.6, 0.3]); for (let x = R.x0; x <= R.x1; x += 2) G.metal.box(x - 0.06, 0, z - 0.08, x + 0.06, 1.0, z + 0.08, [0.75, 0.6, 0.3]); }
+      }
+      continue;
+    }
+    if (b.zone === 'water') continue;
+    { const P = CANAL_BLOCKS.get(b.j * N + b.i); if (P && P.axis === 'pond') { // a park with a pond: lawn around the water, a stone rim, a railing
+      for (const [a0, c0, a1, c1] of [[b.x0, b.z0, b.x1, P.z0], [b.x0, P.z1, b.x1, b.z1], [b.x0, P.z0, P.x0, P.z1], [P.x1, P.z0, b.x1, P.z1]]) { G.side.box(a0, 0, c0, a1, 0.15, c1, ONE, 2, 2, G.side, 2); G.grass.flat(a0 + 1.5, c0 + 1.5, a1 - 1.5, c1 - 1.5, 0.17, ONE, 6); }
+      const ST = [0.6, 0.58, 0.54], RL = [0.3, 0.26, 0.22];
+      G.misc.box(P.x0, -3, P.z0, P.x1, 0.2, P.z0 + 0.5, ST, 4, 4, null); G.misc.box(P.x0, -3, P.z1 - 0.5, P.x1, 0.2, P.z1, ST, 4, 4, null); G.misc.box(P.x0, -3, P.z0, P.x0 + 0.5, 0.2, P.z1, ST, 4, 4, null); G.misc.box(P.x1 - 0.5, -3, P.z0, P.x1, 0.2, P.z1, ST, 4, 4, null);
+      for (const [a0, c0, a1, c1] of [[P.x0, P.z0 - 0.2, P.x1, P.z0], [P.x0, P.z1, P.x1, P.z1 + 0.2], [P.x0 - 0.2, P.z0, P.x0, P.z1], [P.x1, P.z0, P.x1 + 0.2, P.z1]]) G.metal.box(a0, 0.9, c0, a1, 0.98, c1, RL);
+      continue;
+    } }
     G.side.box(b.x0, 0, b.z0, b.x1, 0.15, b.z1, ONE, 2, 2, G.side, 2);
     const m = 5;
     if (b.zone === 'park') { G.grass.flat(b.x0 + 2, b.z0 + 2, b.x1 - 2, b.z1 - 2, 0.17, ONE, 6); }
@@ -449,6 +536,10 @@ function buildGround() {
     } else if (b.zone === 'industrial') G.concrete.flat(b.x0 + m, b.z0 + m, b.x1 - m, b.z1 - m, 0.16, ONE, 8);
     if (b.zone === 'park') { const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2; G.side.flat(cx - 1.6, b.z0 + 2, cx + 1.6, b.z1 - 2, 0.18, [0.9, 0.85, 0.75], 2); G.side.flat(b.x0 + 2, cz - 1.6, b.x1 - 2, cz + 1.6, 0.18, [0.9, 0.85, 0.75], 2); }
   }
+  // city streets: one quad per road segment and per junction (short quads keep the depth precision at street level)
+  for (let k = 0; k <= N; k++) { const c = roadC(k); for (let s = 0; s < N; s++) { const a = roadC(s) + ROAD / 2, e = roadC(s + 1) - ROAD / 2; if (segOpen('x', k, s)) G.road.flat(a, c - ROAD / 2, e, c + ROAD / 2, 0, ONE, 10); if (segOpen('z', k, s)) G.road.flat(c - ROAD / 2, a, c + ROAD / 2, e, 0, ONE, 10); } }
+  for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) if (nodeOpen(i, j)) G.road.flat(roadC(i) - ROAD / 2, roadC(j) - ROAD / 2, roadC(i) + ROAD / 2, roadC(j) + ROAD / 2, 0, ONE, 10);
+  for (const q of SHORE) { G.misc.box(q.x0, -3.2, q.z0, q.x1, q.top + 0.05, q.z1, [0.56, 0.55, 0.52], 4, 4, G.misc); const ax = q.x1 - q.x0 > q.z1 - q.z0; G.metal.box(q.x0, q.top + 0.95, q.z0, q.x1, q.top + 1.03, q.z1, [0.75, 0.77, 0.8]); for (let t = ax ? q.x0 : q.z0; t < (ax ? q.x1 : q.z1); t += 2.5) G.metal.box(ax ? t : q.x0 + 0.1, q.top, ax ? q.z0 + 0.1 : t, ax ? t + 0.08 : q.x0 + 0.18, q.top + 0.95, ax ? q.z0 + 0.18 : t + 0.08, [0.75, 0.77, 0.8]); }
   // ring highway
   const C = HWY_C, hw = HWY_W / 2;
   const seg = (x0: number, z0: number, x1: number, z1: number) => G.asphalt2.flat(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), 0.03, ONE, 8);
@@ -459,7 +550,7 @@ function buildGround() {
     for (const o of [-hw - 0.6, hw + 0.4]) { G.metal.box(-C - hw, 0.5, side * C + o, C + hw, 0.85, side * C + o + 0.2, [0.75, 0.77, 0.8]); G.metal.box(side * C + o, 0.5, -C - hw, side * C + o + 0.2, 0.85, C + hw, [0.75, 0.77, 0.8]); }
   }
   // connectors from highway to city edge roads
-  for (const k of HWY_LINKS) { const c = roadC(k); G.asphalt2.flat(c - ROAD / 2, -C + hw, c + ROAD / 2, -HALF, 0.03, ONE, 8); G.asphalt2.flat(c - ROAD / 2, HALF, c + ROAD / 2, C - hw, 0.03, ONE, 8); G.asphalt2.flat(-C + hw, c - ROAD / 2, -HALF, c + ROAD / 2, 0.03, ONE, 8); G.asphalt2.flat(HALF, c - ROAD / 2, C - hw, c + ROAD / 2, 0.03, ONE, 8); }
+  for (const k of HWY_LINKS) { const c = roadC(k); if (nodeOpen(k, 0)) G.asphalt2.flat(c - ROAD / 2, -C + hw, c + ROAD / 2, -HALF, 0.03, ONE, 8); if (nodeOpen(k, N)) G.asphalt2.flat(c - ROAD / 2, HALF, c + ROAD / 2, C - hw, 0.03, ONE, 8); if (nodeOpen(0, k)) G.asphalt2.flat(-C + hw, c - ROAD / 2, -HALF, c + ROAD / 2, 0.03, ONE, 8); if (nodeOpen(N, k)) G.asphalt2.flat(HALF, c - ROAD / 2, C - hw, c + ROAD / 2, 0.03, ONE, 8); }
   // airport
   const A = AIRPORT;
   G.asphalt2.flat(A.x0 + 40, -190, A.x1 - 20, -140, 0.04, [0.55, 0.55, 0.6], 8);
@@ -503,7 +594,7 @@ function Water({ mats }: { mats: Mats }) {
   useFrame((_, dt) => { waterTime.value += dt; });
   useMemo(() => {
     const m = mats.water, t = m.normalMap!; t.repeat.set(260, 260);
-    m.color.set('#0b3a52'); m.roughness = 0.12; m.metalness = 0.0; m.normalScale.set(0.5, 0.5); m.envMapIntensity = 0.55; m.opacity = 0.96;
+    m.color.set(REGION.id === 'naha' ? '#0f6f7e' : '#0b3a52'); m.roughness = 0.12; // Naha: clear turquoise sea m.metalness = 0.0; m.normalScale.set(0.5, 0.5); m.envMapIntensity = 0.55; m.opacity = 0.96;
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uWaterT = waterTime;
       sh.fragmentShader = 'uniform float uWaterT;\n' + sh.fragmentShader.replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',
@@ -537,8 +628,7 @@ export default function City({ shadows }: { shadows: boolean }) {
   const mats = useMaterials();
   const ground = useMemo(() => { const G = buildGround(); return Object.entries(G).filter(([, g]) => !g.empty).map(([k, g]) => ({ k, geo: g.build() })); }, []);
   const pg = usePropGeos();
-  const cityPlane = useMemo(() => { const g = new THREE.PlaneGeometry(CITY, CITY, N, N); /* small triangles: one giant quad loses depth precision at street level and swallows the road paint */ g.rotateX(-Math.PI / 2); const uv = g.attributes.uv as THREE.BufferAttribute; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (CITY / 10), uv.getY(i) * (CITY / 10)); return g; }, []);
-  const B = useMemo(() => Object.fromEntries((['lamps', 'trees', 'palms', 'pines', 'benches', 'bins', 'hydrants', 'containers', 'umbrellas', 'billboards', 'signals', 'poles', 'vends'] as const).map((n) => [n, bucket(props[n] as any[])] as [string, Map<string, any[]>]).concat([['wires', bucket(props.wires.map((w) => ({ ...w, x: w.x0, z: w.z0 })))]])) as Record<string, Map<string, any[]>>, []);
+  const B = useMemo(() => Object.fromEntries((['lamps', 'trees', 'palms', 'pines', 'benches', 'bins', 'hydrants', 'containers', 'umbrellas', 'billboards', 'signals', 'poles', 'vends', 'shisa'] as const).map((n) => [n, bucket(props[n] as any[])] as [string, Map<string, any[]>]).concat([['walls', bucket(props.walls.map((w) => ({ ...w, x: (w.x0 + w.x1) / 2, z: (w.z0 + w.z1) / 2 })))]]).concat([['wires', bucket(props.wires.map((w) => ({ ...w, x: w.x0, z: w.z0 })))]])) as Record<string, Map<string, any[]>>, []);
   useFrame(() => { const h = game.hour, k = h > 18.4 || h < 6.4 ? 1.5 : h > 17.2 || h < 7.2 ? 1.15 : 0.92; propMats().vendFace.color.setScalar(k); });
   const adMats = useMemo(() => [['BUZZR', '#ff3f93'], ['QWIK 24', '#3dffb0'], ['BAY MOTORS', '#2be4ff'], ['THREADS', '#c07aff']].map(([t, c]) => new THREE.MeshBasicMaterial({ map: labelTexture(t, c, 512, 256), toneMapped: false })), []);
   const cells = useMemo(() => {
@@ -550,7 +640,7 @@ export default function City({ shadows }: { shadows: boolean }) {
     for (let cx = Math.floor(-HALF / CH); cx <= Math.floor(HALF / CH); cx++) for (let cz = Math.floor(-HALF / CH); cz <= Math.floor(HALF / CH); cz++) get(cx, cz).paint = true;
     return [...map.values()];
   }, [B]);
-  const groundMat = (k: string) => (k === 'side' ? mats.sidewalk : k === 'asphalt2' ? mats.asphalt : (mats as any)[k] || mats.misc);
+  const groundMat = (k: string) => (k === 'side' ? mats.sidewalk : k === 'asphalt2' || k === 'road' ? mats.asphalt : (mats as any)[k] || mats.misc);
   useMemo(() => { const T = getTextures(); T.asphalt.repeat.set(1, 1); }, []);
   return (
     <group>
@@ -561,7 +651,6 @@ export default function City({ shadows }: { shadows: boolean }) {
           <planeGeometry args={[x1 - x0, z1 - z0]} />
         </mesh>
       ))}
-      <mesh geometry={cityPlane} material={mats.asphalt} receiveShadow />
       {ground.map(({ k, geo }) => <mesh key={k} geometry={geo} material={groundMat(k)} receiveShadow castShadow={k === 'misc' && shadows} />)}
       <Terrain mats={mats} />
       <Water mats={mats} />

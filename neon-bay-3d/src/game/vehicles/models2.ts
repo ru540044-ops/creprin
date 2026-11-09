@@ -199,3 +199,37 @@ export function buildFormula(def: VDef, color: string): Inner {
   add(box(0.06, 0.08, 0.3, -L - 0.02, 0.5, 0), tail, false); add(box(0.04, 0.04, 0.2, L, 0.25, 0), head, false);
   return { root, body, wheels, paint, lights: { head, tail }, eye: new THREE.Vector3(-0.2, 1.0, 0), steering };
 }
+
+/** Bullet train: eight cars, a long duck-bill nose at both ends, white body with a blue stripe, a dark window band, pantographs.
+ *  Model x is forward; the lead car is centred on the origin and the rest of the train trails behind it (-x). */
+export const SHIN_CARS = 8, SHIN_CAR = 25.6;
+export function buildShinkansen(_def: VDef, _color: string): Inner {
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const white = new THREE.MeshPhysicalMaterial({ color: '#f5f6f8', metalness: 0.25, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const blue = ds('#1e4fae', 0.35, 0.2), dark = ds('#1a2230', 0.15, 0.4), grey = ds('#8a9098', 0.6, 0.3), under = ds('#3a3e44', 0.8, 0.2);
+  const { head, tail } = lights();
+  const add = (g: THREE.BufferGeometry, m: THREE.Material, shadow = true) => { const mesh = new THREE.Mesh(g, m); mesh.castShadow = shadow; mesh.receiveShadow = true; body.add(mesh); return mesh; };
+  const W = 3.36, H = 3.6, Lc = 25;
+  const sides: THREE.BufferGeometry[] = [], blues: THREE.BufferGeometry[] = [], wins: THREE.BufferGeometry[] = [], unders: THREE.BufferGeometry[] = [], greys: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < SHIN_CARS; k++) {
+    const cx = -k * SHIN_CAR, first = k === 0, last = k === SHIN_CARS - 1;
+    const x0 = cx - Lc / 2 + (last ? 6 : 0), x1 = cx + Lc / 2 - (first ? 6 : 0);
+    const b = new THREE.BoxGeometry(x1 - x0, H - 0.75, W); b.translate((x0 + x1) / 2, 0.75 + (H - 0.75) / 2, 0); sides.push(b);
+    const rf = new THREE.CylinderGeometry(W / 2, W / 2, x1 - x0, 14, 1, false, 0, Math.PI); rf.rotateZ(Math.PI / 2); rf.rotateX(-Math.PI / 2); rf.scale(1, 0.32, 1); rf.translate((x0 + x1) / 2, H, 0); sides.push(rf);
+    for (const s of [-1, 1]) { const st = new THREE.BoxGeometry(x1 - x0, 0.32, 0.04); st.translate((x0 + x1) / 2, 1.55, s * (W / 2 + 0.01)); blues.push(st); const wn = new THREE.BoxGeometry(x1 - x0 - 1.4, 0.62, 0.04); wn.translate((x0 + x1) / 2, 2.35, s * (W / 2 + 0.012)); wins.push(wn); }
+    const sk = new THREE.BoxGeometry(x1 - x0, 0.75, W - 0.4); sk.translate((x0 + x1) / 2, 0.37, 0); unders.push(sk);
+    if (k === 2 || k === 5) { const pg = new THREE.BoxGeometry(2.2, 0.5, 0.9); pg.translate(cx, H + 0.75, 0); greys.push(pg); const arm = new THREE.BoxGeometry(0.1, 0.1, 2.2); arm.translate(cx, H + 1.2, 0); greys.push(arm); }
+    if (!last) { const gw = new THREE.BoxGeometry(0.6, H - 0.9, W - 0.6); gw.translate(cx - SHIN_CAR / 2, 0.9 + (H - 0.9) / 2, 0); unders.push(gw); }
+  }
+  // the noses: half ellipsoids stretched along the track (lead car forward, tail car backward)
+  for (const [x, dir] of [[Lc / 2 - 6, 1], [-(SHIN_CARS - 1) * SHIN_CAR - Lc / 2 + 6, -1]] as [number, number][]) {
+    const n = new THREE.SphereGeometry(1, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2); n.rotateZ(-Math.PI / 2 * dir); n.scale(9.5, 1.55, 1.7); n.translate(x, 2.0, 0); sides.push(n);
+    const sk = new THREE.SphereGeometry(1, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2); sk.rotateZ(-Math.PI / 2 * dir); sk.scale(8, 0.75, 1.62); sk.translate(x, 0.75, 0); unders.push(sk);
+    const cw = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2); cw.scale(2.6, 0.7, 1.15); cw.translate(x + dir * 1.6, 3.05, 0); wins.push(cw);
+    for (const s of [-1, 1]) { const st = new THREE.BoxGeometry(5.5, 0.28, 0.04); st.rotateY(-dir * s * 0.17); st.translate(x + dir * 2.6, 1.55, s * 1.42); blues.push(st); }
+    const hl = new THREE.BoxGeometry(0.5, 0.18, 2.1); hl.translate(x + dir * 6.9, 1.4, 0); add(hl, dir > 0 ? head : tail, false);
+  }
+  add(merge(sides), white); add(merge(blues), blue, false); add(merge(wins), dark, false); add(merge(unders), under); if (greys.length) add(merge(greys), grey);
+  const steering = new THREE.Object3D(); steering.position.set(Lc / 2 - 4, 2.2, 0.6); body.add(steering);
+  return { root, body, wheels: [], paint: white, lights: { head, tail }, eye: new THREE.Vector3(Lc / 2 - 2.8, 3.2, 0.5), steering };
+}

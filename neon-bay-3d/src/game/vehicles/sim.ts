@@ -1,5 +1,5 @@
 import { VDEFS, VDef, VKind, Mods, stockMods, isBoat, mediumOf } from './defs';
-import { parkSlots, GARAGE, MARINA, JETPARK, WATER_Y, collide, groundAt, isWater, floorAt, pointBlocked } from '../world/cityGen';
+import { parkSlots, GARAGE, MARINA, JETPARK, WATER_Y, collide, groundAt, isWater, floorAt, pointBlocked, SHIN } from '../world/cityGen';
 import { clamp } from '../world/rng';
 import { game, toast, ownedCars } from '../state/store';
 import { sfx } from '../audio';
@@ -67,6 +67,7 @@ const angWrap = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a 
 
 /** Arcade bicycle model: grip-limited yaw, tyre slip, gears, handbrake drift, slopes, damage-limited power. */
 export function drive(v: Veh, c: Drive | null, dt: number) {
+  if (v.def.kind === 'shinkansen') return rail(v, c, dt);
   if (v.def.kind === 'heli') return fly(v, c, dt);
   if (v.def.kind === 'jet') return flyJet(v, c, dt);
   if (isBoat(v.def.kind)) return sail(v, c, dt);
@@ -248,11 +249,28 @@ function flyJet(v: Veh, c: Drive | null, dt: number) {
 }
 
 /** Resolve car-vs-building and car-vs-car contacts with restitution and damage. Returns the biggest impact speed for the player car. */
+/** Train extent from its position (the lead car's centre): nose tip ahead, tail nose behind. */
+export const SHIN_HEAD = 16, SHIN_TAIL = 195.2, SHIN_FLIP = 179.2;
+/** Track limits for the lead car's centre, facing south (dir 1) or north (dir -1). */
+export const shinLimits = (dir: number) => (dir > 0 ? [SHIN.z0 + SHIN_TAIL + 2, SHIN.z1 - SHIN_HEAD - 2] : [SHIN.z0 + SHIN_HEAD + 2, SHIN.z1 - SHIN_TAIL - 2]);
+/** Bullet train on its viaduct: power and brake notches along the track, a slow reverse when stopped, buffers at both ends. */
+function rail(v: Veh, c: Drive | null, dt: number) {
+  const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, thr = c ? c.thr : 0, br = c ? c.brake : 0;
+  let sp = v.vz * dir;
+  if (thr > 0.05 && sp >= -0.2) sp += v.def.accel * thr * (1.4 - 0.9 * Math.max(0, sp) / v.def.top) * dt;
+  if (br > 0.05) { if (sp > 0.3) sp = Math.max(0, sp - v.def.brake * br * dt); else if (thr <= 0.05) sp = Math.max(-5, sp - 0.8 * br * dt); }
+  if (sp < 0 && thr > 0.05) sp = Math.min(0, sp + 2.5 * dt);
+  sp *= 1 - 0.0025 * dt;
+  const [lo, hi] = shinLimits(dir);
+  let z = v.z + dir * sp * dt; if (z < lo) { z = lo; sp = 0; } if (z > hi) { z = hi; sp = 0; }
+  v.z = z; v.x = SHIN.x + (dir > 0 ? SHIN.track : -SHIN.track); v.y = SHIN.y + 0.05; v.vx = 0; v.vz = dir * sp; v.yr = 0; v.pitch = 0; v.roll = 0; v.air = false; v.vy = 0;
+  v.steer = 0; v.braking = br > 0.05; v.reversing = sp < -0.1; v.rpm = Math.min(1, Math.abs(sp) / v.def.top); v.gear = sp < -0.1 ? -1 : 1; v.slip = 0; v.spd = Math.abs(sp);
+}
 export function collisions(dt: number): number {
   let playerHit = 0;
   const circles = (v: Veh) => { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), r = v.def.colR ?? v.def.wid / 2 + 0.05, n = v.def.kind === 'bike' ? 1 : Math.max(2, Math.round(v.def.len / (r * 2))); const out: [number, number, number][] = []; for (let k = 0; k < n; k++) { const t = n === 1 ? 0 : (k / (n - 1) - 0.5) * (v.def.len - r * 2); out.push([v.x + fx * t, v.z + fz * t, r]); } return out; };
   for (const v of vehicles) {
-    const moving = Math.abs(v.vx) + Math.abs(v.vz) > 0.05 || v.id === game.inCar; if (!moving || v.def.kind === 'jet' || isBoat(v.def.kind)) continue;
+    const moving = Math.abs(v.vx) + Math.abs(v.vz) > 0.05 || v.id === game.inCar; if (!moving || v.def.kind === 'jet' || v.def.kind === 'shinkansen' || isBoat(v.def.kind)) continue;
     for (const [cx, cz, r] of circles(v)) {
       const p = { x: cx, z: cz }; if (!collide(p, r, v.y + 0.2, 1.4)) continue;
       const dx = p.x - cx, dz = p.z - cz, L = Math.hypot(dx, dz); if (L < 1e-5) continue;

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { buildings, Building, BlockInfo, topFoot, blockOfB } from './cityGen';
+import { buildings, Building, BlockInfo, topFoot, blockOfB, CANAL_BLOCKS, N } from './cityGen';
 import type { BDoor } from './bldgInteriors';
 import { game } from '../state/store';
 import { getTextures } from './textures';
@@ -67,6 +67,7 @@ function streetFaces(b: Building, k: BlockInfo): Face[] {
   if (k.z1 - b.z1 < 8) f.push({ nx: 0, nz: 1, cx, cz: b.z1, len: b.x1 - b.x0 });
   if (b.x0 - k.x0 < 8) f.push({ nx: -1, nz: 0, cx: b.x0, cz, len: b.z1 - b.z0 });
   if (k.x1 - b.x1 < 8) f.push({ nx: 1, nz: 0, cx: b.x1, cz, len: b.z1 - b.z0 });
+  if (k.zone === 'canal') { const R = CANAL_BLOCKS.get(k.j * N + k.i); if (R && R.axis === 'x') { if (Math.abs(b.z1 - (R.z0 - 7)) < 3) f.push({ nx: 0, nz: 1, cx, cz: b.z1, len: b.x1 - b.x0 }); if (Math.abs(b.z0 - (R.z1 + 7)) < 3) f.push({ nx: 0, nz: -1, cx, cz: b.z0, len: b.x1 - b.x0 }); } else if (R && R.axis === 'z') { if (Math.abs(b.x1 - (R.x0 - 7)) < 3) f.push({ nx: 1, nz: 0, cx: b.x1, cz, len: b.z1 - b.z0 }); if (Math.abs(b.x0 - (R.x1 + 7)) < 3) f.push({ nx: -1, nz: 0, cx: b.x0, cz, len: b.z1 - b.z0 }); } } // the neon wall over the water
   return f;
 }
 const seedOf = (b: Building) => ((Math.floor(b.x0 * 7.31) * 73856093) ^ (Math.floor(b.z0 * 13.7) * 19349663)) >>> 0;
@@ -103,7 +104,7 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
     if (b.gable || b.type === 'hangar') continue;
     roofPlan(b, box, cyl);
     // street-level neon
-    const k = blockOfB(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas')) continue;
+    const k = blockOfB(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas' && k.zone !== 'canal')) continue;
     const r = mulberry(seedOf(b) + 1);
     for (const f of streetFaces(b, k)) {
       if (b.type === 'shop' && f.len > 6) { // striped shop awnings along the ground floor
@@ -122,12 +123,12 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
         const x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.12, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.12;
         Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz)); P.set(x, y, z); S.set(sw, sw / 2, 1);
         const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
-        if ((k.zone === 'commercial' && r() < 0.85) || (k.zone === 'downtown' && r() < 0.35)) { // vertical blade sign sticking out from the wall
+        if (((k.zone === 'commercial' || k.zone === 'canal') && r() < 0.85) || (k.zone === 'downtown' && r() < 0.35)) { // vertical blade sign sticking out from the wall
           const vx = f.cx + (f.nz !== 0 ? along + sw / 2 + 1.2 : 0) + f.nx * 0.9, vz = f.cz + (f.nx !== 0 ? along + sw / 2 + 1.2 : 0) + f.nz * 0.9;
           Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, y + 2.6, vz); S.set(1.3, 5.2, 1);
           const vc = Math.floor(r() * V_WORDS.length); vs.push({ m: M.compose(P, Q, S).clone(), o: [vc * 0.0625, 0] });
         }
-        if (k.zone === 'commercial' && b.type !== 'shop' && b.h > 16 && r() < 0.7) { // tall blade sign up the corner of a multi-tenant building
+        if ((k.zone === 'commercial' || k.zone === 'canal') && b.type !== 'shop' && b.h > 16 && r() < 0.7) { // tall blade sign up the corner of a multi-tenant building
           const th = Math.min(13, b.h - 7), edge = f.len / 2 - 1.2, vx = f.cx + (f.nz !== 0 ? (j % 2 ? -edge : edge) : 0) + f.nx * 1.1, vz = f.cz + (f.nx !== 0 ? (j % 2 ? -edge : edge) : 0) + f.nz * 1.1;
           Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, b.y0 + 7 + th / 2, vz); S.set(th / 7, th, 1);
           const tc = Math.floor(r() * T_WORDS.length); ts.push({ m: M.compose(P, Q, S).clone(), o: [tc * 0.0625, 0] });

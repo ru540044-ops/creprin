@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import City from './game/world/City';
 import CruiseShip from './game/world/CruiseShip';
 import Landmarks from './game/world/Landmarks';
+import Signature from './game/world/Signature';
+import ShinkansenLine from './game/world/ShinkansenLine';
 import Railway from './game/world/Railway';
 import Environment from './game/world/Environment';
 import Interiors from './game/world/Interiors';
@@ -112,6 +114,8 @@ function Scene({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
       <City shadows={q.shadows} />
       <CruiseShip />
       <Landmarks />
+      <Signature />
+      <ShinkansenLine />
       <Railway />
       <Interiors where={where} />
       <Player />

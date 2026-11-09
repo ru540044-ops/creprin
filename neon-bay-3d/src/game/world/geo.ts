@@ -38,6 +38,25 @@ export class Geo {
     this.quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], [0, 1, 0], [[T(x0), T(-z1)], [T(x1), T(-z1)], [T(x1), T(-z0)], [T(x0), T(-z0)]], col);
   }
   /** Gable roof over a box footprint, ridge along the longer side. */
+  /** Hip roof (yosemune): four sloping faces, a short ridge along the long side, overhanging eaves. */
+  hip(x0: number, z0: number, x1: number, z1: number, y: number, rise: number, col: number[], o = 0.6) {
+    const X0 = x0 - o, X1 = x1 + o, Z0 = z0 - o, Z1 = z1 + o, alongX = X1 - X0 >= Z1 - Z0;
+    if (alongX) {
+      const zm = (Z0 + Z1) / 2, inset = (Z1 - Z0) / 2, ra = X0 + inset, rb = X1 - inset, k = rise / inset;
+      this.quad([X0, y, Z0], [X1, y, Z0], [rb, y + rise, zm], [ra, y + rise, zm], norm([0, 1, -k]), [[X0 / 3, 0], [X1 / 3, 0], [rb / 3, 2], [ra / 3, 2]], col);
+      this.quad([X1, y, Z1], [X0, y, Z1], [ra, y + rise, zm], [rb, y + rise, zm], norm([0, 1, k]), [[X1 / 3, 0], [X0 / 3, 0], [ra / 3, 2], [rb / 3, 2]], col);
+      this.tri([X0, y, Z1], [X0, y, Z0], [ra, y + rise, zm], norm([-k, 1, 0]), [[0, 0], [1, 0], [0.5, 1]], col);
+      this.tri([X1, y, Z0], [X1, y, Z1], [rb, y + rise, zm], norm([k, 1, 0]), [[0, 0], [1, 0], [0.5, 1]], col);
+    } else {
+      const xm = (X0 + X1) / 2, inset = (X1 - X0) / 2, ra = Z0 + inset, rb = Z1 - inset, k = rise / inset;
+      this.quad([X0, y, Z1], [X0, y, Z0], [xm, y + rise, ra], [xm, y + rise, rb], norm([-k, 1, 0]), [[Z1 / 3, 0], [Z0 / 3, 0], [ra / 3, 2], [rb / 3, 2]], col);
+      this.quad([X1, y, Z0], [X1, y, Z1], [xm, y + rise, rb], [xm, y + rise, ra], norm([k, 1, 0]), [[Z0 / 3, 0], [Z1 / 3, 0], [rb / 3, 2], [ra / 3, 2]], col);
+      this.tri([X0, y, Z0], [X1, y, Z0], [xm, y + rise, ra], norm([0, 1, -k]), [[0, 0], [1, 0], [0.5, 1]], col);
+      this.tri([X1, y, Z1], [X0, y, Z1], [xm, y + rise, rb], norm([0, 1, k]), [[0, 0], [1, 0], [0.5, 1]], col);
+    }
+    // soffit under the eaves
+    this.quad([X0, y, Z1], [X1, y, Z1], [X1, y, Z0], [X0, y, Z0], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], [col[0] * 0.6, col[1] * 0.6, col[2] * 0.6]);
+  }
   gable(x0: number, z0: number, x1: number, z1: number, y: number, rise: number, col: number[], ends: Geo, endCol: number[]) {
     const o = 0.5, X0 = x0 - o, X1 = x1 + o, Z0 = z0 - o, Z1 = z1 + o, alongX = x1 - x0 >= z1 - z0;
     if (alongX) {

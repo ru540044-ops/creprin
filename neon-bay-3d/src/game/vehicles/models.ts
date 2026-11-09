@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { VDef, VKind, Mods } from './defs';
 import { getTextures } from '../world/textures';
-import { addCabin, buildBoat, buildJet, buildFormula } from './models2';
+import { addCabin, buildBoat, buildJet, buildFormula, buildShinkansen } from './models2';
 import { isBoat } from './defs';
 import { labelTexture } from '../world/textures';
 
@@ -67,10 +67,10 @@ export function wheel(r: number, w: number, rimMat?: THREE.Material) {
 }
 
 export function buildCarModel(def: VDef, color: string): CarModel {
-  const m = def.kind === 'heli' ? buildHeli(def, color) : isBoat(def.kind) ? buildBoat(def, color) : def.kind === 'jet' ? buildJet(def, color) : def.kind === 'formula' ? buildFormula(def, color) : buildInner(def, color), outer = new THREE.Group(), tilt = new THREE.Group();
+  const m = def.kind === 'heli' ? buildHeli(def, color) : isBoat(def.kind) ? buildBoat(def, color) : def.kind === 'jet' ? buildJet(def, color) : def.kind === 'formula' ? buildFormula(def, color) : def.kind === 'shinkansen' ? buildShinkansen(def, color) : buildInner(def, color), outer = new THREE.Group(), tilt = new THREE.Group();
   m.root.rotation.y = -Math.PI / 2; tilt.add(m.root); outer.add(tilt);
   // neon underglow: an additive glow card under the car, shown when the Bay Customs neon kit is fitted
-  if (def.kind !== 'heli' && def.kind !== 'jet' && !isBoat(def.kind)) {
+  if (def.kind !== 'heli' && def.kind !== 'jet' && def.kind !== 'shinkansen' && !isBoat(def.kind)) {
     const neon = new THREE.Mesh(new THREE.PlaneGeometry(def.len * 1.25, def.wid * 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: getTextures().glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, opacity: 0.95 }));
     neon.position.y = 0.06; neon.visible = false; m.root.add(neon); m.neon = neon;
   }

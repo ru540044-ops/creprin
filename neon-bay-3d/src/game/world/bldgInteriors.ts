@@ -44,8 +44,8 @@ const grid = new Map<string, number[]>(), CELL = 30;
     let nx = 0, nz = -1;
     if (k) { const ds: [number, number, number][] = [[b.z0 - k.z0, 0, -1], [k.z1 - b.z1, 0, 1], [b.x0 - k.x0, -1, 0], [k.x1 - b.x1, 1, 0]]; ds.sort((a, c) => a[0] - c[0]); nx = ds[0][1]; nz = ds[0][2]; }
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, fx = nx ? (nx < 0 ? b.x0 : b.x1) : cx, fz = nz ? (nz < 0 ? b.z0 : b.z1) : cz;
-    const kind = kindOf(b), r = mulberry(i * 7919 + 3), sub = Math.floor(r() * 1000);
-    const label = kind === 'lobby' ? LOBBY[sub % LOBBY.length] : kind === 'office' ? OFFICE[sub % OFFICE.length] : kind === 'apartment' ? APT[sub % APT.length] + 'マンション' : kind === 'shop' ? SHOPS[sub % SHOPS.length].names[(sub >> 3) % 4] : kind === 'warehouse' ? 'BAY LOGISTICS 倉庫' : kind === 'hangar' ? '格納庫' : kind === 'terminal' ? REGION.names.airport + ' ターミナル' : '民家';
+    const kind: BKind = b.name ? 'terminal' : kindOf(b), r = mulberry(i * 7919 + 3), sub = Math.floor(r() * 1000);
+    const label = b.name ? b.name : kind === 'lobby' ? LOBBY[sub % LOBBY.length] : kind === 'office' ? OFFICE[sub % OFFICE.length] : kind === 'apartment' ? APT[sub % APT.length] + 'マンション' : kind === 'shop' ? SHOPS[sub % SHOPS.length].names[(sub >> 3) % 4] : kind === 'warehouse' ? 'BAY LOGISTICS 倉庫' : kind === 'hangar' ? '格納庫' : kind === 'terminal' ? REGION.names.airport + ' ターミナル' : '民家';
     const d: BDoor = { id: 'b' + i, b: i, x: fx + nx * 0.8, z: fz + nz * 0.8, fx, fz, ang: Math.atan2(nx, nz), y: b.y0, kind, sub, label };
     BDOORS.push(d); const key = Math.floor(d.x / CELL) + ',' + Math.floor(d.z / CELL); let a = grid.get(key); if (!a) grid.set(key, (a = [])); a.push(BDOORS.length - 1);
   });

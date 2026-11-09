@@ -35,15 +35,15 @@ function setTarget(p: Ped) { const c = corner(p.blk, p.corner); p.tx = c.x; p.tz
 /** Corner on the neighbouring block straight across the road (for crossing), or null at the city edge. */
 function across(b: number, c: number): [number, number] | null {
   const B = blocks[b], horiz = Math.random() < 0.5;
-  if (horiz) { const di = c === 0 || c === 3 ? -1 : 1, ni = B.i + di; if (ni < 0 || ni >= N) return null; return [B.j * N + ni, ({ 0: 1, 3: 2, 1: 0, 2: 3 } as Record<number, number>)[c]]; }
-  const dj = c < 2 ? -1 : 1, nj = B.j + dj; if (nj < 0 || nj >= N) return null; return [nj * N + B.i, ({ 0: 3, 1: 2, 3: 0, 2: 1 } as Record<number, number>)[c]];
+  if (horiz) { const di = c === 0 || c === 3 ? -1 : 1, ni = B.i + di; if (ni < 0 || ni >= N || blocks[B.j * N + ni].zone === 'canal' || blocks[B.j * N + ni].zone === 'water') return null; return [B.j * N + ni, ({ 0: 1, 3: 2, 1: 0, 2: 3 } as Record<number, number>)[c]]; }
+  const dj = c < 2 ? -1 : 1, nj = B.j + dj; if (nj < 0 || nj >= N || blocks[nj * N + B.i].zone === 'canal' || blocks[nj * N + B.i].zone === 'water') return null; return [nj * N + B.i, ({ 0: 3, 1: 2, 3: 0, 2: 1 } as Record<number, number>)[c]];
 }
 
 function spawnPed(px: number, pz: number) {
   const bx = Math.sin(game.cam.yaw), bz = Math.cos(game.cam.yaw);
   for (let k = 0; k < 16; k++) {
     const bi = clamp(Math.floor((px + HALF) / 100) + Math.round((Math.random() - 0.5) * 4), 0, N - 1), bj = clamp(Math.floor((pz + HALF) / 100) + Math.round((Math.random() - 0.5) * 4), 0, N - 1);
-    const b = bj * N + bi, B = blocks[b];
+    const b = bj * N + bi, B = blocks[b]; if (B.zone === 'canal' || B.zone === 'water') continue;
     const cx = (B.x0 + B.x1) / 2, cz = (B.z0 + B.z1) / 2; if (Math.hypot(cx - px, cz - pz) > 150) continue;
     const c = Math.floor(Math.random() * 4), a = corner(b, c), e = corner(b, (c + 1) & 3), t = Math.random();
     const x = a.x + (e.x - a.x) * t, z = a.z + (e.z - a.z) * t, d = Math.hypot(x - px, z - pz);

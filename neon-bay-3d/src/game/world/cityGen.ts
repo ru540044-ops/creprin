@@ -26,10 +26,11 @@ export function blockAt(x: number, z: number): BlockInfo | undefined {
 }
 export const blockOfB = (b: { x0: number; x1: number; z0: number; z1: number }) => blockAt((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2);
 
-export type Zone = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'park' | 'parking' | 'gas';
+export type Zone = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'park' | 'parking' | 'gas' | 'canal' | 'station' | 'water';
 export type BType = 'glass' | 'office' | 'brick' | 'house' | 'warehouse' | 'shop' | 'terminal' | 'hangar';
 
-export interface Building { x0: number; z0: number; x1: number; z1: number; y0: number; h: number; type: BType; tint: [number, number, number]; gable?: boolean; roofTint?: [number, number, number]; }
+export interface Building { x0: number; z0: number; x1: number; z1: number; y0: number; h: number; type: BType; tint: [number, number, number]; gable?: boolean; roofTint?: [number, number, number]; /** a named public building (its interior is a concourse) */ name?: string;
+  /** house roof shape (gable by default) and regional style */ roof?: 'hip' | 'flat'; style?: 'machiya' | 'okinawa'; carport?: boolean; }
 export interface Solid { x0: number; z0: number; x1: number; z1: number; y0: number; y1: number; }
 export interface Door { id: string; x: number; z: number; ang: number; label: string; interior: string; color: string; }
 export interface BlockInfo { i: number; j: number; x0: number; z0: number; x1: number; z1: number; zone: Zone; }
@@ -54,6 +55,8 @@ export const props = {
   poles: [] as { x: number; z: number; a: number; tr: boolean }[],
   wires: [] as { x0: number; z0: number; x1: number; z1: number }[],
   vends: [] as { x: number; z: number; a: number; c: [number, number, number] }[],
+  shisa: [] as { x: number; z: number; y: number; a: number }[],
+  walls: [] as { x0: number; z0: number; x1: number; z1: number; lime: boolean }[],
 };
 
 /* ---------- zones ---------- */
@@ -102,7 +105,7 @@ function outerZone(o: Exclude<Outer, ''>, ci: number, cj: number): Zone {
 }
 /** Tower height falloff for a downtown block (0 = tallest). */
 function towerFall(ci: number, cj: number) {
-  if (!inTokyo()) { const c = (N - 1) / 2; return Math.min(1.25, Math.hypot(ci + O - c, cj + O - c) / (N * 0.14)); }
+  if (!inTokyo()) { const c = (N - 1) / 2, i = ci + O, j = cj + O, cs: [number, number][] = REGION.id === 'osaka' ? [[c, c - 6], [c - 1, c + 3]] : REGION.id === 'fukuoka' ? [[c - 3, c - 1], [c + 5, c + 1]] : [[c + 2, c - 7]]; return Math.min(1.25, Math.min(...cs.map(([a, b]) => Math.hypot(i - a, j - b))) / 3); }
   const o = outerOf(ci, cj);
   if (o === 'midtown') return Math.min(1.25, Math.hypot(ci - MIDTOWN.ci, cj - MIDTOWN.cj) / 4.6);
   if (o) return o === 'eastbay' ? 0.95 : 1.15;
@@ -110,19 +113,118 @@ function towerFall(ci: number, cj: number) {
 }
 /** Block (grid coordinates) the region's landmark stands in. */
 export const LM_BLOCK = { i: REGION.landmark.ci + O, j: REGION.landmark.cj + O };
+/* ---------- canals (Osaka's Dotonbori, Fukuoka's river): a channel through a row / column of blocks, bridged by the cross streets ---------- */
+export const PROM = 5;
+export interface WaterRect { x0: number; z0: number; x1: number; z1: number; axis: 'x' | 'z' | 'pond'; name: string; w: number; blk: number }
+/** Channels (rivers, canals) and ponds inside blocks; the streets cross them on bridges. */
+export const CANAL_BLOCKS = new Map<number, WaterRect>();
+export const CANAL_RECTS: WaterRect[] = [];
+/* ---------- the sea cutting into the city: whole blocks of water, the streets end at the quay ---------- */
+const hash01 = (a: number, b: number) => ((((a * 73856093) ^ (b * 19349663) ^ (REGION.idx * 2654435761)) >>> 0) % 1000) / 1000;
+export const BAY = new Set<number>();
+{
+  const bay = REGION.bay, inCore = (i: number, j: number) => i >= O - 1 && i <= O + CORE && j >= O - 1 && j <= O + CORE;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    if (inCore(i, j) || i === N / 2 || i === O + 12 || i === O + 13) continue; // keep the core, the highway-run column and the railways on land
+    const n = hash01(i, j) * 1.6 + Math.sin(j * 0.55) * 0.9 + Math.sin(i * 0.47 + 1) * 0.9;
+    let w = false;
+    if (bay === 'southeast') w = i + j > 2 * N - 13 + n && i > N - 11 && j > N - 12;
+    else if (bay === 'west') w = i <= 1.6 + n && j > 2 && j < N - 3 || (i <= 4 + n * 0.5 && Math.abs(j - N * 0.62) < 1.5);
+    else if (bay === 'north') w = j <= 1.6 + n && i > 1 && i < N - 2;
+    if (w) BAY.add(j * N + i);
+  }
+}
+for (const C of REGION.canals ?? []) for (let t = C.from; t <= C.to; t++) {
+  const i = C.axis === 'x' ? t + O : C.at + O, j = C.axis === 'x' ? C.at + O : t + O, k = j * N + i, w = C.w ?? 24;
+  if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1 || BAY.has(k) || CANAL_BLOCKS.has(k)) continue;
+  const x0 = blockX0(i), z0 = blockX0(j), c = (C.axis === 'x' ? z0 : x0) + BLOCK / 2;
+  const R: WaterRect = C.axis === 'x' ? { x0, z0: c - w / 2, x1: x0 + BLOCK, z1: c + w / 2, axis: 'x', name: C.name, w, blk: k } : { x0: c - w / 2, z0, x1: c + w / 2, z1: z0 + BLOCK, axis: 'z', name: C.name, w, blk: k };
+  CANAL_BLOCKS.set(k, R); CANAL_RECTS.push(R);
+}
+for (const [ci, cj] of REGION.ponds ?? []) { const i = ci + O, j = cj + O, k = j * N + i; if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1 || BAY.has(k) || CANAL_BLOCKS.has(k)) continue; const x0 = blockX0(i), z0 = blockX0(j); const R: WaterRect = { x0: x0 + 9, z0: z0 + 9, x1: x0 + BLOCK - 9, z1: z0 + BLOCK - 9, axis: 'pond', name: '池', w: BLOCK - 18, blk: k }; CANAL_BLOCKS.set(k, R); CANAL_RECTS.push(R); }
+/** Is this block water (the sea)? Road segments and junctions between water blocks are water too. */
+export const isBay = (i: number, j: number) => i >= 0 && j >= 0 && i < N && j < N && BAY.has(j * N + i);
+const blockExists = (i: number, j: number) => i >= 0 && j >= 0 && i < N && j < N;
+/** Road segment open? axis 'x': the east-west road on z-line k between x-lines s and s+1; axis 'z': the north-south road on x-line k between z-lines s and s+1. */
+export function segOpen(axis: 'x' | 'z', k: number, s: number): boolean {
+  if (!BAY.size) return true;
+  const a: [number, number][] = axis === 'x' ? [[s, k - 1], [s, k]] : [[k - 1, s], [k, s]];
+  const ex = a.filter(([i, j]) => blockExists(i, j)); return !ex.length || ex.some(([i, j]) => !isBay(i, j));
+}
+/** Junction of x-line i and z-line j open? */
+export function nodeOpen(i: number, j: number): boolean {
+  if (!BAY.size) return true;
+  const a: [number, number][] = [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]];
+  const ex = a.filter(([p, q]) => blockExists(p, q)); return !ex.length || ex.some(([p, q]) => !isBay(p, q));
+}
+/** Is (x, z) in the sea inside the city (a bay block, or a street that ends at the quay)? */
+export function inBay(x: number, z: number): boolean {
+  if (!BAY.size) return false;
+  const lx = x + HALF, lz = z + HALF; if (lx < 0 || lz < 0 || lx > CITY || lz > CITY) return false;
+  const rx = lx - Math.floor(lx / PITCH) * PITCH, rz = lz - Math.floor(lz / PITCH) * PITCH, kx = Math.floor(lx / PITCH), kz = Math.floor(lz / PITCH);
+  const onX = rx < ROAD, onZ = rz < ROAD; // on a north-south road line / an east-west road line
+  if (onX && onZ) return !nodeOpen(kx, kz);
+  if (onX) return !segOpen('z', kx, kz);
+  if (onZ) return !segOpen('x', kz, kx);
+  return isBay(kx, kz);
+}
+export const inCanal = (x: number, z: number) => { for (const r of CANAL_RECTS) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true; return false; };
+export const canalAt = (x: number, z: number) => { for (const r of CANAL_RECTS) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return r; return null; };
+/** The main station building stands east of the elevated railway, level with its middle station. */
+export const STATION_BLOCK = { i: O + 12, j: N / 2 };
+/** Blocks kept open for a signature place (they become plazas / parks). */
+export const SIG_BLOCKS = new Map<number, 'temple' | 'skytower' | 'shinsekai' | 'dome'>();
+{
+  const put = (ci: number, cj: number, tag: 'temple' | 'skytower' | 'shinsekai' | 'dome', abs = false) => { const i = abs ? ci : ci + O, j = abs ? cj : cj + O; if (i > 0 && j > 0 && i < N - 1 && j < N - 1) SIG_BLOCKS.set(j * N + i, tag); };
+  if (REGION.id === 'tokyo') { put(-10, 21, 'temple'); put(-7, 19, 'skytower'); }
+  if (REGION.id === 'osaka') put(3, 12, 'shinsekai');
+  if (REGION.id === 'fukuoka') put(N - 2, Math.round(N * 0.4), 'dome', true);
+}
 /** The regional cities (Osaka, Fukuoka, Naha): a compact centre, a shopping ring and main streets, an industrial quarter by the port, houses beyond. */
 function regionZone(i: number, j: number): Zone {
   if (REGION.landmark.kind !== 'seatower' && i === LM_BLOCK.i && j === LM_BLOCK.j) return 'park';
-  const c = (N - 1) / 2, dx = i - c, dz = j - c, d = Math.max(Math.abs(dx), Math.abs(dz));
-  const h = (i * 73856093) ^ (j * 19349663) ^ (REGION.idx * 83492791), u = ((h >>> 0) % 1000) / 1000;
-  if (u > 0.982 && d > 2) return 'gas';
-  if (d < N * 0.12) return u < 0.05 ? 'park' : 'downtown';
-  if (d < N * 0.24) return u < 0.07 ? 'park' : u < 0.12 ? 'parking' : 'commercial';
-  if (dz > N * 0.3 && dx > 0) return u < 0.82 ? 'industrial' : 'parking';
-  if (i === Math.floor(c) || j === Math.ceil(c)) return u < 0.85 ? 'commercial' : 'residential'; // shopping streets
-  return u < 0.09 ? 'park' : u < 0.13 ? 'parking' : u < 0.2 ? 'commercial' : 'residential';
+  const c = (N - 1) / 2, dx = i - c, dz = j - c, u = hash01(i * 3 + 1, j * 5 + 2), D = (a: number, b: number) => Math.hypot(i - a, j - b);
+  const rest = (pk = 0.09): Zone => (u > 0.985 ? 'gas' : u < pk ? 'park' : u < pk + 0.04 ? 'parking' : u < pk + 0.11 ? 'commercial' : 'residential');
+  if (REGION.id === 'osaka') {
+    // two centres: Kita (Umeda) in the north, Minami (Namba / Shinsaibashi) in the south, joined by the Midosuji boulevard;
+    // the castle park in the east, factories and docks along the bay in the west
+    const kita = D(c, c - 6), minami = D(c - 1, c + 3);
+    if (kita < 2.7) return u < 0.05 ? 'park' : 'downtown';
+    if (minami < 1.7) return 'downtown';
+    if (minami < 3.6) return u < 0.08 ? 'parking' : 'commercial';
+    if (Math.abs(dx) < 1 && dz > -7 && dz < 6) return 'commercial';
+    if (D(LM_BLOCK.i, LM_BLOCK.j) < 1.8) return 'park';
+    if (i < 7) return u < 0.72 ? 'industrial' : u < 0.84 ? 'parking' : 'commercial';
+    if (kita < 5.2) return u < 0.12 ? 'park' : u < 0.7 ? 'commercial' : 'residential';
+    return rest();
+  }
+  if (REGION.id === 'fukuoka') {
+    // Tenjin (shops and offices) west of the river, Hakata (station, offices) east of it, Ohori park in the west,
+    // the seaside along the bay in the north, warehouses in the south-east
+    const tenjin = D(c - 3, c - 1), hakata = D(c + 5, c + 1);
+    if (tenjin < 2.2) return 'downtown';
+    if (tenjin < 4) return u < 0.08 ? 'park' : 'commercial';
+    if (hakata < 1.8) return 'downtown';
+    if (hakata < 3.4) return u < 0.1 ? 'parking' : 'commercial';
+    if (j < 6) return u < 0.25 ? 'park' : u < 0.55 ? 'commercial' : 'residential';
+    if (dx > 6 && dz > 5) return u < 0.75 ? 'industrial' : 'parking';
+    return rest(0.1);
+  }
+  // Naha: the new downtown (Omoromachi) in the north, Kokusai street running south through the old centre,
+  // the port in the south-west, Shuri's hills of houses in the east
+  const shin = D(c + 2, c - 7);
+  if (shin < 2.3) return u < 0.08 ? 'park' : 'downtown';
+  if (Math.abs(i - Math.floor(c)) < 1 && dz > -4 && dz < 6) return 'commercial';
+  if (D(c, c + 1) < 2.6) return u < 0.12 ? 'parking' : 'commercial';
+  if (i < 7 && j > c + 2) return u < 0.7 ? 'industrial' : u < 0.82 ? 'parking' : 'commercial';
+  if (dx > 4) return rest(0.12);
+  return rest(0.12);
 }
 function zoneOf(i: number, j: number): Zone {
+  if (i === STATION_BLOCK.i && j === STATION_BLOCK.j) return 'station';
+  if (BAY.has(j * N + i)) return 'water';
+  { const C = CANAL_BLOCKS.get(j * N + i); if (C) return C.axis === 'pond' ? 'park' : 'canal'; }
+  if (SIG_BLOCKS.has(j * N + i)) return 'park';
   if (!inTokyo()) return regionZone(i, j);
   const ci = i - O, cj = j - O, outer = outerOf(ci, cj);
   if (outer) return outerZone(outer, ci, cj);
@@ -152,6 +254,7 @@ export const PORT = { x0: 160, x1: HALF + 200, z0: HALF + 70, z1: HALF + 330 };
 export const AIRPORT = { x0: -HALF - 753, x1: -HALF - 70, z0: -420, z1: 420 };
 export const BEACH_X = HALF + 70; // sand from here to LAND.x1
 export function heightAt(x: number, z: number): number {
+  if ((CANAL_RECTS.length && inCanal(x, z)) || inBay(x, z)) return WATER_Y - 3;
   const inPort = x > PORT.x0 && x < PORT.x1 && z > PORT.z0 && z < PORT.z1;
   if (inPort) return 1.2;
   if (x < LAND.x0 || x > LAND.x1 || z < LAND.z0 || z > LAND.z1) return WATER_Y - 3;
@@ -193,6 +296,7 @@ function addB(b: Building) { buildings.push(b); solids.push({ x0: b.x0, z0: b.z0
 
 const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', '食堂 ネオン亭', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store'], ['arms', 'BAY ARMS', '#ff5a36', 'arms']];
 let shopDoorsLeft = SHOP_LABELS.length;
+const MACHIYA_BLOCKS = new Set<number>();
 
 for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
   const x0 = blockX0(i), z0 = blockX0(j), x1 = x0 + BLOCK, z1 = z0 + BLOCK, zone = zoneOf(i, j), ci = i - O, cj = j - O, core = !ringOf(ci, cj);
@@ -229,7 +333,12 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     }
     for (let k = 0; k < 3; k++) props.bins.push({ x: ix0 + d2 + 2 + r() * (ix1 - ix0 - 2 * d2 - 4), z: iz0 + d2 + 2 });
   } else if (zone === 'residential') {
-    if (r() < 0.25) {
+    const oldTown = inTokyo() ? outerOf(ci, cj) === 'oldtown' : REGION.id === 'osaka' ? Math.hypot(i - (N - 1) / 2 + 1, j - (N - 1) / 2 - 7) < 4 : REGION.id === 'fukuoka' ? i > (N - 1) / 2 + 3 && j > (N - 1) / 2 + 2 && j < (N - 1) / 2 + 6 : false;
+    if (oldTown && r() < 0.7) { MACHIYA_BLOCKS.add(j * N + i);
+      // old town: terraces of narrow two-storey timber townhouses (machiya) with lattice fronts along both streets
+      for (const [z0r, z1r] of [[iz0, iz0 + 13], [iz1 - 13, iz1]]) { let x = ix0; while (x < ix1 - 5) { const w = Math.min(ix1 - x, 6 + r() * 2.5); if (w < 4) break; addB({ x0: x, z0: z0r, x1: x + w - 0.15, z1: z1r, y0: S, h: 5.8 + r() * 0.8, type: 'house', tint: [0.75 + r() * 0.2, 0.7 + r() * 0.15, 0.62 + r() * 0.1], gable: true, roofTint: pick(REGION.roofs, r), style: 'machiya' }); x += w; } }
+      for (let k = 0; k < 3; k++) props.trees.push({ x: ix0 + 15 + k * 25, z: (iz0 + iz1) / 2, s: 0.7 + r() * 0.3, y: S, c: r() < 0.3 ? SAKURA : undefined });
+    } else if (r() < 0.25) {
       const h = 14 + r() * 18;
       addB({ x0: ix0 + 4, z0: iz0 + 4, x1: ix1 - 4, z1: iz0 + 34, y0: S, h, type: 'brick', tint: pick(BRICK_T, r) });
       addB({ x0: ix0 + 4, z0: iz1 - 34, x1: ix1 - 4, z1: iz1 - 4, y0: S, h: h * 0.8, type: 'brick', tint: pick(BRICK_T, r) });
@@ -241,7 +350,11 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
         const apt = r() < 0.16, w = apt ? 16 + r() * 3 : 10.5 + r() * 3.5, d = apt ? 12 + r() * 3 : 9 + r() * 3;
         const cx = ix0 + cw * (cc + 0.5) + (r() - 0.5) * 2, cz = iz0 + ch * (rr + 0.5) + (rr === 0 ? -2.5 : rr === 2 ? 2.5 : 0);
         if (apt) addB({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y0: S, h: 8.6 + r() * 3.4, type: 'brick', tint: pick(REGION.walls, r) });
-        else addB({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y0: S, h: 5.6 + r() * 1.8, type: 'house', tint: pick(REGION.walls, r), gable: true, roofTint: pick(REGION.roofs, r) });
+        else if (REGION.palmStreets) { // Okinawa: flat-roofed concrete houses with a water tank, or low red-tiled houses
+          const flat = r() < 0.62, one = r() < 0.6;
+          if (flat) addB({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y0: S, h: one ? 3.6 : 6.4, type: 'house', tint: pick(REGION.walls, r), roof: 'flat', style: 'okinawa' });
+          else addB({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y0: S, h: 3.4, type: 'house', tint: pick(REGION.walls, r), gable: true, roof: 'hip', roofTint: pick(REGION.roofs, r), style: 'okinawa' });
+        } else addB({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y0: S, h: 5.8 + r() * 1.2, type: 'house', tint: pick(REGION.walls, r), gable: true, roof: r() < 0.55 ? 'hip' : undefined, roofTint: pick(REGION.roofs, r), carport: r() < 0.35 && rr !== 1 });
         if (r() < 0.3) { const side = r() < 0.5 ? -1 : 1; props.trees.push({ x: cx + side * (w / 2 + 2.4), z: cz + (r() - 0.5) * 4, s: 0.6 + r() * 0.25, y: S, c: r() < 0.25 ? SAKURA : undefined }); }
         else if (REGION.palmStreets && r() < 0.3) props.palms.push({ x: cx + (r() < 0.5 ? -1 : 1) * (w / 2 + 2.4), z: cz, s: 0.6 + r() * 0.2, y: S });
       }
@@ -259,6 +372,22 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     for (let k = 0; k < 4; k++) props.benches.push({ x: (x0 + x1) / 2 + (k % 2 ? 4 : -4), z: z0 + 20 + k * 14, a: k % 2 ? -Math.PI / 2 : Math.PI / 2 });
   } else if (zone === 'parking') {
     addB({ x0: ix1 - 16, z0: iz0 + 2, x1: ix1 - 2, z1: iz0 + 12, y0: S, h: 4, type: 'office', tint: [0.8, 0.8, 0.82] });
+  } else if (zone === 'canal') {
+    // two rows of narrow buildings with their backs to the street and neon over the water; promenades along the channel
+    const CR = CANAL_BLOCKS.get(j * N + i)!, ax = CR.axis === 'x', c = (ax ? z0 : x0) + BLOCK / 2, e0 = c - CR.w / 2 - PROM, e1 = c + CR.w / 2 + PROM;
+    for (const [s0, s1] of [[ax ? iz0 : ix0, e0 - 2], [e1 + 2, ax ? iz1 : ix1]]) {
+      const n = 4 + (r() < 0.5 ? 1 : 0), a0 = ax ? ix0 : iz0, span = ((ax ? ix1 : iz1) - a0) / n;
+      for (let k = 0; k < n; k++) {
+        const t0 = a0 + span * k + (k ? 0.7 : 0), t1 = a0 + span * (k + 1) - (k < n - 1 ? 0.7 : 0), t = r();
+        const type: BType = t < 0.5 ? 'shop' : t < 0.8 ? 'brick' : 'office', h = type === 'shop' ? 9 + r() * 9 : (14 + r() * 22) * Math.max(0.6, REGION.heightMul + 0.2);
+        addB(ax ? { x0: t0, z0: s0, x1: t1, z1: s1, y0: S, h, type, tint: pick(type === 'shop' ? SHOP_T : type === 'office' ? OFFICE_T : BRICK_T, r) } : { x0: s0, z0: t0, x1: s1, z1: t1, y0: S, h, type, tint: pick(type === 'shop' ? SHOP_T : type === 'office' ? OFFICE_T : BRICK_T, r) });
+      }
+    }
+  } else if (zone === 'station') {
+    // the main station: a long hall facing the railway (red brick with domes in Tokyo, glass elsewhere), a forecourt behind
+    const red = inTokyo(), nm = (REGION.station || REGION.names.downtown + '駅') + ' 駅構内';
+    addB({ x0: ix0, z0: iz0 + 1, x1: ix0 + 24, z1: iz1 - 1, y0: S, h: red ? 15 : 19, type: red ? 'brick' : 'glass', tint: red ? [0.86, 0.42, 0.32] : [0.78, 0.86, 0.94], name: nm });
+    for (let k = 0; k < 6; k++) props.trees.push({ x: ix0 + 40 + (k % 2) * 22, z: iz0 + 10 + Math.floor(k / 2) * 26, s: 0.9, y: S });
   } else if (zone === 'gas') {
     const sx0 = ix0 + 10, sz0 = iz0 + 50;
     addB({ x0: sx0, z0: sz0, x1: sx0 + 26, z1: sz0 + 16, y0: S, h: 5, type: 'shop', tint: [0.95, 0.95, 0.95] });
@@ -278,7 +407,7 @@ for (const b of buildings) {
 // safehouse door: the first apartment block near the center-south
 {
   let best: Building | null = null, bd = 1e9;
-  for (const b of buildings) if (b.type === 'brick') { const d = Math.hypot((b.x0 + b.x1) / 2 - 120, (b.z0 + b.z1) / 2 - 250); if (d < bd) { bd = d; best = b; } }
+  for (const b of buildings) if (b.type === 'brick' && b.x1 - b.x0 > 10) { const k = blockOfB(b); if (!k || b.z0 - k.z0 > 9 || k.zone === 'canal') continue; const d = Math.hypot((b.x0 + b.x1) / 2 - 120, (b.z0 + b.z1) / 2 - 250); if (d < bd) { bd = d; best = b; } } // the front must face a street
   if (best) doors.push({ id: 'home', x: (best.x0 + best.x1) / 2, z: best.z0 - 0.8, ang: Math.PI, label: inTokyo() ? '隠れ家' : 'ビジネスホテル', interior: 'home', color: '#2be4ff' });
 }
 
@@ -323,7 +452,7 @@ export const parkSlots: { x: number; z: number; yaw: number; kind: string; ci: n
 }
 
 /* ---------- landmarks: police station, hospital (respawn points), export dock, time trials ---------- */
-export interface Landmark { id: string; label: string; color: string; x: number; z: number; spawn: { x: number; z: number; yaw: number } }
+export interface Landmark { id: string; label: string; color: string; x: number; z: number; spawn: { x: number; z: number; yaw: number }; /** direction the sign faces (default north) */ ang?: number }
 function landmark(id: string, label: string, color: string, tx: number, tz: number): Landmark {
   let best: Building | null = null, bd = 1e9;
   for (const b of buildings) {
@@ -339,7 +468,7 @@ function landmark(id: string, label: string, color: string, tx: number, tz: numb
 export const POLICE_HQ = landmark('pd', REGION.name + '警察署', '#2b6bff', -380, -220);
 export const HOSPITAL = landmark('hosp', REGION.name + '総合病院', '#ff4b5c', 330, 120);
 /** Where the bullet train arrives (Naha is reached by plane: no station). */
-export const STATION: Landmark | null = REGION.station ? landmark('station', REGION.station, '#ffffff', -60, 260) : null;
+export const STATION: Landmark | null = REGION.station ? (() => { const x0 = blockX0(STATION_BLOCK.i), z = blockX0(STATION_BLOCK.j) + BLOCK / 2; return { id: 'station', label: REGION.station, color: '#ffffff', x: x0 + 4.2, z, ang: -Math.PI / 2, spawn: { x: x0 + 2, z: z + 8, yaw: -Math.PI / 2 } }; })() : null;
 export const LANDMARKS = STATION ? [POLICE_HQ, HOSPITAL, STATION] : [POLICE_HQ, HOSPITAL];
 /** Arrival point at the airport terminal (planes). */
 export const AIRPORT_ARRIVAL = { x: AIRPORT.x0 + 390, z: 168, yaw: 0 };
@@ -435,13 +564,15 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
 /* ---------- street trees along downtown / commercial sidewalks ---------- */
 {
   const r = mulberry(777);
+  const lampAt = new Set<string>(); for (const l of props.lamps) lampAt.add(Math.floor(l.x / 3) + ',' + Math.floor(l.z / 3)); // 3 m cells: a lamp within ~3 m
+  const nearLamp = (x: number, z: number) => { const i = Math.floor(x / 3), j = Math.floor(z / 3); for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) if (lampAt.has((i + a) + ',' + (j + c))) return true; return false; };
   for (const b of blocks) {
     if ((b.zone !== 'downtown' && b.zone !== 'commercial') || b === GARAGE.block) continue;
     const sides: [number, number, number, number][] = [[b.x0 + 1.5, b.z0, 0, 1], [b.x1 - 1.5, b.z0, 0, 1], [b.x0, b.z0 + 1.5, 1, 0], [b.x0, b.z1 - 1.5, 1, 0]];
     for (const [sx, sz, ax, az] of sides) for (let t = 11; t < BLOCK - 10; t += 17) {
       const x = sx + ax * t, z = sz + az * t;
       if (doors.some((d) => Math.hypot(d.x - x, d.z - z) < 7)) continue;
-      if (props.lamps.some((l) => Math.abs(l.x - x) < 3 && Math.abs(l.z - z) < 3)) continue;
+      if (nearLamp(x, z)) continue;
       if (REGION.palmStreets) props.palms.push({ x, z, s: 0.62 + r() * 0.18, y: 0.15 }); else props.trees.push({ x, z, s: 0.72 + r() * 0.22, y: 0.15, c: r() < 0.12 ? SAKURA : undefined });
     }
     // a couple of sidewalk benches facing the street, between the trees
@@ -497,7 +628,9 @@ export const RAIL = (() => {
   // core road line 12: no time trial, street race, stunt jump or highway run uses it (the piers stand in its median)
   const k = O + 12, x = roadC(k), z0 = -HALF + ROAD + 30, z1 = HALF - ROAD - 30, y = 9.2;
   const stations = [0.2, 0.5, 0.8].map((f) => roadC(Math.round(f * N)) + PITCH / 2);
-  return { k, x, z0, z1, y, half: 4.6, stations, piers: [] as number[], name: REGION.rail.name, cars: REGION.rail.cars, color: REGION.rail.color, mono: REGION.id === 'naha' };
+  const mid = REGION.station || REGION.names.downtown + '駅', first = REGION.names.commercial[0] + '駅' === mid ? REGION.names.commercial[1] + '駅' : REGION.names.commercial[0] + '駅';
+  const names = [first, mid, REGION.names.residential[1] + '駅'];
+  return { k, x, z0, z1, y, half: 4.6, stations, names, piers: [] as number[], name: REGION.rail.name, cars: REGION.rail.cars, color: REGION.rail.color, mono: REGION.id === 'naha' };
 })();
 {
   const R = RAIL;
@@ -507,13 +640,25 @@ export const RAIL = (() => {
   for (const sz of R.stations) for (const s of [-1, 1]) solids.push({ x0: s < 0 ? R.x - 7.8 : R.x + R.half, z0: sz - 55, x1: s < 0 ? R.x - R.half : R.x + 7.8, z1: sz + 55, y0: R.y - 0.9, y1: R.y + 0.2 });
 }
 
+/* ---------- the bullet-train line: its own high viaduct along the avenue east of the main station (Naha has none) ---------- */
+export const SHIN = (() => {
+  const x = roadC(O + 13), sz = blockX0(STATION_BLOCK.j) + BLOCK / 2;
+  return { has: !!REGION.shinkansen, x, y: 15, z0: -HALF + ROAD + 6, z1: HALF - ROAD - 6, stationZ: sz, half: 5, track: 2.3, piers: [] as number[], gate: { x: x - 9.6, z: sz + 30 }, next: REGION.shinkansen ?? {} };
+})();
+if (SHIN.has) {
+  const R = SHIN;
+  for (let z = R.z0 + 10; z <= R.z1 - 10; z += 30) { const rel = ((z + HALF) % PITCH + PITCH) % PITCH; if (rel < ROAD + 4 || rel > PITCH - 4) continue; R.piers.push(z); solids.push({ x0: R.x - 1, z0: z - 1.4, x1: R.x + 1, z1: z + 1.4, y0: 0, y1: R.y - 1.3 }); }
+  solids.push({ x0: R.x - R.half, z0: R.z0, x1: R.x + R.half, z1: R.z1, y0: R.y - 1.3, y1: R.y });
+  solids.push({ x0: R.x - R.half - 5.5, z0: R.stationZ - 80, x1: R.x - R.half, z1: R.stationZ + 80, y0: R.y - 1.3, y1: R.y + 0.2 });
+}
+
 /* ---------- Japanese streets: utility poles with sagging wires, vending machines ---------- */
 {
   const r = mulberry(4242 + REGION.idx * 17);
   const grid = (list: { x: number; z: number }[]) => { const m = new Map<string, { x: number; z: number }[]>(); for (const q of list) { const k = Math.floor(q.x / 8) + ',' + Math.floor(q.z / 8); let a = m.get(k); if (!a) m.set(k, (a = [])); a.push(q); } return (x: number, z: number, d: number) => { for (let i = Math.floor((x - d) / 8); i <= Math.floor((x + d) / 8); i++) for (let j = Math.floor((z - d) / 8); j <= Math.floor((z + d) / 8); j++) for (const q of m.get(i + ',' + j) || []) if (Math.abs(q.x - x) < d && Math.abs(q.z - z) < d) return true; return false; }; };
   const nearLamp = grid(props.lamps), nearTree = grid([...props.trees, ...props.palms]), nearDoor = grid(doors);
   const poled = (b: BlockInfo) => b.zone === 'residential' || b.zone === 'commercial' || b.zone === 'industrial';
-  const railX = (x: number) => Math.abs(x - RAIL.x) < 12;
+  const railX = (x: number) => Math.abs(x - RAIL.x) < 12 || (SHIN.has && Math.abs(x - SHIN.x) < 12);
   // north edges (wires along x) row by row, west edges (wires along z) column by column; a chain carries on across a road
   for (const dir of [0, 1] as const) for (let a = 0; a < N; a++) {
     let last: { x: number; z: number } | null = null;
@@ -540,6 +685,133 @@ export const RAIL = (() => {
     const a = Math.atan2(nx, nz);
     props.vends.push({ x, z, a, c: VC[Math.floor(r() * VC.length)] });
     props.vends.push({ x: x + (nz !== 0 ? 1.05 : 0), z: z + (nx !== 0 ? 1.05 : 0), a, c: VC[Math.floor(r() * VC.length)] });
+  }
+}
+
+/* ---------- signature places: shrines, Asakusa's temple, the sky tower, shopping arches with lanterns, street-food stalls,
+   station entrances, Shinsekai, the dome, shisa (models in Signature.tsx, interactions in crime/japan.ts) ---------- */
+export interface Shrine { x: number; z: number; big: boolean; name: string; /** torii position (none for a temple hall) */ tz?: number }
+export const SIG = {
+  shrines: [] as Shrine[],
+  temple: null as null | { x: number; z: number; x0: number; z0: number; x1: number; z1: number },
+  skytower: null as null | { x: number; z: number },
+  shinsekai: null as null | { x: number; z: number },
+  dome: null as null | { x: number; z: number; r: number },
+  station: null as null | { x0: number; z0: number; x1: number; z1: number; red: boolean },
+  arches: [] as { x: number; z: number; name: string }[],
+  lanterns: [] as { x0: number; z0: number; x1: number; z1: number; y: number }[],
+  yatai: [] as { x: number; z: number; a: number; food: string; price: number }[],
+  gates: [] as { x: number; z: number; st: number; name: string }[],
+  /** police boxes on street corners (ask for directions), red post boxes */
+  koban: [] as { x: number; z: number; a: number }[],
+  posts: [] as { x: number; z: number }[],
+};
+{
+  const r = mulberry(5150 + REGION.idx), solid = (x0: number, z0: number, x1: number, z1: number, y0: number, y1: number) => solids.push({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1), y0, y1 });
+  const clearIn = (x0: number, z0: number, x1: number, z1: number) => { for (const L of [props.trees, props.palms, props.benches, props.bins, props.lamps, props.vends, props.poles] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (L[k].x > x0 && L[k].x < x1 && L[k].z > z0 && L[k].z < z1) L.splice(k, 1); };
+  const blk = (k: number) => blocks[k];
+  const food = (k: number) => REGION.food[k % REGION.food.length];
+  // shrines: a torii on the south edge and a small hall in a few parks (a big one in Tokyo's central park)
+  const SHRINE_NAMES = ['稲荷神社', '八幡神社', '天満宮', '氷川神社', '日枝神社', '熊野神社'];
+  const shrineAt = (b: BlockInfo, big: boolean, name: string) => {
+    const cx = (b.x0 + b.x1) / 2, hz = big ? b.z0 + 30 : b.z1 - 24, w = big ? 9 : 4.5;
+    clearIn(cx - w - 4, hz - w - 2, cx + w + 4, b.z1 - 1);
+    SIG.shrines.push({ x: cx, z: hz, big, name, tz: b.z1 - (big ? 4 : 3) });
+    solid(cx - w, hz - w * 0.75, cx + w, hz + w * 0.75, 0, big ? 12 : 6);
+    const tz = b.z1 - (big ? 4 : 3), tw = big ? 6 : 3; for (const s of [-1, 1]) solid(cx + s * tw - 0.4, tz - 0.4, cx + s * tw + 0.4, tz + 0.4, 0, big ? 11 : 5.5);
+  };
+  if (inTokyo()) { const b = blk((4 + O) * N + 9 + O); if (b && b.zone === 'park') shrineAt(b, true, '明治神宮'); }
+  { const parks = blocks.filter((b) => b.zone === 'park' && !SIG_BLOCKS.has(b.j * N + b.i) && !(b.i === LM_BLOCK.i && b.j === LM_BLOCK.j) && !(inTokyo() && b.i - O >= 9 && b.i - O <= 10 && b.j - O >= 3 && b.j - O <= 4));
+    for (let k = 0; k < Math.min(5, parks.length); k++) { const b = parks[Math.floor(r() * parks.length)]; if (SIG.shrines.some((q) => Math.hypot(q.x - (b.x0 + b.x1) / 2, q.z - (b.z0 + b.z1) / 2) < 120)) continue; shrineAt(b, false, SHRINE_NAMES[k % SHRINE_NAMES.length]); } }
+  // signature blocks
+  for (const [k, tag] of SIG_BLOCKS) {
+    const b = blk(k); if (!b) continue; const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+    if (tag === 'temple') { // Asakusa: thunder gate with its lantern, a street of stalls, the main hall, a five-storey pagoda
+      clearIn(b.x0, b.z0, b.x1, b.z1); SIG.temple = { x: cx, z: cz, x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1 };
+      for (const s of [-1, 1]) solid(cx + s * 6 - 0.7, b.z1 - 5.7, cx + s * 6 + 0.7, b.z1 - 4.3, 0, 9);
+      for (let n = 0; n < 6; n++) for (const s of [-1, 1]) solid(cx + s * 6.5 - 2, b.z1 - 16 - n * 6.4 - 2.6, cx + s * 6.5 + 2, b.z1 - 16 - n * 6.4 + 2.6, 0, 3.4);
+      solid(cx - 15, b.z0 + 8, cx + 15, b.z0 + 26, 0, 16); solid(cx - 31, b.z0 + 30, cx - 23, b.z0 + 38, 0, 40);
+      for (let n = 0; n < 2; n++) SIG.yatai.push({ x: cx + (n ? 4.4 : -4.4), z: b.z1 - 16 - (n + 1) * 6.4, a: n ? -Math.PI / 2 : Math.PI / 2, food: food(n)[0], price: food(n)[1] });
+      SIG.shrines.push({ x: cx, z: b.z0 + 17, big: true, name: '浅草寺 本堂' });
+    } else if (tag === 'skytower') { clearIn(b.x0, b.z0, b.x1, b.z1); SIG.skytower = { x: cx, z: cz }; solid(cx - 9, cz - 9, cx + 9, cz + 9, 0, 340); }
+    else if (tag === 'shinsekai') { clearIn(cx - 14, cz - 14, cx + 14, cz + 14); SIG.shinsekai = { x: cx, z: cz }; solid(cx - 7, cz - 7, cx + 7, cz + 7, 0, 96);
+      for (const [lx0, lz0, lx1, lz1] of [[b.x0, b.z0 + 3, b.x1, b.z0 + 3], [b.x0, b.z1 - 3, b.x1, b.z1 - 3], [b.x0 + 3, b.z0, b.x0 + 3, b.z1], [b.x1 - 3, b.z0, b.x1 - 3, b.z1]]) SIG.lanterns.push({ x0: lx0, z0: lz0, x1: lx1, z1: lz1, y: 4.6 });
+      for (let n = 0; n < 2; n++) SIG.yatai.push({ x: cx + (n ? 18 : -18), z: b.z1 - 9, a: 0, food: food(1)[0], price: food(1)[1] }); }
+    else if (tag === 'dome') { clearIn(b.x0, b.z0, b.x1, b.z1); SIG.dome = { x: cx, z: cz, r: 38 }; solid(cx - 26, cz - 26, cx + 26, cz + 26, 0, 30); }
+  }
+  // station hall
+  { const b = blk(STATION_BLOCK.j * N + STATION_BLOCK.i); if (b) SIG.station = { x0: b.x0 + 5, z0: b.z0 + 6, x1: b.x0 + 29, z1: b.z1 - 6, red: inTokyo() }; }
+  // shopping street: a lit arch at each end of one block of a north-south street, lantern strings across it
+  { const x = roadC(O + 3), za = roadC(O + 5) + 18, zb = roadC(O + 6) - 18;
+    for (const z of [za, zb]) { SIG.arches.push({ x, z, name: REGION.arch }); for (const s of [-1, 1]) solid(x + s * 8.6 - 0.35, z - 0.35, x + s * 8.6 + 0.35, z + 0.35, 0, 7.6); }
+    for (let z = za + 8; z < zb - 4; z += 9) SIG.lanterns.push({ x0: x - 8.4, z0: z, x1: x + 8.4, z1: z, y: 6.4 }); }
+  // street-food stalls along the river promenade (Fukuoka) / the canal (Osaka) / Kokusai street (Naha) / the arch street
+  { const RS = CANAL_RECTS.filter((q) => q.axis !== 'pond' && q.name === (REGION.canals ?? [])[0]?.name), ax = RS.length ? RS[0].axis === 'x' : true, mid = Math.floor(RS.length / 2), CANAL_RECTS_ = RS;
+    for (let n = 0; n < (REGION.id === 'fukuoka' ? 12 : 4) && RS.length; n++) { const R = CANAL_RECTS_[Math.min(RS.length - 1, Math.max(0, mid - 2 + Math.floor(n / 3)))]; if (!R) break;
+      const t = ((n % 3) + 0.5) / 3, x = ax ? R.x0 + (R.x1 - R.x0) * t : R.x1 + PROM / 2 + 0.2, z = ax ? R.z1 + PROM / 2 + 0.2 : R.z0 + (R.z1 - R.z0) * t, f = food(n);
+      SIG.yatai.push({ x, z, a: ax ? 0 : Math.PI / 2, food: f[0], price: f[1] }); /* the counter faces the promenade */ solid(x - (ax ? 1.3 : 1), z - (ax ? 1 : 1.3), x + (ax ? 1.3 : 1), z + (ax ? 1 : 1.3), 0, 2.6); } }
+  { const x = roadC(O + 3) + 9.8, n = REGION.palmStreets ? 4 : 2; for (let k = 0; k < n; k++) { const z = roadC(O + 5) + 17 + k * (60 / n), f = food(k + 2); SIG.yatai.push({ x, z, a: -Math.PI / 2, food: f[0], price: f[1] }); solid(x - 1, z - 1.3, x + 1, z + 1.3, 0, 2.6); } }
+  // station entrances at street level under the three stations
+  RAIL.stations.forEach((z, i) => { const x = RAIL.x + 9.4; SIG.gates.push({ x, z: z + (i === 1 ? -30 : 0), st: i, name: RAIL.names[i] }); });
+  // police boxes on the corners of busy blocks near the centre, post boxes by the shops and stations
+  { const c = (N - 1) / 2, cand = blocks.filter((b) => (b.zone === 'commercial' || b.zone === 'downtown') && Math.hypot(b.i - c, b.j - c) < N * 0.3).sort((a, b) => hash01(a.i, a.j * 7) - hash01(b.i, b.j * 7));
+    for (const b of cand) { if (SIG.koban.length >= 5) break; const x = b.x0 + 3.2, z = b.z0 + 3.2; if (SIG.koban.some((q) => Math.hypot(q.x - x, q.z - z) < 300) || doors.some((d) => Math.hypot(d.x - x, d.z - z) < 10)) continue; /* (no collision grid yet here) */ SIG.koban.push({ x, z, a: Math.PI }); clearIn(x - 3, z - 3, x + 3, z + 3); solid(x - 1.9, z - 1.6, x + 1.9, z + 1.9, 0, 3.4); } }
+  for (const d of doors) if (['store', 'store2', 'store3', 'diner', 'home'].includes(d.id)) SIG.posts.push({ x: d.x + 3.2, z: d.z - Math.cos(d.ang) * 0.4 });
+  for (const g of SIG.gates) SIG.posts.push({ x: g.x + 0.4, z: g.z - 4.2 });
+  // tidy up the things that now stand where a stall or gate went
+  for (const y of [...SIG.yatai, ...SIG.gates]) clearIn(y.x - 2.5, y.z - 2.5, y.x + 2.5, y.z + 2.5);
+}
+
+/* ---------- the shore: quay walls and railings where streets and blocks meet the sea; nothing stands in the water ---------- */
+export const SHORE: { x0: number; z0: number; x1: number; z1: number; top: number }[] = [];
+{
+  const span = (c: number): [number, number] => (c % 2 === 0 ? [roadC(c / 2) - ROAD / 2, roadC(c / 2) + ROAD / 2] : [blockX0((c - 1) / 2), blockX0((c - 1) / 2) + BLOCK]);
+  const wet = (ci: number, cj: number) => {
+    if (ci < 0 || cj < 0 || ci > 2 * N || cj > 2 * N) return false;
+    const ex = ci % 2 === 0, ez = cj % 2 === 0;
+    if (!ex && !ez) return isBay((ci - 1) / 2, (cj - 1) / 2);
+    if (ex && ez) return !nodeOpen(ci / 2, cj / 2);
+    if (ex) return !segOpen('z', ci / 2, (cj - 1) / 2);
+    return !segOpen('x', cj / 2, (ci - 1) / 2);
+  };
+  if (BAY.size) for (let cj = 0; cj <= 2 * N; cj++) for (let ci = 0; ci <= 2 * N; ci++) {
+    if (wet(ci, cj)) continue;
+    const [x0, x1] = span(ci), [z0, z1] = span(cj), top = ci % 2 && cj % 2 ? 0.15 : 0, t = 0.3;
+    if (wet(ci - 1, cj)) SHORE.push({ x0, z0, x1: x0 + t, z1, top }); if (wet(ci + 1, cj)) SHORE.push({ x0: x1 - t, z0, x1, z1, top });
+    if (wet(ci, cj - 1)) SHORE.push({ x0, z0, x1, z1: z0 + t, top }); if (wet(ci, cj + 1)) SHORE.push({ x0, z0: z1 - t, x1, z1, top });
+  }
+  for (const s of SHORE) solids.push({ x0: s.x0, z0: s.z0, x1: s.x1, z1: s.z1, y0: -3, y1: s.top + 1.05 });
+  // remove what the generic street furniture put in the water
+  const wetAt = (x: number, z: number) => inBay(x, z) || inCanal(x, z);
+  for (const L of [props.lamps, props.signals, props.hydrants, props.trees, props.palms, props.benches, props.bins, props.poles, props.vends, props.billboards, props.shisa] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (wetAt(L[k].x, L[k].z)) L.splice(k, 1);
+  for (let k = props.wires.length - 1; k >= 0; k--) { const w = props.wires[k]; if (wetAt(w.x0, w.z0) || wetAt(w.x1, w.z1) || wetAt((w.x0 + w.x1) / 2, (w.z0 + w.z1) / 2)) props.wires.splice(k, 1); }
+  for (let k = parkSlots.length - 1; k >= 0; k--) if (wetAt(parkSlots[k].x, parkSlots[k].z) && !['jetski', 'speedboat', 'yacht'].includes(parkSlots[k].kind)) parkSlots.splice(k, 1);
+}
+// canal railings (the banks and both edges of every bridge)
+for (const R of CANAL_RECTS) {
+  const ax = R.axis === 'x', rs = (x0: number, z0: number, x1: number, z1: number) => solids.push({ x0, z0, x1, z1, y0: -3, y1: 1.1 });
+  if (ax) { rs(R.x0, R.z0 - 0.2, R.x1, R.z0); rs(R.x0, R.z1, R.x1, R.z1 + 0.2); rs(R.x0 - 0.2, R.z0, R.x0, R.z1); rs(R.x1, R.z0, R.x1 + 0.2, R.z1); }
+  else { rs(R.x0 - 0.2, R.z0, R.x0, R.z1); rs(R.x1, R.z0, R.x1 + 0.2, R.z1); rs(R.x0, R.z0 - 0.2, R.x1, R.z0); rs(R.x0, R.z1, R.x1, R.z1 + 0.2); }
+}
+// shisa guardians: pairs at the shop doors of Naha's shopping streets, one on the roof of many houses
+if (REGION.palmStreets) {
+  const r = mulberry(7373);
+  for (const b of buildings) {
+    const k = blockOfB(b); if (!k) continue;
+    if (b.style === 'okinawa' && b.roof === 'flat' && r() < 0.6) props.shisa.push({ x: (b.x0 + b.x1) / 2, z: b.z0 + 0.25, y: b.y0 + b.h + 0.9, a: Math.PI });
+    else if (b.gable && r() < 0.55) props.shisa.push({ x: (b.x0 + b.x1) / 2, z: b.z0 + 0.6, y: b.y0 + b.h + 0.35, a: Math.PI });
+    else if (b.type === 'shop' && k.zone === 'commercial' && b.z0 - k.z0 < 8 && r() < 0.6) for (const s of [-1, 1]) props.shisa.push({ x: (b.x0 + b.x1) / 2 + s * 2.2, z: b.z0 - 0.7, y: 0.15, a: Math.PI });
+  }
+}
+// low concrete-block walls (limestone in Naha) around the housing plots, with an opening in front of every plot
+{
+  const lime = REGION.palmStreets;
+  for (const b of blocks) {
+    if (b.zone !== 'residential' || b === GARAGE.block || MACHIYA_BLOCKS.has(b.j * N + b.i)) continue;
+    const ix0 = b.x0 + 5, iz0 = b.z0 + 5, ix1 = b.x1 - 5, iz1 = b.z1 - 5, cw = (ix1 - ix0) / 3, gaps = [0.5, 1.5, 2.5].map((k) => ix0 + cw * k), zgap = (iz0 + iz1) / 2;
+    const seg = (x0: number, z0: number, x1: number, z1: number) => { if (x1 - x0 < 0.5 && z1 - z0 < 0.5) return; props.walls.push({ x0, z0, x1, z1, lime }); solids.push({ x0, z0, x1, z1, y0: 0, y1: 1.3 }); };
+    for (const z of [iz0, iz1 - 0.2]) { let a = ix0; for (const g of gaps) { seg(a, z, g - 2.2, z + 0.2); a = g + 2.2; } seg(a, z, ix1, z + 0.2); }
+    for (const x of [ix0, ix1 - 0.2]) { seg(x, iz0, x + 0.2, zgap - 2.2); seg(x, zgap + 2.2, x + 0.2, iz1); }
   }
 }
 
@@ -584,8 +856,8 @@ export function groundAt(x: number, z: number): number {
   const lx = x + HALF, lz = z + HALF;
   if (lx >= 0 && lz >= 0 && lx <= CITY && lz <= CITY) {
     const i = Math.floor((lx - ROAD) / PITCH), j = Math.floor((lz - ROAD) / PITCH);
-    if (i >= 0 && j >= 0 && i < N && j < N && lx - ROAD - i * PITCH < BLOCK && lz - ROAD - j * PITCH < BLOCK) return 0.15;
-    return rampAt(x, z);
+    if (i >= 0 && j >= 0 && i < N && j < N && lx - ROAD - i * PITCH < BLOCK && lz - ROAD - j * PITCH < BLOCK) return (CANAL_RECTS.length && inCanal(x, z)) || inBay(x, z) ? WATER_Y - 3 : 0.15;
+    return inBay(x, z) ? WATER_Y - 3 : rampAt(x, z);
   }
   if (onPier(x, z)) return PIER.y;
   return Math.max(heightAt(x, z), rampAt(x, z));
@@ -636,6 +908,8 @@ export function districtAt(x: number, z: number): string {
     return d < 2.6 ? RN.downtown : d < 4.6 ? RN.commercial[ci < c ? 0 : 1] : RN.residential[ci < c ? 0 : 1];
   }
   if (i === LM_BLOCK.i && j === LM_BLOCK.j && REGION.landmark.kind !== 'seatower') return RN.park;
+  { const C = CANAL_BLOCKS.get(j * N + i); if (C && C.axis !== 'pond') return C.name; }
+  if (isBay(i, j)) return RN.sea;
   const c = (N - 1) / 2, dx = i - c, dz = j - c, d = Math.max(Math.abs(dx), Math.abs(dz));
   if (d < N * 0.12) return RN.downtown;
   if (d < N * 0.24) return RN.commercial[dx < 0 ? 0 : 1];

@@ -1,4 +1,6 @@
-import { roadC, N, HALF, PITCH, ROAD, pointBlocked } from '../world/cityGen';
+import { roadC, N, HALF, PITCH, ROAD, pointBlocked, segOpen, nodeOpen } from '../world/cityGen';
+/** Can a car drive from junction (i, j) to the neighbouring junction (ni, nj)? (no streets in the sea) */
+export const edgeOpen = (i: number, j: number, ni: number, nj: number) => nodeOpen(ni, nj) && (nj === j ? segOpen('x', j, Math.min(i, ni)) : segOpen('z', i, Math.min(j, nj)));
 import { Veh, AI, Drive } from '../vehicles/sim';
 import { clamp } from '../world/rng';
 
@@ -20,7 +22,8 @@ export function clearLine(x0: number, z0: number, x1: number, z1: number, y = 1.
 
 /** Pick the neighbouring intersection that brings us closest to (ti,tj); wander adds randomness and forbids U-turns. */
 function stepNode(ai: AI, ti: number, tj: number, wander: boolean) {
-  const opts: [number, number][] = [[ai.ni + 1, ai.nj], [ai.ni - 1, ai.nj], [ai.ni, ai.nj + 1], [ai.ni, ai.nj - 1]].filter(([i, j]) => i >= 0 && j >= 0 && i <= N && j <= N) as [number, number][];
+  let opts: [number, number][] = [[ai.ni + 1, ai.nj], [ai.ni - 1, ai.nj], [ai.ni, ai.nj + 1], [ai.ni, ai.nj - 1]].filter(([i, j]) => i >= 0 && j >= 0 && i <= N && j <= N && edgeOpen(ai.ni, ai.nj, i, j)) as [number, number][];
+  if (!opts.length) opts = [[ai.pi >= 0 ? ai.pi : ai.ni, ai.pj >= 0 ? ai.pj : ai.nj]]; // dead end at the quay: turn back
   let best = opts[0], bs = 1e9;
   for (const o of opts) {
     const back = o[0] === ai.pi && o[1] === ai.pj;

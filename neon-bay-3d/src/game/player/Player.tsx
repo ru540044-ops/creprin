@@ -1,3 +1,4 @@
+import { exitTrain } from '../crime/japan';
 import { lookState } from './appearance';
 import { progress } from '../state/store';
 import { useEffect, useState } from 'react';
@@ -72,6 +73,7 @@ export default function Player() {
   const camPos = useMemo(() => new THREE.Vector3(), []), camTgt = useMemo(() => new THREE.Vector3(), []), want = useMemo(() => new THREE.Vector3(), []);
 
   const exitCar = (me: Veh) => {
+    if (me.def.kind === 'shinkansen') { exitTrain(me); st.vx = st.vz = 0; return; }
     const p = game.player, sp = Math.hypot(me.vx, me.vz);
     if (sp > 9) { toast('スピードを落とすと降りられる', 1.4); return; }
     if ((me.def.kind === 'heli' || me.def.kind === 'jet') && me.air) { toast(me.def.kind === 'jet' ? '滑走路に着陸してから降りよう' : 'ヘリは着陸してから降りよう', 1.6); return; }
@@ -341,7 +343,7 @@ export default function Player() {
         const ly = me.yaw + st.look; want.set(camera.position.x + Math.sin(ly) * 10, camera.position.y - 0.6 - st.lookP * 6 - me.pitch * 10, camera.position.z + Math.cos(ly) * 10);
         camera.lookAt(want); return;
       }
-      const L = me.def.len, jet = me.def.kind === 'jet', dist2 = jet ? (cm === 0 ? 20 : 34) : cm === 0 ? 3.6 + L * 0.75 : 7 + L * 1.1, ht = me.def.hgt * 0.9 + (cm === 0 ? 0.55 : 1.3), pitch2 = (cm === 0 ? 0.1 : 0.18) + st.lookP - (jet ? me.pitch * 0.85 : 0);
+      const L = me.def.len, jet = me.def.kind === 'jet', train = me.def.kind === 'shinkansen', dist2 = train ? (cm === 0 ? 26 : 48) : jet ? (cm === 0 ? 20 : 34) : cm === 0 ? 3.6 + L * 0.75 : 7 + L * 1.1, ht = train ? (cm === 0 ? 8 : 15) : me.def.hgt * 0.9 + (cm === 0 ? 0.55 : 1.3), pitch2 = (cm === 0 ? 0.1 : 0.18) + st.lookP - (jet ? me.pitch * 0.85 : 0);
       camTgt.set(me.x, me.y + ht, me.z);
       const cx = Math.sin(cyaw) * Math.cos(pitch2), cz = Math.cos(cyaw) * Math.cos(pitch2), cy = Math.sin(pitch2);
       let d2 = dist2;

@@ -1,7 +1,7 @@
 import { REGION } from '../world/region';
 import { game, toast, save, progress } from '../state/store';
 import { vehicles, spawn, remove, playerCar, Veh } from '../vehicles/sim';
-import { doors, buildings, topFoot, GARAGE, EXPORT_DOCK, AIRPORT, PORT, groundAt, floorAt, roadC, N } from '../world/cityGen';
+import { doors, buildings, topFoot, GARAGE, EXPORT_DOCK, AIRPORT, PORT, groundAt, floorAt, roadC, N, nodeOpen } from '../world/cityGen';
 import { BDOORS } from '../world/bldgInteriors';
 import { INTERIORS } from '../world/Interiors';
 import { ejectPed } from '../ai/peds';
@@ -67,7 +67,7 @@ export const MISSIONS: Mission[] = [
       { goal: () => mission.target ? `ヴィンスの車に体当たりして止めろ　ダメージ ${Math.round((1 - mission.target.hp / mission.target.def.hp) * 100 / 0.55)}%` : 'ヴィンスを追え',
         enter: () => {
           const p = P(), pi = nodeIdx(p.x), pj = nodeIdx(p.z);
-          for (let k = 0; k < 30; k++) { const i = clamp(pi + Math.round((Math.random() - 0.5) * 4), 0, N), j = clamp(pj + Math.round((Math.random() - 0.5) * 4), 0, N), x = roadC(i), z = roadC(j); if (Math.hypot(x - p.x, z - p.z) < 70 || Math.hypot(x - p.x, z - p.z) > 180) continue; const v = spawn('sport', x, z, 0, '#141414'); v.touched = true; v.ai = newAI(x, z, { mode: 'flee' }); mission.target = v; break; }
+          for (let k = 0; k < 30; k++) { const i = clamp(pi + Math.round((Math.random() - 0.5) * 4), 0, N), j = clamp(pj + Math.round((Math.random() - 0.5) * 4), 0, N), x = roadC(i), z = roadC(j); if (Math.hypot(x - p.x, z - p.z) < 70 || Math.hypot(x - p.x, z - p.z) > 180 || !nodeOpen(i, j)) continue; const v = spawn('sport', x, z, 0, '#141414'); v.touched = true; v.ai = newAI(x, z, { mode: 'flee' }); mission.target = v; break; }
           say([{ who: VINCE, text: 'レイの犬か！捕まるかよ！' }]);
         },
         marker: () => mission.target ? { x: mission.target.x, y: mission.target.y + 2, z: mission.target.z } : null,

@@ -31,7 +31,7 @@ function normalFromHeight(hc: HTMLCanvasElement, strength: number) {
 }
 
 /** Facade with a window grid. cols x rows windows per texture repeat; su/sv = meters covered by one repeat. */
-function facade(opts: { cols: number; rows: number; su: number; sv: number; wall: string; glass: string; frame: string; winW: number; winH: number; shop?: boolean; brick?: boolean; corrug?: boolean; seed: number }): FacadeSet {
+function facade(opts: { cols: number; rows: number; su: number; sv: number; wall: string; glass: string; frame: string; winW: number; winH: number; shop?: boolean; brick?: boolean; corrug?: boolean; siding?: boolean; lattice?: boolean; seed: number }): FacadeSet {
   const W = 512, H = 512, cw = W / opts.cols, ch = H / opts.rows, r = mulberry(opts.seed);
   const lit: boolean[] = []; for (let i = 0; i < opts.cols * opts.rows; i++) lit.push(r() < 0.42);
   const warm: boolean[] = lit.map(() => r() < 0.75);
@@ -41,6 +41,8 @@ function facade(opts: { cols: number; rows: number; su: number; sv: number; wall
     c.fillStyle = opts.wall; c.fillRect(0, 0, W, H);
     if (opts.brick) { c.fillStyle = 'rgba(0,0,0,.12)'; for (let y = 0; y < H; y += 8) { c.fillRect(0, y, W, 1); for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) c.fillRect(x, y, 1, 8); } }
     if (opts.corrug) { for (let x = 0; x < W; x += 6) { c.fillStyle = x % 12 ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.14)'; c.fillRect(x, 0, 3, H); } }
+    if (opts.siding) { for (let y = 0; y < H; y += 12) { c.fillStyle = 'rgba(0,0,0,.09)'; c.fillRect(0, y, W, 2); c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(0, y + 2, W, 1); } }
+    if (opts.lattice) { for (let x = 0; x < W; x += 9) { c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(x, 0, 2, H); } }
     noise(c, W, H, 0.05, opts.seed + 1);
     // grime gradient toward the bottom of each repeat and streaks
     const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.18)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
@@ -53,6 +55,8 @@ function facade(opts: { cols: number; rows: number; su: number; sv: number; wall
       c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(x, y, ww * 0.35, hh);
       if (!isShopRow(cy) && r() < 0.35) { c.fillStyle = 'rgba(220,210,190,.55)'; c.fillRect(x, y, ww, hh * (0.3 + r() * 0.5)); }
       if (!opts.corrug) { c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(x - 3, y + hh + 3, ww + 6, 3); }
+      if (opts.siding) { c.fillStyle = opts.frame; c.fillRect(x + ww / 2 - 2, y, 4, hh); } // sliding sash
+      if (opts.lattice) { c.fillStyle = '#6a4a32'; for (let lx = x; lx < x + ww; lx += 7) c.fillRect(lx, y, 3, hh); c.fillRect(x, y + hh * 0.5, ww, 3); }
     }
     if (opts.shop) { const y = (opts.rows - 1) * ch; c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0, y, W, 6); }
   });
@@ -95,7 +99,9 @@ function build() {
   const office = facade({ cols: 6, rows: 8, su: 24, sv: 28, wall: '#e8e2d6', glass: '#46607a', frame: '#b9b2a4', winW: 0.6, winH: 0.55, seed: 12 });
   const brick = facade({ cols: 6, rows: 8, su: 22, sv: 26, wall: '#b46a54', glass: '#3c4f63', frame: '#e7ddd0', winW: 0.42, winH: 0.5, brick: true, seed: 13 });
   const shop = facade({ cols: 6, rows: 6, su: 24, sv: 21, wall: '#efe6d8', glass: '#47627f', frame: '#5b5048', winW: 0.5, winH: 0.5, shop: true, seed: 14 });
-  const house = facade({ cols: 3, rows: 2, su: 12, sv: 6.4, wall: '#f4efe6', glass: '#3e5670', frame: '#ffffff', winW: 0.42, winH: 0.42, seed: 15 });
+  const house = facade({ cols: 2, rows: 2, su: 9, sv: 6.2, wall: '#ece7dc', glass: '#46607a', frame: '#c6cad0', winW: 0.62, winH: 0.4, siding: true, seed: 15 });
+  const machiya = facade({ cols: 2, rows: 2, su: 7, sv: 6.2, wall: '#4b3527', glass: '#2a2620', frame: '#3a2a1e', winW: 0.86, winH: 0.62, lattice: true, seed: 21 });
+  const okinawa = facade({ cols: 3, rows: 1, su: 10, sv: 3.4, wall: '#e8e2d4', glass: '#44586a', frame: '#9aa0a6', winW: 0.5, winH: 0.42, seed: 22 });
   const warehouse = facade({ cols: 8, rows: 3, su: 32, sv: 18, wall: '#c8ccd1', glass: '#3a4a5c', frame: '#9aa0a8', winW: 0.7, winH: 0.25, corrug: true, seed: 16 });
   const terminal = facade({ cols: 10, rows: 3, su: 40, sv: 18, wall: '#d5dde6', glass: '#6a8cb0', frame: '#c0c8d0', winW: 0.95, winH: 0.85, seed: 17 });
 
@@ -130,7 +136,7 @@ function build() {
   });
   const waterN = tex(wn, false);
   const glow = tex(canvas(128, 128, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,.35)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); }));
-  return { glass, office, brick, shop, house, warehouse, terminal, asphalt, sidewalk, grass, sand, dirt, concrete, roof, tiles, waterN, glow };
+  return { glass, office, brick, shop, house, machiya, okinawa, warehouse, terminal, asphalt, sidewalk, grass, sand, dirt, concrete, roof, tiles, waterN, glow };
 }
 
 export function labelTexture(text: string, color: string, w = 512, h = 128) {

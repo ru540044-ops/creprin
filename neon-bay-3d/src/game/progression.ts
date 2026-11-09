@@ -1,3 +1,4 @@
+import { markVisit } from './crime/japan';
 import { REGION } from './world/region';
 import { game, progress, ownedCars, save, toast } from './state/store';
 import { playerCar, spawn, vehicles } from './vehicles/sim';
@@ -33,7 +34,7 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'road', icon: '🛣️', title: 'ロードトリップ', desc: '合計50km運転する', test: (s) => s.drive >= 50000 },
   { id: 'explore', icon: '🗺️', title: '探検家', desc: `${DISTRICT_GOAL}の地区を訪れる`, test: (s) => s.districts.length >= DISTRICT_GOAL },
   { id: 'story1', icon: '📖', title: 'はじめての仕事', desc: 'ミッション1をクリア', test: () => progress.story >= 1 },
-  { id: 'story5', icon: '👑', title: 'ベイの帝王', desc: 'ストーリーを全てクリア', test: () => progress.story >= 5 },
+  { id: 'story5', icon: '👑', title: '夜の帝王', desc: 'ストーリーを全てクリア', test: () => progress.story >= 5 },
   { id: 'rich', icon: '💰', title: '百万長者', desc: '所持金$1,000,000', test: () => game.money >= 1_000_000 },
   { id: 'earn', icon: '💵', title: '稼ぎ頭', desc: '累計$250,000稼ぐ', test: (s) => s.earned >= 250_000 },
   { id: 'wanted', icon: '🚨', title: '最重要指名手配', desc: '手配度★5になる', test: (s) => s.maxWanted >= 5 },
@@ -46,6 +47,12 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'cruise', icon: '🛳️', title: '船旅', desc: '豪華客船に乗船する', test: (s) => !!s.flags.cruise },
   { id: 'stunt', icon: '🤸', title: 'スタントマン', desc: 'スタントジャンプを成功させる', test: () => Object.keys(progress.stunts).length >= 1 },
   { id: 'daily', icon: '☀️', title: '皆勤賞', desc: 'ログインボーナス7日目を受け取る', test: () => progress.gift.streak >= 7 },
+  { id: 'japan', icon: '🗾', title: '日本一周', desc: '東京・大阪・福岡・那覇をすべて訪れる', test: (s) => !!(s.flags.visit_tokyo && s.flags.visit_osaka && s.flags.visit_fukuoka && s.flags.visit_naha) },
+  { id: 'daikichi', icon: '⛩️', title: '大吉', desc: 'おみくじで大吉を引く', test: (s) => !!s.flags.daikichi },
+  { id: 'yatai', icon: '🍜', title: '屋台めぐり', desc: '屋台で食事をする', test: (s) => !!s.flags.yatai },
+  { id: 'train', icon: '🚃', title: '電車通勤', desc: '高架線に乗る', test: (s) => !!s.flags.train },
+  { id: 'shinkansen', icon: '🚄', title: '新幹線の運転士', desc: '新幹線を運転する', test: (s) => !!s.flags.shinkansen },
+  { id: 'vend', icon: '🥤', title: 'のどが渇いた', desc: '自販機で飲み物を買う', test: (s) => !!s.flags.vend },
 ];
 
 /* ================================================================ per-frame tracking */
@@ -53,7 +60,7 @@ const last = { x: NaN, z: NaN, car: 0, money: NaN, wanted: 0, checkT: 0 };
 export function updateProgression(dt: number) {
   if (!game.started) return;
   const S = progress.stats, me = playerCar(), out = game.where === 'out';
-  S.time += dt;
+  S.time += dt; markVisit();
   // distance by mode (teleports and respawns are ignored)
   const px = me ? me.x : game.player.x, pz = me ? me.z : game.player.z;
   if (out && Number.isFinite(last.x)) {

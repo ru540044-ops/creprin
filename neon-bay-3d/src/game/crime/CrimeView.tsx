@@ -23,7 +23,8 @@ function Ring({ x, z, r, color, pulse = true }: { x: number; z: number; r: numbe
   return <mesh ref={m} position={[x, 0.2, z]} rotation-x={-Math.PI / 2}><ringGeometry args={[r * 0.86, r, 48]} /><meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.85} /></mesh>;
 }
 function LandmarkView({ L }: { L: Landmark }) {
-  return <><Sign x={L.x} z={L.z - 0.1} y={6.5} ang={Math.PI} text={L.label} color={L.color} w={9} /><Ring x={L.spawn.x} z={L.spawn.z} r={1.4} color={L.color} pulse={false} /></>;
+  const a = L.ang ?? Math.PI;
+  return <><Sign x={L.x + Math.sin(a) * 0.1} z={L.z + Math.cos(a) * 0.1} y={6.5} ang={a} text={L.label} color={L.color} w={9} /><Ring x={L.spawn.x} z={L.spawn.z} r={1.4} color={L.color} pulse={false} /></>;
 }
 
 /** Big checkpoint gate for the active time trial. */

@@ -13,7 +13,7 @@ import { game } from '../state/store';
  */
 const R = RAIL, CAR = 20, GAP = 0.6, TRACK = 2.1, V = 20;
 const trainLen = R.cars * (CAR + GAP);
-const STATION_NAMES = [REGION.names.commercial[0], REGION.names.downtown, REGION.names.residential[1]];
+const STATION_NAMES = R.names;
 
 /** One direction's run: dwell at the first terminus, then station to station. Positions are the head car's centre. */
 function schedule(dir: 1 | -1) {
@@ -85,7 +85,7 @@ export default function Railway() {
     const body = new THREE.InstancedMesh(car.body, carMat, n), win = new THREE.InstancedMesh(car.win, winMat, n);
     body.castShadow = true; body.frustumCulled = win.frustumCulled = false;
     // station name boards hanging under the canopies
-    const boards = R.stations.map((z, i) => ({ z, tex: labelTexture(STATION_NAMES[i] + '駅', '#ffffff', 512, 128) }));
+    const boards = R.stations.map((z, i) => ({ z, tex: labelTexture(STATION_NAMES[i], '#ffffff', 512, 128) }));
     // overhead contact wires
     const pts: number[] = []; if (!R.mono) for (const s of [-1, 1]) pts.push(R.x + s * TRACK, R.y + 5.5, R.z0, R.x + s * TRACK, R.y + 5.5, R.z1);
     const wire = new THREE.BufferGeometry(); wire.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
