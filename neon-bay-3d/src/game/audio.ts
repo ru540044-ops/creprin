@@ -149,3 +149,5 @@ export function chime(kind: 'door' | 'announce' | 'depart') {
   for (const [n, d] of mel) note(N(n), t + d, 0.6, 0.065);
   for (let k = 0; k < 3; k++) note(N(81), t + 4.5 + k * 0.45, 0.22, 0.05, 'square');
 }
+/** Debug/test hook: the current train sound levels (null before the first train). */
+export const trainAudioState = () => (TR ? { inv: TR.invG.gain.value, motorHz: TR.inv.frequency.value, carrierHz: TR.inv2.frequency.value, roll: TR.rollG.gain.value, wind: TR.windG.gain.value, by: TR.byG.gain.value } : null);

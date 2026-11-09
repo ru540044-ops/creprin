@@ -328,6 +328,7 @@ export default function Player() {
     camera.up.copy(WUP);
     if (me) {
       st.carYaw += angDiff(st.carYaw, me.yaw) * Math.min(1, dt * (3.5 + game.speed * 0.06));
+      if (me.def.kind === 'shinkansen') { st.carYaw = me.yaw; if (me.z < TUN.portal + TUN.hood + 70) st.look = 0; } // a straight track: always right behind it, and never swung out of the tunnel bore
       const cyaw = st.carYaw + Math.PI + st.look, cm = game.cam.carMode; game.cam.yaw = cyaw;
       const sh = game.shake * 0.25, jx = (Math.random() - 0.5) * sh, jy = (Math.random() - 0.5) * sh;
       const cmod = models.get(me.id);

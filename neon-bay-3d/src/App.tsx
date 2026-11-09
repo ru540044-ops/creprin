@@ -38,7 +38,7 @@ import * as pedsMod from './game/ai/peds';
 import * as traffic from './game/ai/traffic';
 import * as weapons from './game/combat/weapons';
 import { vehicles, playerCar, owned, spawn, remove, drive, collisions } from './game/vehicles/sim';
-import { initAudio, ambience, pauseAudio, music } from './game/audio';
+import { initAudio, ambience, pauseAudio, music, trainAudioState } from './game/audio';
 import { settings, loadSettings, saveSettings, autoQuality, QualityMode } from './game/settings';
 import { updateProgression, startTutorial, tutorial } from './game/progression';
 import { TitleScreen, PauseMenu, ErrorBoundary } from './game/ui/Menus';
@@ -62,7 +62,7 @@ import { ArrivalScreen, TRAVEL_KEY } from './game/ui/TravelApp';
 import * as japanMod from './game/crime/japan';
 import type { RegionId } from './game/world/region';
 import { REGION } from './game/world/region'; // after the game modules (import cycles resolve in the old order)
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, japanMod, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, japanMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -183,6 +183,7 @@ export default function App() {
   const begin = (fresh: boolean) => {
     initAudio(); music.title = false; game.started = true; game.hour = fresh ? 9.5 : savedHour.current; setStarted(true); save();
     if (arrival.drive) { arrival.drive = false; setTimeout(() => japanMod.startArrivalDrive(arrival.from as RegionId), 300); } // came in driving the bullet train: carry on in the cab
+    else if (!(fresh && !settings.tutorialDone)) setTimeout(() => { if (tutorial.step < 0) japanMod.shinHint(); }, 6000);
     if (fresh && !settings.tutorialDone) setTimeout(() => startTutorial(), 600);
     setTimeout(() => { const n = (giftsMod.dailyState().can ? 1 : 0) + giftsMod.unclaimed().length; if (n && tutorial.step < 0) toast(`🎁 ギフトが${n}件届いています（スマホ →「ギフト」）`, 3.2); }, 2500);
   };

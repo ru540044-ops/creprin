@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Geo } from './geo';
-import { SHIN, shinStand, shinUp, shinDown, ShinPlatform, TUN, heightAt, HALF } from './cityGen';
+import { SHIN, shinStand, shinUp, shinDown, ShinPlatform, TUN, heightAt, HALF, ROAD, PITCH, N, roadC, nodeOpen, segOpen, isWater } from './cityGen';
 import { REGION, REGIONS } from './region';
 import { labelTexture } from './textures';
 import { game } from '../state/store';
@@ -85,23 +85,23 @@ function tunnel() {
   const In = new Geo(), Out = new Geo(), Lamp = new Geo(), x = TUN.x, y = TUN.y, hw = TUN.hw, zH = TUN.portal + TUN.hood, prof = boreProfile(ARCH);
   // the lining in 10.5 m rings (slightly different shades), the invert, walkways along both walls, the dark far end
   for (let z = TUN.end - 2, k = 0; z < zH; z += 10.5, k++) {
-    const z2 = Math.min(zH, z + 10.5), sh = k % 2 ? 0.23 : 0.2;
+    const z2 = Math.min(zH, z + 10.5), sh = k % 2 ? 0.075 : 0.062;
     for (let i = 0; i + 1 < prof.length; i++) { const a = prof[i], b = prof[i + 1], c = [sh * (a[1] < 3 ? 1.08 : 1), sh, sh * 0.96]; In.quad([x + a[0], y + a[1], z2], [x + a[0], y + a[1], z], [x + b[0], y + b[1], z], [x + b[0], y + b[1], z2], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], c); }
-    In.quad([x - hw, y - 0.03, z2], [x + hw, y - 0.03, z2], [x + hw, y - 0.03, z], [x - hw, y - 0.03, z], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], [0.13, 0.13, 0.13]);
+    In.quad([x - hw, y - 0.03, z2], [x + hw, y - 0.03, z2], [x + hw, y - 0.03, z], [x - hw, y - 0.03, z], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], [0.035, 0.035, 0.035]);
   }
-  for (const s of [-1, 1]) In.box(x + s * hw - (s > 0 ? 0.9 : 0), y - 0.03, TUN.end - 2, x + s * hw + (s < 0 ? 0.9 : 0), y + 0.55, zH, [0.3, 0.3, 0.29]);
+  for (const s of [-1, 1]) In.box(x + s * hw - (s > 0 ? 0.9 : 0), y - 0.03, TUN.end - 2, x + s * hw + (s < 0 ? 0.9 : 0), y + 0.55, zH, [0.1, 0.1, 0.095]);
   { const ze = TUN.end - 2, c0 = [x, y + TUN.wall, ze], P = (q: number[]) => [x + q[0], y + q[1], ze], K = [0.02, 0.02, 0.025];
     for (let i = 0; i + 1 < prof.length; i++) In.tri(c0, P(prof[i]), P(prof[i + 1]), [0, 0, 1], [[0, 0], [1, 0], [0, 1]], K);
     In.quad([x - hw, y - 0.03, ze], [x + hw, y - 0.03, ze], [x + hw, y + TUN.wall, ze], [x - hw, y + TUN.wall, ze], [0, 0, 1], [[0, 0], [1, 0], [1, 1], [0, 1]], K); }
   // lamps on both walls every 25 m, the overhead wires
-  for (let z = TUN.end + 6; z < zH - 2; z += 25) for (const s of [-1, 1]) Lamp.box(x + s * (hw - 0.14) - 0.06, y + 1.75, z - 0.7, x + s * (hw - 0.14) + 0.06, y + 1.95, z + 0.7, [1, 0.93, 0.75], 4, 4, null);
-  for (const s of [-1, 1]) Out.box(x + s * S.track - 0.03, y + 5.9, TUN.end - 2, x + s * S.track + 0.03, y + 5.96, zH, [0.3, 0.3, 0.32]);
+  for (let z = TUN.end + 6; z < zH - 2; z += 25) for (const s of [-1, 1]) Lamp.box(x + s * (hw - 0.14) - 0.07, y + 1.7, z - 1.1, x + s * (hw - 0.14) + 0.07, y + 2.0, z + 1.1, [1, 0.93, 0.75], 4, 4, null);
+  for (const s of [-1, 1]) Out.box(x + s * S.track - 0.02, y + 6.1, TUN.end - 2, x + s * S.track + 0.02, y + 6.14, zH, [0.45, 0.42, 0.38]);
   // the hood (a concrete shell out of the mountain) and its mouth, then the portal face set into the hillside
   const CONC = [0.74, 0.73, 0.7], top = y + TUN.wall + hw + 0.6;
-  for (const s of [-1, 1]) Out.box(x + s * hw - (s > 0 ? 0 : 0.6), y - 1.3, TUN.portal - 1, x + s * hw + (s > 0 ? 0.6 : 0), top, zH, CONC);
-  Out.box(x - hw - 0.6, top - 0.6, TUN.portal - 1, x + hw + 0.6, top, zH, CONC, 4, 4, Out);
+  for (const s of [-1, 1]) Out.box(x + s * (hw + 0.03) - (s > 0 ? 0 : 0.57), y - 1.3, TUN.portal - 1, x + s * (hw + 0.03) + (s > 0 ? 0.57 : 0), top, zH, CONC); // just outside the lining (no flicker)
+  Out.box(x - hw - 0.6, top - 0.5, TUN.portal - 1, x + hw + 0.6, top, zH, CONC, 4, 4, Out);
   faceWithHole(Out, x, zH + 0.02, hw + 0.6, y - 1.3, top, CONC);
-  const W = 29, fTop = y + 29;
+  const W = 17, fTop = y + 19;
   faceWithHole(Out, x, TUN.portal + 2, W, y - 7, fTop, [0.7, 0.69, 0.66]);
   Out.box(x - W - 1, fTop, TUN.portal - 2, x + W + 1, fTop + 1.6, TUN.portal + 2.4, [0.62, 0.61, 0.58]);
   for (const s of [-1, 1]) Out.box(x + s * W - (s > 0 ? 0 : 1), y - 7, TUN.portal - 2, x + s * W + (s > 0 ? 1 : 0), fTop, TUN.portal + 2.4, [0.62, 0.61, 0.58]);
@@ -113,6 +113,64 @@ function plateTexture(name: string) {
   c.fillStyle = '#d9d4c7'; c.fillRect(0, 0, 512, 128); c.strokeStyle = '#8a8478'; c.lineWidth = 8; c.strokeRect(4, 4, 504, 120);
   c.fillStyle = '#23211d'; c.font = '900 72px "Hiragino Mincho ProN","Noto Serif JP",serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(name, 256, 68);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+/* ---------- finding the station: blue road guide signs at the junctions round it, a sign pylon on the concourse roof, a beam of light ---------- */
+/** A blue Japanese road guide sign: 新幹線, the station, a big arrow (0 ←, 1 ↑, 2 →). */
+function guideTexture(arrow: number) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const c = cv.getContext('2d')!;
+  c.fillStyle = '#1b4fae'; c.fillRect(0, 0, 512, 256); c.strokeStyle = '#ffffff'; c.lineWidth = 7; c.strokeRect(10, 10, 492, 236);
+  c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const tx = arrow === 0 ? 300 : arrow === 2 ? 200 : 256;
+  c.font = '900 84px "Hiragino Sans","Noto Sans JP",sans-serif'; c.fillText('新幹線', tx, arrow === 1 ? 150 : 92);
+  c.font = '700 34px "Hiragino Sans","Noto Sans JP",sans-serif'; c.fillText(stName + ' Shinkansen', tx, arrow === 1 ? 214 : 158);
+  // the arrow: a thick shaft and a head
+  c.save(); const ax = arrow === 0 ? 92 : arrow === 2 ? 420 : 256, ay = arrow === 1 ? 62 : 128; c.translate(ax, ay); c.rotate(arrow === 0 ? -Math.PI / 2 : arrow === 2 ? Math.PI / 2 : 0);
+  c.beginPath(); c.moveTo(0, -56); c.lineTo(44, -6); c.lineTo(15, -6); c.lineTo(15, 56); c.lineTo(-15, 56); c.lineTo(-15, -6); c.lineTo(-44, -6); c.closePath(); c.fill(); c.restore();
+  if (arrow !== 1) { c.font = '700 30px "Hiragino Sans","Noto Sans JP",sans-serif'; c.fillText(arrow === 0 ? '左折' : '右折', tx, 212); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function wayfinding() {
+  const poles = new Geo(), quads: number[][][] = [[], [], []], G = S.gate;
+  const gi = Math.round((G.x + HALF - ROAD / 2) / PITCH), gj = Math.round((G.z + HALF - ROAD / 2) / PITCH), GREY = [0.55, 0.57, 0.6];
+  const add = (k: number, c: number[], r: number[], w: number, h: number) => { const q = quads[k], hx = r[0] * w / 2, hz = r[1] * w / 2; q.push([c[0] - hx, c[1] - h / 2, c[2] - hz, 0, 0], [c[0] + hx, c[1] - h / 2, c[2] + hz, 1, 0], [c[0] + hx, c[1] + h / 2, c[2] + hz, 1, 1], [c[0] - hx, c[1] - h / 2, c[2] - hz, 0, 0], [c[0] + hx, c[1] + h / 2, c[2] + hz, 1, 1], [c[0] - hx, c[1] + h / 2, c[2] - hz, 0, 1]); };
+  for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) {
+    const i = gi + a * 4, j = gj + b * 4; if (i < 1 || j < 1 || i >= N || j >= N || !nodeOpen(i, j)) continue;
+    const nx = roadC(i), nz = roadC(j); if (Math.hypot(nx - G.x, nz - G.z) < 90) continue;
+    // one sign for each road coming into the junction, over the left lane before it, facing the oncoming driver
+    for (const [tx, tz, seg] of [[1, 0, segOpen('x', j, i - 1)], [-1, 0, segOpen('x', j, i)], [0, 1, segOpen('z', i, j - 1)], [0, -1, segOpen('z', i, j)]] as [number, number, boolean][]) {
+      if (!seg) continue;
+      const rx = -tz, rz = tx, back = ROAD / 2 + 6, px = nx - tx * back - rx * (ROAD / 2 + 1.3), pz = nz - tz * back - rz * (ROAD / 2 + 1.3), cx = nx - tx * back - rx * (ROAD / 4 - 0.4), cz = nz - tz * back - rz * (ROAD / 4 - 0.4);
+      if (isWater(px, pz)) continue;
+      const sx = G.x - nx, sz = G.z - nz, fwd = sx * tx + sz * tz, rt = sx * rx + sz * rz, arrow = fwd > Math.abs(rt) * 0.6 ? 1 : rt > 0 ? 2 : 0;
+      poles.box(px - 0.14, 0, pz - 0.14, px + 0.14, 7.4, pz + 0.14, GREY);
+      const ex = cx + rx * 2.6, ez = cz + rz * 2.6; poles.box(Math.min(px, ex) - 0.09, 7.1, Math.min(pz, ez) - 0.09, Math.max(px, ex) + 0.09, 7.3, Math.max(pz, ez) + 0.09, GREY);
+      // the panel faces back along the road (towards the driver); its right-hand side is the driver's right
+      const W = 4.6, H = 2.3, c = [cx - tx * 0.08, 6.0, cz - tz * 0.08];
+      add(arrow, c, [rx, rz], W, H);
+      poles.quad([cx + rx * W / 2, 6 - H / 2, cz + rz * W / 2], [cx - rx * W / 2, 6 - H / 2, cz - rz * W / 2], [cx - rx * W / 2, 6 + H / 2, cz - rz * W / 2], [cx + rx * W / 2, 6 + H / 2, cz + rz * W / 2], [tx, 0, tz], [[0, 0], [1, 0], [1, 1], [0, 1]], GREY);
+    }
+  }
+  const geos = quads.map((q) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(q.flatMap((v) => [v[0], v[1], v[2]]), 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(q.flatMap((v) => [v[3], v[4]]), 2)); g.computeVertexNormals(); return g; });
+  // the sign pylon on the concourse roof (both faces), lit at night
+  const Py = new Geo(), px = H.x0 + 6, top = H.h + 0.6 + 15;
+  Py.box(px - 0.6, H.h + 0.6, S.stationZ - 1.9, px + 0.6, top, S.stationZ + 1.9, [0.85, 0.86, 0.9]);
+  return { poles: poles.build(), geos, pylon: Py.build(), pylonAt: { x: px, y: (H.h + 0.6 + top) / 2, h: top - H.h - 0.6 } };
+}
+/** Vertical sign text for the pylon: 新幹線 top to bottom on blue. */
+function pylonTexture() {
+  const cv = document.createElement('canvas'); cv.width = 192; cv.height = 768; const c = cv.getContext('2d')!;
+  c.fillStyle = '#1e5bd8'; c.fillRect(0, 0, 192, 768); c.strokeStyle = '#ffffff'; c.lineWidth = 8; c.strokeRect(8, 8, 176, 752);
+  c.fillStyle = '#ffffff'; c.font = '900 150px "Hiragino Sans","Noto Sans JP",sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  ['新', '幹', '線'].forEach((ch, k) => c.fillText(ch, 96, 150 + k * 205));
+  c.font = '64px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; c.fillText('🚄', 96, 712);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+/** A soft blue beam rising from the concourse, seen from far off (fades out as you come close). */
+function beamTexture() {
+  const cv = document.createElement('canvas'); cv.width = 4; cv.height = 256; const c = cv.getContext('2d')!;
+  const g = c.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, 'rgba(90,170,255,0)'); g.addColorStop(0.55, 'rgba(90,170,255,0.35)'); g.addColorStop(1, 'rgba(120,190,255,0.9)');
+  c.fillStyle = g; c.fillRect(0, 0, 4, 256); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
 /** The concourse at street level. */
@@ -178,7 +236,7 @@ export function timetable(t: number) {
 export default function ShinkansenLine() {
   const D = useMemo(() => {
     if (!S.has) return null;
-    const v = viaduct(), cc = concourse(), tn = tunnel();
+    const v = viaduct(), cc = concourse(), tn = tunnel(), wf = wayfinding();
     const conc = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), metal = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.5 }), glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
     // the concourse is seen from inside too: its walls, ceiling and fittings are two-sided
     const concIn = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide }), metalIn = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.4, side: THREE.DoubleSide });
@@ -211,10 +269,15 @@ export default function ShinkansenLine() {
     // the trains waiting at the platforms with a destination, and the timetable train on another track
     const standing = S.platforms.filter((p) => p.to).map((P) => { const m = buildCarModel(VDEFS.shinkansen, '#f4f5f7'), s = shinStand(P); m.root.position.set(s.x, S.y + 0.05, s.z); m.root.rotation.y = P.dir > 0 ? 0 : Math.PI; return m; });
     const ai = S.platforms.some((p) => !p.to) ? buildCarModel(VDEFS.shinkansen, '#f4f5f7') : null;
-    return { v, cc, tn, conc, metal, glow, glass, concIn, metalIn, bore, signs, boards, standing, ai, lastSoon: false };
+    const guideMats = [0, 1, 2].map((k) => { const t = guideTexture(k); return new THREE.MeshStandardMaterial({ map: t, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: 0.3, roughness: 0.55 }); });
+    const pylonMat = new THREE.MeshBasicMaterial({ map: pylonTexture(), toneMapped: false });
+    const beamMat = new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false, opacity: 0 });
+    return { v, cc, tn, wf, conc, metal, glow, glass, concIn, metalIn, bore, signs, boards, standing, ai, lastSoon: false, guideMats, pylonMat, beamMat };
   }, []);
-  useFrame(() => {
+  useFrame(({ camera }) => {
     if (!D) return;
+    { const c = camera.position, d = Math.hypot(c.x - (H.x0 + 17), c.z - S.stationZ), onTrain = vehicles.some((q) => q.def.kind === 'shinkansen' && q.id === game.inCar);
+      D.beamMat.opacity = game.where === 'out' && !onTrain && game.tunnel < 0.5 ? 0.95 * Math.min(1, Math.max(0, (d - 70) / 190)) : 0; }
     const driving = vehicles.some((q) => q.def.kind === 'shinkansen');
     for (const m of D.standing) m.root.visible = !driving;
     let by = 0, byKmh = 0;
@@ -245,6 +308,11 @@ export default function ShinkansenLine() {
       <mesh geometry={D.tn.In} material={D.bore} />
       <mesh geometry={D.tn.Out} material={D.conc} castShadow receiveShadow />
       <mesh geometry={D.tn.Lamp} material={D.glow} />
+      <mesh geometry={D.wf.poles} material={D.metal} castShadow />
+      {D.wf.geos.map((g, k) => <mesh key={'g' + k} geometry={g} material={D.guideMats[k]} />)}
+      <mesh geometry={D.wf.pylon} material={D.metal} />
+      {[-1, 1].map((s) => <mesh key={'p' + s} position={[D.wf.pylonAt.x + s * 0.62, D.wf.pylonAt.y, S.stationZ]} rotation-y={(s * Math.PI) / 2} material={D.pylonMat}><planeGeometry args={[3.4, D.wf.pylonAt.h - 0.8]} /></mesh>)}
+      <mesh position={[H.x0 + 17, H.h + 210, S.stationZ]} material={D.beamMat} renderOrder={5}><cylinderGeometry args={[5, 5, 420, 20, 1, true]} /></mesh>
       {D.standing.map((m, i) => <primitive key={i} object={m.root} />)}
       {D.ai && <primitive object={D.ai.root} />}
       {D.signs.map((s, i) => <mesh key={i} position={[s.x, s.y, s.z]} rotation-y={s.ry} material={s.m}><planeGeometry args={[s.w, s.h]} /></mesh>)}

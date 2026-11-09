@@ -206,3 +206,8 @@ export function startArrivalDrive(from: RegionId | '') {
 
 /** Mark the city as visited (for the "all four cities" achievement). */
 export function markVisit() { progress.stats.flags['visit_' + REGION.id] = 1; }
+/** Once per city with a Shinkansen: where to find the station. */
+export function shinHint() {
+  const k = 'shinhint_' + REGION.id; if (!SHIN.has || progress.stats.flags[k]) return;
+  progress.stats.flags[k] = 1; toast(`🚄 ${stName()}の新幹線のりば：マップの青い🚄マーク・空に伸びる青い光が目印（スマホの「新幹線」アプリで案内・タクシー）`, 4.4);
+}

@@ -284,6 +284,8 @@ export function heightAt(x: number, z: number): number {
     } else {
       // the mountain over the bore: well above the crown, higher further in
       h = Math.max(h, (1 - smooth(14, 190, dx)) * (TUN.y + 24 + smooth(TUN.portal, TUN.portal - 260, z) * 60));
+      // right above the portal the slope starts low enough for the portal face to hide the step in the ground
+      h = Math.min(h, TUN.y + 14 + (TUN.portal - z) * 1.2 + Math.max(0, dx - 30) * 1.5);
     }
   }
   return h;
