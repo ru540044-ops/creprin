@@ -155,7 +155,7 @@ export function TitleScreen({ hadSave, ready, onStart, onNewGame, mode, setMode,
       <div className="brand">
         <div className="logo" aria-label="NEON BAY"><span className="l1">NEON</span><span className="l2">BAY</span></div>
         <p className="tag">東京から那覇まで。ネオンの日本を、自由に生きろ。</p>
-        <p className="feat">東京・大阪・福岡・那覇 · 新幹線と飛行機で移動 · 全ビルに入れる · ストーリー5話</p>
+        <p className="feat">東京・大阪・福岡・那覇 · 新幹線を運転して次の街へ · 全ビルに入れる · ストーリー5話</p>
         {hadSave && <p className="tcity">現在地：{REGION.name}（{REGION.en}）</p>}
       </div>
       <div className="menu">

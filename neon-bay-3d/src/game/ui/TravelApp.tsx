@@ -69,7 +69,7 @@ export default function TravelApp({ close }: { close: () => void }) {
         {why ? <p className="gmsg">{why}</p> : poor ? <p className="gmsg">お金が足りません</p> : null}
         <div className="jobBtns"><button type="button" className={arm ? 'armed' : ''} disabled={!!why || poor || going} onClick={depart}>{going ? '移動中…' : arm ? `もう一度タップで出発（$${R.fare.toLocaleString('en-US')}）` : `${R.label}で出発`}</button></div>
       </div>
-      <p className="appNote">お金・車・武器・服・実績は持っていけます。ストーリーと仕事はどの街でも続きができます。持ち家（不動産）は東京にあります。ギフトボックスは街ごとに別です。</p>
+      <p className="appNote">{REGION.shinkansen && '駅の「新幹線のりば」から新幹線を自分で運転して行くこともできます（運賃なし）。'}お金・車・武器・服・実績は持っていけます。ストーリーと仕事はどの街でも続きができます。持ち家（不動産）は東京にあります。ギフトボックスは街ごとに別です。</p>
       <div className="jobBtns">
         {ST && <button type="button" onClick={() => { game.waypoint = { x: ST.x, z: ST.z - 3 }; save(); toast(ST.label + 'を目的地に設定'); close(); }}>{ST.label}へ案内</button>}
         <button type="button" onClick={() => { game.waypoint = { x: AIRPORT.x0 + 390, z: 168 }; save(); toast(REGION.names.airport + 'を目的地に設定'); close(); }}>{REGION.names.airport}へ案内</button>
