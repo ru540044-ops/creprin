@@ -6,7 +6,7 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay, TUN,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay, TUN, chamCut,
 } from './cityGen';
 import { REGION } from './region';
 import { game } from '../state/store';
@@ -39,6 +39,8 @@ function useMaterials() {
     const pool = new THREE.MeshBasicMaterial({ map: T.glow, color: '#ffcf8a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
     nightMats.push({ m: pool, k: 0.55, kind: 'opacity' });
     return {
+      curtain: fac(T.curtain, 0.62, 1.3), ribbon: fac(T.ribbon, 0.15, 1.15), fin: fac(T.fin, 0.4, 1.25), podium: fac(T.podium, 0.05, 1.35),
+      crown: (() => { const m = new THREE.MeshStandardMaterial({ color: '#d9e1ea', emissive: new THREE.Color('#d6ecff'), emissiveIntensity: 0, roughness: 0.4, metalness: 0.3 }); nightMats.push({ m, k: 2.6, kind: 'emissive' }); return m; })(),
       glass: fac(T.glass, 0.55), office: fac(T.office, 0.1), brick: fac(T.brick, 0.02), shop: fac(T.shop, 0.05, 1.3), house: fac(T.house, 0.02, 0.9), machiya: fac(T.machiya, 0.02, 0.8), okinawa: fac(T.okinawa, 0.02, 0.9), warehouse: fac(T.warehouse, 0.3, 0.6), terminal: fac(T.terminal, 0.5), hangar: fac(T.warehouse, 0.35, 0.4),
       roof: std({ map: rep(T.roof), vertexColors: true, roughness: 0.95 }),
       tiles: std({ map: T.tiles, vertexColors: true, roughness: 0.75 }),
@@ -59,7 +61,7 @@ function useMaterials() {
 }
 type Mats = ReturnType<typeof useMaterials>;
 
-const FAC_SET = (t: BType | 'machiya' | 'okinawa') => { const T = getTextures(); return ({ glass: T.glass, office: T.office, brick: T.brick, shop: T.shop, house: T.house, machiya: T.machiya, okinawa: T.okinawa, warehouse: T.warehouse, terminal: T.terminal, hangar: T.warehouse } as const)[t]; };
+const FAC_SET = (t: BType | 'machiya' | 'okinawa' | 'curtain' | 'ribbon' | 'fin' | 'podium') => { const T = getTextures(); return ({ glass: T.glass, office: T.office, brick: T.brick, shop: T.shop, house: T.house, machiya: T.machiya, okinawa: T.okinawa, warehouse: T.warehouse, terminal: T.terminal, hangar: T.warehouse, curtain: T.curtain, ribbon: T.ribbon, fin: T.fin, podium: T.podium } as const)[t]; };
 
 /* ---------- chunked buildings with two LOD levels ---------- */
 const CH = 300;
@@ -82,13 +84,13 @@ function archTrim(b: Building, F: { su: number; sv: number; cols: number; rows: 
     ring(m, mainTop - 0.7, mainTop + 0.1, 0.5, 0.4, stone); // cornice
     ring(m, b.y0, b.y0 + 0.9, 0.14, 0.2, [stone[0] * 0.6, stone[1] * 0.6, stone[2] * 0.6]); // plinth
     const every = t === 'brick' ? 2 : 3;
-    if (b.h > 12) for (let k = every; b.y0 + k * rh < mainTop - 2; k += every) { const y = b.y0 + k * rh; ring(m, y - 0.12, y + 0.12, 0.18, 0.2, stone); }
+    if (b.h > 12 && b.fac !== 'ribbon') for (let k = every; b.y0 + k * rh < mainTop - 2; k += every) { const y = b.y0 + k * rh; ring(m, y - 0.12, y + 0.12, 0.18, 0.2, stone); }
     if (tall) ring(m, top - 0.6, top + 0.1, 0.4, 0.3, stone);
   }
   if (t === 'glass') {
     const fin = [0.7, 0.74, 0.8], pd = 0.55;
-    for (let x = Math.ceil(x0 / (w * 2)) * w * 2; x < x1 - 0.5; x += w * 2) { if (x < x0 + 0.5) continue; metal.solid(x - 0.13, b.y0, z0 - pd, x + 0.13, mainTop, z0, fin); metal.solid(x - 0.13, b.y0, z1, x + 0.13, mainTop, z1 + pd, fin); }
-    for (let z = Math.ceil(z0 / (w * 2)) * w * 2; z < z1 - 0.5; z += w * 2) { if (z < z0 + 0.5) continue; metal.solid(x0 - pd, b.y0, z - 0.13, x0, mainTop, z + 0.13, fin); metal.solid(x1, b.y0, z - 0.13, x1 + pd, mainTop, z + 0.13, fin); }
+    if (!b.fac) for (let x = Math.ceil(x0 / (w * 2)) * w * 2; x < x1 - 0.5; x += w * 2) { if (x < x0 + 0.5) continue; metal.solid(x - 0.13, b.y0, z0 - pd, x + 0.13, mainTop, z0, fin); metal.solid(x - 0.13, b.y0, z1, x + 0.13, mainTop, z1 + pd, fin); }
+    if (!b.fac) for (let z = Math.ceil(z0 / (w * 2)) * w * 2; z < z1 - 0.5; z += w * 2) { if (z < z0 + 0.5) continue; metal.solid(x0 - pd, b.y0, z - 0.13, x0, mainTop, z + 0.13, fin); metal.solid(x1, b.y0, z - 0.13, x1 + pd, mainTop, z + 0.13, fin); }
     ring(metal, b.y0, b.y0 + 4.5, 0.3, 0.3, [0.32, 0.34, 0.38]); // dark lobby band
     if (b.h > 120) { // open crown frame on the top tier
       const ix = (x1 - x0) * 0.26, iz = (z1 - z0) * 0.26, a0 = x0 + ix, a1 = x1 - ix, c0 = z0 + iz, c1 = z1 - iz, y = top;
@@ -108,6 +110,70 @@ function archTrim(b: Building, F: { su: number; sv: number; cols: number; rows: 
   }
 }
 
+/* ---------- shaped towers: round, chamfered, and the spiral landmark ---------- */
+/** Plan outline of a shaped tower, scaled by s about its centre. */
+function planOf(b: Building, s: number, segs: number): number[][] {
+  const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, hx = ((b.x1 - b.x0) / 2) * s, hz = ((b.z1 - b.z0) / 2) * s;
+  if (b.shape === 'cham') { const c = chamCut(b) * s; return [[cx - hx + c, cz - hz], [cx + hx - c, cz - hz], [cx + hx, cz - hz + c], [cx + hx, cz + hz - c], [cx + hx - c, cz + hz], [cx - hx + c, cz + hz], [cx - hx, cz + hz - c], [cx - hx, cz - hz + c]]; }
+  const R = Math.min(hx, hz), out: number[][] = []; for (let i = 0; i < segs; i++) { const a = (i / segs) * Math.PI * 2; out.push([cx + Math.cos(a) * R, cz + Math.sin(a) * R]); } return out;
+}
+/** Up-facing quad from four points in any winding. */
+function upQuad(G: Geo, a: number[], b: number[], c: number[], d: number[], col: number[]) {
+  const up = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]) > 0, T = (p: number[]) => [p[0] / 4, -p[2] / 4];
+  if (up) G.quad(a, b, c, d, [0, 1, 0], [T(a), T(b), T(c), T(d)], col); else G.quad(a, d, c, b, [0, 1, 0], [T(a), T(d), T(c), T(b)], col);
+}
+/** Rooftop heliport marking (the emergency landing pads on Japanese high-rises): a yellow ring and a white H. */
+function helipad(G: Geo, cx: number, cz: number, y: number, R: number) {
+  const Y = y + 0.04, n = 28, w = Math.max(0.5, R * 0.07), Ycol = [0.95, 0.78, 0.12], Wcol = [0.95, 0.95, 0.95];
+  for (let i = 0; i < n; i++) { const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2, p = (a: number, r: number) => [cx + Math.cos(a) * r, Y, cz + Math.sin(a) * r]; upQuad(G, p(a0, R - w), p(a0, R), p(a1, R), p(a1, R - w), Ycol); }
+  const h = R * 0.5, bw = R * 0.1;
+  G.flat(cx - h * 0.6 - bw / 2, cz - h, cx - h * 0.6 + bw / 2, cz + h, Y, Wcol); G.flat(cx + h * 0.6 - bw / 2, cz - h, cx + h * 0.6 + bw / 2, cz + h, Y, Wcol); G.flat(cx - h * 0.6, cz - bw / 2, cx + h * 0.6, cz + bw / 2, Y, Wcol);
+}
+/** The twisting landmark tower: an elliptical plan turning and tapering as it rises, three white ribs, a spire. */
+function spiralTower(b: Building, F: { su: number; sv: number }, key: string, g: (k: string) => Geo, hi: boolean) {
+  const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, R = Math.min(b.x1 - b.x0, b.z1 - b.z0) / 2, H = b.h, segs = hi ? 24 : 14, nk = hi ? Math.max(8, Math.round(H / 7)) : Math.max(5, Math.round(H / 16));
+  const ring = (t: number) => { const sc = 1 - 0.8 * Math.pow(t, 1.45), th = t * 1.9, rx = R * sc, rz = R * sc * 0.62, c = Math.cos(th), s = Math.sin(th), y = b.y0 + t * H, pts: number[][] = [], nor: number[][] = [];
+    for (let i = 0; i < segs; i++) { const a = (i / segs) * Math.PI * 2, lx = Math.cos(a) * rx, lz = Math.sin(a) * rz, nx0 = Math.cos(a) / rx, nz0 = Math.sin(a) / rz, L = Math.hypot(nx0, nz0); pts.push([cx + lx * c - lz * s, y, cz + lx * s + lz * c]); nor.push([(nx0 * c - nz0 * s) / L, 0.15, (nx0 * s + nz0 * c) / L]); }
+    return { pts, nor, per: Math.PI * (rx + rz) };
+  };
+  const wall = g(key), M = g('metal'), RIB = [0.93, 0.94, 0.96];
+  let prev = ring(0);
+  for (let k = 1; k <= nk; k++) {
+    const cur = ring(k / nk);
+    for (let i = 0; i < segs; i++) {
+      const j = (i + 1) % segs, u0 = (i / segs) * prev.per / F.su, u1 = ((i + 1) / segs) * prev.per / F.su, v0 = (prev.pts[0][1] - b.y0) / F.sv, v1 = (cur.pts[0][1] - b.y0) / F.sv;
+      wall.quadN(prev.pts[j], prev.pts[i], cur.pts[i], cur.pts[j], prev.nor[j], prev.nor[i], cur.nor[i], cur.nor[j], [[u1, v0], [u0, v0], [u0, v1], [u1, v1]], b.tint);
+      if (hi && i % (segs / 3) === 0) { // a rib standing out of the glass, both sides
+        const o = (p: number[], n: number[], d: number) => [p[0] + n[0] * d, p[1], p[2] + n[2] * d];
+        const a0 = prev.pts[i], a1 = cur.pts[i], n0 = prev.nor[i], n1 = cur.nor[i];
+        M.quad(a0, o(a0, n0, 1.1), o(a1, n1, 1.1), a1, [n0[2], 0, -n0[0]], [[0, 0], [1, 0], [1, 1], [0, 1]], RIB); M.quad(a0, a1, o(a1, n1, 1.1), o(a0, n0, 1.1), [-n0[2], 0, n0[0]], [[0, 0], [0, 1], [1, 1], [1, 0]], RIB);
+      }
+    }
+    prev = cur;
+  }
+  const apex = [cx, b.y0 + H + 32, cz];
+  for (let i = 0; i < segs; i++) { const j = (i + 1) % segs; M.tri(prev.pts[j], prev.pts[i], apex, prev.nor[i], [[0, 0], [1, 0], [0.5, 1]], [0.82, 0.86, 0.9]); }
+  if (hi) { M.extrude(planOf({ ...b, shape: 'round', x0: cx - R * 1.15, x1: cx + R * 1.15, z0: cz - R * 1.15, z1: cz + R * 1.15 } as Building, 1, 24), b.y0, b.y0 + 6, [0.3, 0.33, 0.37], 4, 4, g('roof'), true); } // the glass entrance hall round its foot
+}
+/** Round and chamfered towers: walls round the plan, a set-back top on tall chamfered ones, crown cladding, a lit crown line, a heliport. */
+function shapedTower(b: Building, F: { su: number; sv: number; rows: number }, key: string, g: (k: string) => Geo, hi: boolean, r: () => number) {
+  if (b.shape === 'spiral') { spiralTower(b, F, key, g, hi); return; }
+  const top = b.y0 + b.h, wall = g(key), rh = F.sv / F.rows, snap = (y: number) => b.y0 + Math.round((y - b.y0) / rh) * rh, round = b.shape === 'round', segs = hi ? 28 : 16;
+  const tall = !round && b.h > 90, t1 = tall ? snap(top - b.h * 0.22) : top, sTop = tall ? 0.8 : 1;
+  wall.extrude(planOf(b, 1, segs), b.y0, t1, b.tint, F.su, F.sv, g('roof'), round, b.y0);
+  if (tall) wall.extrude(planOf(b, sTop, segs), t1, top, b.tint, F.su, F.sv, g('roof'), round, b.y0);
+  if (!hi) return;
+  const M = g('metal');
+  if (b.y0 < 1) M.extrude(planOf(b, 1.012, segs), b.y0, b.y0 + 5, [0.24, 0.26, 0.3], 4, 4, null, round); // the lobby glass at street level
+  else M.extrude(planOf(b, 1.012, segs), b.y0, b.y0 + 1.2, [0.7, 0.72, 0.75], 4, 4, null, round); // where the tower meets its podium
+  M.extrude(planOf(b, sTop * 1.012, segs), top - 2.6, top + 0.05, [0.8, 0.82, 0.86], 4, 4, null, round); // crown cladding
+  g('crown').extrude(planOf(b, sTop * 1.016, segs), top - 3.4, top - 2.75, [1, 1, 1], 4, 4, null, round); // lit crown line at night
+  if (tall) M.extrude(planOf(b, 1.012, segs), t1 - 1.2, t1 + 0.05, [0.8, 0.82, 0.86], 4, 4, null, false);
+  const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, R = (Math.min(b.x1 - b.x0, b.z1 - b.z0) / 2) * sTop;
+  if (b.h >= 100 && R > 11) helipad(g('paint'), cx, cz, top, R * 0.6);
+  else if (R > 8) { const s = R * 0.45; g('misc').box(cx - s, top, cz - s * 0.7, cx + s, top + 4 + r() * 2, cz + s * 0.7, [0.55, 0.57, 0.6]); } // plant room
+}
+
 const seedOf = (b: Building) => ((Math.floor(b.x0 * 7.31) * 73856093) ^ (Math.floor(b.z0 * 13.7) * 19349663)) >>> 0;
 type Built = { k: string; geo: THREE.BufferGeometry }[];
 /** Geometry of one chunk's buildings at one level of detail (hi: facade trim and rooftop clutter). */
@@ -115,7 +181,7 @@ function buildChunkLevel(list: Building[], hi: boolean): Built {
   const rec: Record<string, Geo> = {}, g = (k: string) => (rec[k] ||= new Geo());
   for (const b of list) {
     const r = mulberry(seedOf(b));
-    const key = b.style || b.type, F = FAC_SET(key), top = b.y0 + b.h, col = b.tint;
+    const key = b.fac || b.style || b.type, F = FAC_SET(key), top = b.y0 + b.h, col = b.tint;
     {
       const wall = g(key);
       if (b.gable) {
@@ -148,6 +214,7 @@ function buildChunkLevel(list: Building[], hi: boolean): Built {
         }
         continue;
       }
+      if (b.shape) { shapedTower(b, F, key, g, hi, r); continue; }
       // setbacks: tall glass towers step in twice, tall offices once (snapped to whole floors so windows line up)
       const rh = F.sv / F.rows, snap = (y: number) => b.y0 + Math.round((y - b.y0) / rh) * rh;
       const tall = (b.type === 'glass' && b.h > 90) || (b.type === 'office' && b.h > 42);
@@ -155,10 +222,11 @@ function buildChunkLevel(list: Building[], hi: boolean): Built {
       wall.box(b.x0, b.y0, b.z0, b.x1, t1, b.z1, col, F.su, F.sv, g('roof'), 8, true, b.y0);
       if (tall) { const ix = (b.x1 - b.x0) * 0.13, iz = (b.z1 - b.z0) * 0.13; wall.box(b.x0 + ix, t1, b.z0 + iz, b.x1 - ix, t2, b.z1 - iz, col, F.su, F.sv, g('roof'), 8, true, b.y0); if (t2 < top) { const jx = (b.x1 - b.x0) * 0.26, jz = (b.z1 - b.z0) * 0.26; wall.box(b.x0 + jx, t2, b.z0 + jz, b.x1 - jx, top, b.z1 - jz, col, F.su, F.sv, g('roof'), 8, true, b.y0); } }
       if (hi) archTrim(b, F, t1, g('misc'), g('metal'), r, tall);
+      if (hi && b.fac && b.fac !== 'podium' && b.h > 60) { const T = topFoot(b); g('crown').box(T.x0 - 0.12, top - 3.4, T.z0 - 0.12, T.x1 + 0.12, top - 2.75, T.z1 + 0.12, [1, 1, 1], 4, 4, null); }
       if (!hi) continue;
       const m = g('misc'), cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, tf = topFoot(b);
       // rooftop machinery (on the top tier)
-      if (b.type !== 'terminal' && b.type !== 'hangar' && tf.x1 - tf.x0 > 10 && tf.z1 - tf.z0 > 8) for (let n = 0; n < 2 + Math.floor(r() * 3); n++) { const ax = tf.x0 + 3 + r() * (tf.x1 - tf.x0 - 9), az = tf.z0 + 3 + r() * (tf.z1 - tf.z0 - 7); m.box(ax, top, az, ax + 3 + r() * 3, top + 1.5 + r() * 1.5, az + 2 + r() * 2, [0.55, 0.56, 0.6]); }
+      if (b.type !== 'terminal' && b.type !== 'hangar' && !b.up && tf.x1 - tf.x0 > 10 && tf.z1 - tf.z0 > 8) for (let n = 0; n < 2 + Math.floor(r() * 3); n++) { const ax = tf.x0 + 3 + r() * (tf.x1 - tf.x0 - 9), az = tf.z0 + 3 + r() * (tf.z1 - tf.z0 - 7); m.box(ax, top, az, ax + 3 + r() * 3, top + 1.5 + r() * 1.5, az + 2 + r() * 2, [0.55, 0.56, 0.6]); }
       if (b.style === 'okinawa') { const tx = b.x0 + 2.2, tz = b.z1 - 2.2; m.box(tx - 0.6, top, tz - 0.6, tx + 0.6, top + 0.7, tz + 0.6, [0.6, 0.6, 0.6]); g('metal').box(tx - 0.75, top + 0.7, tz - 0.75, tx + 0.75, top + 2.0, tz + 0.75, [0.1, 0.1, 0.12]); }
       if (b.type === 'glass' && b.h > 70) { g('metal').box(cx - 0.3, top, cz - 0.3, cx + 0.3, top + 14, cz + 0.3, [0.7, 0.7, 0.75]); g('glow').box(cx - 0.6, top + 14, cz - 0.6, cx + 0.6, top + 15, cz + 0.6, [1, 0.15, 0.15]); }
       if (b.type === 'brick' && r() < 0.5) { const tx = b.x1 - 6, tz = b.z1 - 6; for (const [ox, oz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) m.box(tx + ox - 0.15, top, tz + oz - 0.15, tx + ox + 0.15, top + 3, tz + oz + 0.15, [0.3, 0.25, 0.2]); m.box(tx - 2, top + 3, tz - 2, tx + 2, top + 6.5, tz + 2, [0.5, 0.38, 0.28]); }

@@ -91,6 +91,80 @@ function facade(opts: { cols: number; rows: number; su: number; sv: number; wall
   return { map: tex(map), emissive: tex(emissive), rough: tex(rough, false), normal: tex(normalFromHeight(height, opts.brick ? 3.2 : 2.4), false), su: opts.su, sv: opts.sv, cols: opts.cols, rows: opts.rows };
 }
 
+/**
+ * Curtain-wall facades of modern Japanese towers, one floor per row:
+ *  curtain — full-height reflective glass panels with thin mullions and a dark spandrel at each floor slab,
+ *  ribbon  — white horizontal bands with continuous ribbon windows (the 80s–90s office tower),
+ *  fin     — closely spaced vertical stone fins with glass between (station towers, newer offices),
+ *  podium  — the department-store base: stone panels with grooves, big display windows on the street floor.
+ * By day the glass reflects the sky (low roughness); at night the offices light up in long strips, mostly cool white.
+ */
+export type CurtainKind = 'curtain' | 'ribbon' | 'fin' | 'podium';
+function curtainSet(kind: CurtainKind, seed: number): FacadeSet {
+  const W = 512, H = 512, r = mulberry(seed);
+  const cfg = { curtain: { cols: 8, rows: 8, su: 24, sv: 30 }, ribbon: { cols: 8, rows: 8, su: 24, sv: 28 }, fin: { cols: 12, rows: 8, su: 24, sv: 30 }, podium: { cols: 6, rows: 4, su: 30, sv: 24 } }[kind];
+  const { cols, rows } = cfg, cw = W / cols, ch = H / rows;
+  // night: each floor is mostly lit or mostly dark, in runs of a few panels; cool office white, some warm
+  const lit: number[][] = [];
+  for (let y = 0; y < rows; y++) { const row: number[] = [], on = r() < 0.74; let run = 0, st = 0; for (let x = 0; x < cols; x++) { if (run <= 0) { run = 1 + Math.floor(r() * 4); st = on ? (r() < 0.85 ? (r() < 0.82 ? 1 : 2) : 0) : (r() < 0.12 ? 1 : 0); } row.push(st); run--; } lit.push(row); }
+  // the glass part of a cell (x, y, w, h), by kind
+  const glassOf = (cx: number, cy: number): [number, number, number, number] => {
+    const x = cx * cw, y = cy * ch;
+    if (kind === 'curtain') return [x, y, cw, ch * 0.78];
+    if (kind === 'ribbon') return [x, y + ch * 0.14, cw, ch * 0.5];
+    if (kind === 'fin') return [x + cw * 0.32, y, cw * 0.68, ch * 0.86];
+    return cy === rows - 1 ? [x + cw * 0.06, y + ch * 0.22, cw * 0.88, ch * 0.66] : [x + cw * 0.08, y + ch * 0.38, cw * 0.84, ch * 0.13];
+  };
+  const map = canvas(W, H, (c) => {
+    const wall = kind === 'ribbon' ? '#dcdddb' : kind === 'podium' ? '#d6cfc2' : kind === 'fin' ? '#2c3f54' : '#2a3e52';
+    c.fillStyle = wall; c.fillRect(0, 0, W, H);
+    if (kind === 'podium') { c.fillStyle = 'rgba(0,0,0,.09)'; for (let y = 0; y < H; y += 10) c.fillRect(0, y, W, 2); for (let x = 0; x < W; x += 64) c.fillRect(x, 0, 2, H); }
+    if (kind === 'ribbon') { c.fillStyle = 'rgba(0,0,0,.06)'; for (let x = 0; x < W; x += 32) c.fillRect(x, 0, 1, H); }
+    noise(c, W, H, 0.04, seed + 1);
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+      const [x, y, w, h] = glassOf(cx, cy), k = Math.floor((r() - 0.5) * 26);
+      const g = c.createLinearGradient(x, y, x + w * 0.4, y + h); g.addColorStop(0, `rgb(${92 + k},${126 + k},${158 + k})`); g.addColorStop(0.55, `rgb(${50 + k},${78 + k},${106 + k})`); g.addColorStop(1, `rgb(${30 + k},${46 + k},${64 + k})`);
+      c.fillStyle = g; c.fillRect(x, y, w, h);
+      if (kind !== 'podium' && r() < 0.18) { c.fillStyle = 'rgba(225,225,215,.35)'; c.fillRect(x, y, w, h * (0.25 + r() * 0.4)); } // blinds
+      if (kind === 'curtain') { c.fillStyle = '#1e2c3b'; c.fillRect(x, y + h, w, ch - h); c.fillStyle = '#a9b6c4'; c.fillRect(x, y + h - 1, w, 2); }
+      if (kind === 'podium' && cy === rows - 1) { c.fillStyle = '#4a4038'; c.fillRect(x - 3, y - 3, w + 6, 4); c.fillRect(x - 3, y + h, w + 6, 3); }
+    }
+    // mullions and floor lines
+    if (kind === 'curtain') { c.fillStyle = '#b4c0cc'; for (let x = 0; x < W; x += cw) c.fillRect(x - 1, 0, 3, H); c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(0, 0, W, H * 0.5); }
+    if (kind === 'ribbon') { c.fillStyle = '#c9cdd1'; for (let x = 0; x < W; x += cw) c.fillRect(x - 2, 0, 4, H); for (let cy = 0; cy < rows; cy++) { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(0, cy * ch + ch * 0.64, W, 3); } }
+    if (kind === 'fin') for (let cx = 0; cx < cols; cx++) { const x = cx * cw; const g = c.createLinearGradient(x, 0, x + cw * 0.32, 0); g.addColorStop(0, '#ece9e2'); g.addColorStop(1, '#bdb8ae'); c.fillStyle = g; c.fillRect(x, 0, cw * 0.32, H); for (let cy = 0; cy < rows; cy++) { c.fillStyle = '#1d2a38'; c.fillRect(x + cw * 0.32, cy * ch + ch * 0.86, cw * 0.68, ch * 0.14); } }
+  });
+  const emissive = canvas(W, H, (c) => {
+    c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+      const [x, y, w, h] = glassOf(cx, cy);
+      if (kind === 'podium') { if (cy === rows - 1) { c.fillStyle = '#ffe2b4'; c.fillRect(x, y, w, h); } else if (lit[cy][cx]) { c.fillStyle = 'rgba(255,214,160,.55)'; c.fillRect(x, y, w, h); } continue; }
+      const st = lit[cy][cx]; if (!st) continue;
+      c.fillStyle = st === 1 ? '#dbe8ff' : '#ffd6a0'; c.fillRect(x, y, w, h);
+      c.fillStyle = 'rgba(255,255,255,.9)'; c.fillRect(x, y + h * 0.04, w, Math.max(2, h * 0.05)); // ceiling lights
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x, y + h * 0.55, w, h * 0.45); // desks and people below the lights
+    }
+    c.fillStyle = '#000';
+    if (kind === 'curtain' || kind === 'ribbon') for (let x = 0; x < W; x += cw) c.fillRect(x - 1, 0, 3, H);
+    if (kind === 'fin') for (let x = 0; x < W; x += cw) c.fillRect(x, 0, cw * 0.32, H);
+  });
+  const rough = canvas(W, H, (c) => {
+    c.fillStyle = kind === 'podium' || kind === 'ribbon' ? '#d8d8d8' : '#3a3a3a'; c.fillRect(0, 0, W, H);
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) { const [x, y, w, h] = glassOf(cx, cy); c.fillStyle = '#121212'; c.fillRect(x, y, w, h); }
+    c.fillStyle = '#b0b0b0'; if (kind === 'curtain') for (let x = 0; x < W; x += cw) c.fillRect(x - 1, 0, 3, H); if (kind === 'fin') for (let x = 0; x < W; x += cw) c.fillRect(x, 0, cw * 0.32, H);
+  });
+  const height = canvas(W, H, (c) => {
+    c.fillStyle = '#808080'; c.fillRect(0, 0, W, H);
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) { const [x, y, w, h] = glassOf(cx, cy); c.fillStyle = '#505050'; c.fillRect(x, y, w, h); }
+    c.fillStyle = '#d8d8d8';
+    if (kind === 'curtain') for (let x = 0; x < W; x += cw) c.fillRect(x - 1, 0, 3, H);
+    if (kind === 'ribbon') for (let x = 0; x < W; x += cw) c.fillRect(x - 2, 0, 4, H);
+    if (kind === 'fin') for (let x = 0; x < W; x += cw) { c.fillStyle = '#f0f0f0'; c.fillRect(x + 2, 0, cw * 0.32 - 4, H); }
+    if (kind === 'podium') { c.fillStyle = '#6a6a6a'; for (let y = 0; y < H; y += 10) c.fillRect(0, y, W, 2); }
+  });
+  return { map: tex(map), emissive: tex(emissive), rough: tex(rough, false), normal: tex(normalFromHeight(height, kind === 'fin' ? 3.4 : 2.2), false), su: cfg.su, sv: cfg.sv, cols, rows };
+}
+
 let cache: ReturnType<typeof build> | null = null;
 export const getTextures = () => (cache ||= build());
 
@@ -104,6 +178,7 @@ function build() {
   const okinawa = facade({ cols: 3, rows: 1, su: 10, sv: 3.4, wall: '#e8e2d4', glass: '#44586a', frame: '#9aa0a6', winW: 0.5, winH: 0.42, seed: 22 });
   const warehouse = facade({ cols: 8, rows: 3, su: 32, sv: 18, wall: '#c8ccd1', glass: '#3a4a5c', frame: '#9aa0a8', winW: 0.7, winH: 0.25, corrug: true, seed: 16 });
   const terminal = facade({ cols: 10, rows: 3, su: 40, sv: 18, wall: '#d5dde6', glass: '#6a8cb0', frame: '#c0c8d0', winW: 0.95, winH: 0.85, seed: 17 });
+  const curtain = curtainSet('curtain', 31), ribbon = curtainSet('ribbon', 32), fin = curtainSet('fin', 33), podium = curtainSet('podium', 34);
 
   const asphalt = tex(canvas(512, 512, (c, w, h) => {
     c.fillStyle = '#3d3f45'; c.fillRect(0, 0, w, h); noise(c, w, h, 0.25, 21, 2); noise(c, w, h, 0.12, 22, 4);
@@ -136,7 +211,7 @@ function build() {
   });
   const waterN = tex(wn, false);
   const glow = tex(canvas(128, 128, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,.35)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); }));
-  return { glass, office, brick, shop, house, machiya, okinawa, warehouse, terminal, asphalt, sidewalk, grass, sand, dirt, concrete, roof, tiles, waterN, glow };
+  return { glass, office, brick, shop, house, machiya, okinawa, warehouse, terminal, curtain, ribbon, fin, podium, asphalt, sidewalk, grass, sand, dirt, concrete, roof, tiles, waterN, glow };
 }
 
 export function labelTexture(text: string, color: string, w = 512, h = 128) {

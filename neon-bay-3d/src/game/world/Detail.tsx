@@ -16,6 +16,8 @@ import { mulberry } from './rng';
  */
 const H_WORDS: [string, string][] = [['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['カラオケ', '#ffd23a'], ['焼肉', '#ff3a3a'], ['24H', '#3dffb0'], ['ゲーム', '#c07aff'], ['寿司', '#ff4a6a'], ['牛丼', '#ff8a2a'], ['CAFE', '#ff9ad5'], ['うどん', '#ffcf8a'], ['薬局', '#3dffb0'], ['書店', '#ffffff'], ['焼鳥', '#ff6a3a'], ['BAR', '#ff3f93'], ['中華', '#ff3a3a'], ['不動産', '#7ab8ff'], ['歯科', '#9de8ff'], ['美容室', '#ff6ad5'], ['ホテル', '#2be4ff'], ['そば', '#ffd23a'], ['定食', '#ffcf8a'], ['質屋', '#ffd23a'], ['とんかつ', '#ff8a2a'], ['天ぷら', '#ffd23a'], ['餃子', '#ff4a4a'], ['弁当', '#9dff3a'], ['CLUB', '#b07aff'], ['麻雀', '#3dffb0'], ['銭湯', '#7ab8ff'], ['古着', '#c07aff'], ['ジム', '#9dff3a'], ['LIVE', '#2be4ff']];
 const V_WORDS: [string, string][] = [['カラオケ', '#ffd23a'], ['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['ホテル', '#2be4ff'], ['薬局', '#3dffb0'], ['焼肉', '#ff3a3a'], ['寿司', '#ff4a6a'], ['喫茶', '#ffcf8a'], ['麻雀', '#3dffb0'], ['焼鳥', '#ff6a3a'], ['質', '#ffd23a'], ['歯科', '#9de8ff'], ['中華', '#ff3a3a'], ['うなぎ', '#ffcf8a'], ['スナック', '#ff6ad5'], ['ビデオ', '#c07aff']];
+/** Company names on the tower tops (all fictional). */
+const C_WORDS: [string, string][] = [['ミナトライフ', '#ffffff'], ['ホシノ電機', '#dff0ff'], ['アサギ銀行', '#bfe9ff'], ['ルリカ証券', '#ffffff'], ['カナデ製薬', '#d4ffe8'], ['ヒビキ建設', '#ffffff'], ['NEXUS', '#9fd8ff'], ['ORBIT', '#ffffff'], ['ソラノ物産', '#ffe9c4'], ['KAZE HOTEL', '#ffd9a0'], ['トワ不動産', '#ffffff'], ['ミライ通信', '#bfe9ff'], ['ハヤテ運輸', '#ffffff'], ['アカネ海上', '#ffd0d0'], ['SHIRO', '#ffffff'], ['ルミナ電力', '#fff3b0']];
 /** Tall blade signs that run up the side of mid-rise buildings in the shopping streets. */
 const T_WORDS: [string, string][] = [['カラオケ館', '#ffd23a'], ['ネットカフェ', '#2be4ff'], ['まんが喫茶', '#9dff3a'], ['焼肉食べ放題', '#ff3a3a'], ['ゲームセンター', '#c07aff'], ['居酒屋 鳥よし', '#ff6a3a'], ['中華料理 福', '#ff3a3a'], ['ビリヤード', '#3dffb0'], ['ホテル月光', '#2be4ff'], ['ラーメン大将', '#ff4a4a'], ['歯科クリニック', '#9de8ff'], ['英会話', '#ffffff'], ['すし 北海', '#ff4a6a'], ['ダーツバー', '#ff3f93'], ['整骨院', '#9dff3a'], ['学習塾', '#ffd23a']];
 
@@ -50,7 +52,7 @@ function makeShared() {
   return {
     box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(1, 1, 1, 10), plane: new THREE.PlaneGeometry(1, 1),
     roofMat: new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.1 }),
-    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), vMat: atlasMaterial(atlas(V_WORDS, 16, 1, 128, 512, true), 0.0625, 1), tMat: atlasMaterial(atlas(T_WORDS, 16, 1, 128, 896, true), 0.0625, 1),
+    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), cMat: atlasMaterial(atlas(C_WORDS, 4, 4, 512, 128, false), 0.25, 0.25), vMat: atlasMaterial(atlas(V_WORDS, 16, 1, 128, 512, true), 0.0625, 1), tMat: atlasMaterial(atlas(T_WORDS, 16, 1, 128, 896, true), 0.0625, 1),
     awnMat: new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }),
     doorMat: new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }),
     doorGlassMat: new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false }), doorLampMat: new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false }),
@@ -77,9 +79,10 @@ const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3
 /** Rooftop clutter of one building, deterministic per building (so the city-wide beacon list matches the chunk detail). */
 function roofPlan(b: Building, box: (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw?: number) => void, cyl: (x: number, y: number, z: number, rr: number, h: number, col: string) => void): THREE.Vector3 | null {
   const r = mulberry(seedOf(b)), T = topFoot(b), top = b.y0 + b.h, w = T.x1 - T.x0, d = T.z1 - T.z0, grey = GREYS[Math.floor(r() * 4)];
+  if (b.shape) { if (b.h <= 70) return null; const x = T.x1 - 0.6, z = T.z1 - 0.6; cyl(x, top, z, 0.15, 9, '#c9ccd0'); return new THREE.Vector3(x, top + 9.2, z); }
   const pt = 0.35, ph = 0.9;
-  box((T.x0 + T.x1) / 2, top, T.z0 + pt / 2, w, ph, pt, grey); box((T.x0 + T.x1) / 2, top, T.z1 - pt / 2, w, ph, pt, grey);
-  box(T.x0 + pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); box(T.x1 - pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey);
+  if (!b.shape) { box((T.x0 + T.x1) / 2, top, T.z0 + pt / 2, w, ph, pt, grey); box((T.x0 + T.x1) / 2, top, T.z1 - pt / 2, w, ph, pt, grey);
+  box(T.x0 + pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); box(T.x1 - pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); } // round towers get their crown from the builder
   const rx = () => T.x0 + 2 + r() * Math.max(0.1, w - 4), rz = () => T.z0 + 2 + r() * Math.max(0.1, d - 4);
   let beacon: THREE.Vector3 | null = null;
   if (w > 8 && d > 8) {
@@ -97,12 +100,22 @@ const noop = () => {};
 export function buildDetail(list: Building[], doorList: BDoor[]): THREE.InstancedMesh[] {
   const D = shared();
   const boxes: { m: THREE.Matrix4; c: THREE.Color }[] = [], cyls: { m: THREE.Matrix4; c: THREE.Color }[] = [];
-  const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], ts: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [];
+  const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], ts: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [], cs: { m: THREE.Matrix4; o: [number, number] }[] = [];
   const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
   const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
   for (const b of list) {
-    if (b.gable || b.type === 'hangar') continue;
-    roofPlan(b, box, cyl);
+    if (b.gable || b.type === 'hangar' || b.shape === 'spiral') continue;
+    if (!b.up) roofPlan(b, box, cyl); // a podium's roof is mostly tower
+    if (b.h > 80 && b.type !== 'terminal') { // the company name near the top, on two opposite faces
+      const r0 = mulberry(seedOf(b) + 7), T = topFoot(b), top = b.y0 + b.h, cx0 = (T.x0 + T.x1) / 2, cz0 = (T.z0 + T.z1) / 2, cell = Math.floor(r0() * C_WORDS.length), o: [number, number] = [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.25];
+      const round = b.shape === 'round', Rr = Math.min(b.x1 - b.x0, b.z1 - b.z0) / 2, alongX = (T.x1 - T.x0) >= (T.z1 - T.z0);
+      const len = round ? Rr * 0.62 : Math.min(22, (alongX ? T.x1 - T.x0 : T.z1 - T.z0) * 0.62), y = top - (round ? 6.2 : 5.6);
+      for (const sgn of [-1, 1]) {
+        const fx = alongX ? cx0 : (round ? (b.x0 + b.x1) / 2 + sgn * (Rr + 0.2) : (sgn < 0 ? T.x0 : T.x1) + sgn * 0.12), fz = alongX ? (round ? (b.z0 + b.z1) / 2 + sgn * (Rr + 0.2) : (sgn < 0 ? T.z0 : T.z1) + sgn * 0.12) : cz0;
+        Q.setFromAxisAngle(UP, Math.atan2(alongX ? 0 : sgn, alongX ? sgn : 0)); P.set(fx, y, fz); S.set(len, len * 0.25, 1); cs.push({ m: M.compose(P, Q, S).clone(), o });
+      }
+    }
+    if (b.shape || b.y0 > 3) continue; // signs only on plain street-front walls
     // street-level neon
     const k = blockOfB(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas' && k.zone !== 'canal')) continue;
     const r = mulberry(seedOf(b) + 1);
@@ -114,6 +127,15 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
           const along = -f.len / 2 + seg * (j + 0.5), x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.8, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.8;
           Q.setFromEuler(new THREE.Euler(0.38, Math.atan2(f.nx, f.nz), 0, 'YXZ')); P.set(x, b.y0 + 3.05, z); S.set(seg - 0.6, 0.06, 1.7);
           aw.push({ m: M.compose(P, Q, S).clone(), c: col });
+        }
+      }
+      if ((k.zone === 'commercial' || k.zone === 'canal') && b.type !== 'shop' && b.h > 13 && f.len > 7 && f.len < 34 && r() < 0.6) { // a sign for every floor's tenant, stacked up the front
+        const floors = Math.min(7, Math.floor((b.h - 5) / 3.4)), pw = Math.min(f.len * 0.82, 12), side = r() < 0.5 ? -1 : 1, off = (f.len - pw) / 2 * 0.9 * side;
+        for (let q = 1; q < floors; q++) {
+          if (r() < 0.15) continue;
+          const x = f.cx + (f.nz !== 0 ? off : 0) + f.nx * 0.14, z = f.cz + (f.nx !== 0 ? off : 0) + f.nz * 0.14, y = b.y0 + 3.6 + q * 3.4;
+          Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz)); P.set(x, y, z); S.set(pw * (0.75 + r() * 0.25), 1.5, 1);
+          const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
         }
       }
       if (f.len < 8 || r() < 0.25) continue;
@@ -156,7 +178,7 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
     const im = mk(g, mat, list2, false); if (im) im.userData.ownGeo = true;
   };
   mk(D.box, D.roofMat, boxes); mk(D.cyl, D.roofMat, cyls);
-  withOff(hs, D.hMat); withOff(vs, D.vMat); withOff(ts, D.tMat);
+  withOff(hs, D.hMat); withOff(vs, D.vMat); withOff(ts, D.tMat); withOff(cs, D.cMat);
   const awn = mk(D.box, D.awnMat, aw); if (awn) awn.castShadow = true;
   mk(D.box, D.doorMat, frameM); mk(D.plane, D.doorGlassMat, glassM, false); mk(D.box, D.doorLampMat, lampM, false);
   return out;
@@ -167,7 +189,7 @@ export function disposeDetail(list: THREE.InstancedMesh[]) { for (const im of li
 export default function Detail() {
   const D = useMemo(() => {
     const beacons: THREE.Vector3[] = [];
-    for (const b of buildings) if (b.h > 70 && !b.gable && b.type !== 'hangar') { const v = roofPlan(b, noop, noop); if (v) beacons.push(v); }
+    for (const b of buildings) if (b.h > 70 && !b.gable && b.type !== 'hangar' && !b.up && b.shape !== 'spiral') { const v = roofPlan(b, noop, noop); if (v) beacons.push(v); }
     const sh = shared();
     const bl = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.6, 1.6), sh.beaconMat, Math.max(1, beacons.length)); bl.count = beacons.length; bl.frustumCulled = false;
     return { bl, beacons, sh };
@@ -175,7 +197,7 @@ export default function Detail() {
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
   useFrame(({ camera, clock }) => {
     const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2), sh = D.sh;
-    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k); sh.tMat.color.setScalar(k);
+    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k); sh.tMat.color.setScalar(k); sh.cMat.color.setScalar(night ? 1.5 : dusk ? 1.05 : 0.8);
     sh.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); sh.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
     const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; sh.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
     let n = 0; const cx = camera.position.x, cz = camera.position.z;

@@ -38,7 +38,7 @@ const grid = new Map<string, number[]>(), CELL = 30;
 {
   const blockOf = (b: Building): BlockInfo | undefined => blockOfB(b) ?? blocks.find((q) => b.x0 >= q.x0 - 1 && b.x1 <= q.x1 + 1 && b.z0 >= q.z0 - 1 && b.z1 <= q.z1 + 1);
   buildings.forEach((b, i) => {
-    if (b.x1 - b.x0 < 6 || b.z1 - b.z0 < 6) return;
+    if (b.x1 - b.x0 < 6 || b.z1 - b.z0 < 6 || b.y0 > 3) return; // towers standing on a podium are entered through the podium
     if (doors.some((d) => d.x > b.x0 - 3 && d.x < b.x1 + 3 && d.z > b.z0 - 3 && d.z < b.z1 + 3)) return; // has a hand-made interior
     const k = blockOf(b);
     let nx = 0, nz = -1;
@@ -64,12 +64,12 @@ const L = (x: number, y: number, z: number, c = '#fff1dc', i = 14, d = 16) => ({
 const PLANT = '#2f6a3a';
 
 export function genInterior(d: BDoor): GenDef {
-  const b = buildings[d.b], r = mulberry(d.b * 104729 + 17), T = topFoot(b);
+  const b = buildings[d.b], r = mulberry(d.b * 104729 + 17), tb = b.up || b, T = topFoot(tb); // a podium's elevator goes up to its tower's roof
   const roofOK = b.h > 9 && d.kind !== 'house' && d.kind !== 'terminal' && d.kind !== 'hangar' && d.kind !== 'warehouse';
   const base = (w: number, dd: number, h: number, wall: string, floor: string, floorTex: GenDef['floorTex'], furniture: Furn[], extra: Partial<GenDef> = {}): GenDef => ({
     id: 'bi', name: d.label, ox: OX, oz: 0, w, d: dd, h, wall, floor, floorTex, furniture,
     exit: { x: 0, z: dd / 2 - 1.0 }, spawn: { x: 0, z: dd / 2 - 2.2, yaw: Math.PI },
-    roof: roofOK ? { x: (T.x0 + T.x1) / 2, z: (T.z0 + T.z1) / 2, y: b.y0 + b.h } : undefined, ...extra,
+    roof: roofOK && tb.shape !== 'spiral' ? { x: (T.x0 + T.x1) / 2, z: (T.z0 + T.z1) / 2, y: tb.y0 + tb.h } : undefined, ...extra,
   });
   const acc = pickR(['#2be4ff', '#ffd23a', '#ff3f93', '#3dffb0', '#b07aff', '#ff8a3a'], r);
   switch (d.kind) {

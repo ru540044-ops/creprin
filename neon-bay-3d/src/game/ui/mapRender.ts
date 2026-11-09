@@ -29,7 +29,7 @@ export function mapImage() {
   for (const b of blocks) R(b.x0, b.z0, b.x1, b.z1, zc[b.zone]);
   for (const q of CANAL_RECTS) R(q.x0 - (q.axis === 'x' ? 1 : 0), q.z0 - (q.axis === 'z' ? 1 : 0), q.x1 + (q.axis === 'x' ? 1 : 0), q.z1 + (q.axis === 'z' ? 1 : 0), '#2a6e9a');
   { const st = 10; for (let z = -HALF; z < HALF; z += st) for (let x = -HALF; x < HALF; x += st) if (inBay(x + st / 2, z + st / 2)) R(x, z, x + st, z + st, '#16405e'); }
-  c.fillStyle = 'rgba(20,18,34,.55)'; for (const b of buildings) { const [a, bb] = toMap(b.x0, b.z0), [e, f] = toMap(b.x1, b.z1); c.fillRect(a, bb, e - a, f - bb); }
+  c.fillStyle = 'rgba(20,18,34,.55)'; for (const b of buildings) { const [a, bb] = toMap(b.x0, b.z0), [e, f] = toMap(b.x1, b.z1); if (b.shape === 'round' || b.shape === 'spiral') { c.beginPath(); c.ellipse((a + e) / 2, (bb + f) / 2, (e - a) / 2, (f - bb) / 2, 0, 0, Math.PI * 2); c.fill(); } else c.fillRect(a, bb, e - a, f - bb); }
   for (const k of HWY_LINKS) { const x = roadC(k); R(x - ROAD / 2, -HWY_C, x + ROAD / 2, -HALF, '#7d7a8c'); R(x - ROAD / 2, HALF, x + ROAD / 2, HWY_C, '#7d7a8c'); }
   // elevated railway and its stations
   R(RAIL.x - 3.5, RAIL.z0, RAIL.x + 3.5, RAIL.z1, '#2a2b30'); c.fillStyle = '#e8e8e8'; for (let z = RAIL.z0; z < RAIL.z1; z += 60) { const [a, b] = toMap(RAIL.x - 1, z); c.fillRect(a, b, 2 * MAP.s + 0.6, 30 * MAP.s); }

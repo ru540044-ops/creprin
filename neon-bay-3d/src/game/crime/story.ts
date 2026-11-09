@@ -26,7 +26,7 @@ const at = (x: number, z: number, r: number) => { const me = playerCar(), p = P(
 const door = (id: string) => doors.find((d) => d.id === id)!;
 const bank = () => BDOORS.find((d) => d.kind === 'lobby' && d.label === 'CENTRAL BANK') || BDOORS.find((d) => d.kind === 'lobby')!;
 /** The downtown tower used in the last mission: a lobby with a roof big enough for a helicopter. */
-const skyDoor = (() => { let c: typeof BDOORS[number] | null = null; return () => { if (c) return c; let bd = 1e9; for (const d of BDOORS) { if (d.kind !== 'lobby') continue; const b = buildings[d.b], T = topFoot(b); if (b.h < 50 || b.h > 150 || T.x1 - T.x0 < 22 || T.z1 - T.z0 < 20) continue; const q = Math.hypot(d.x, d.z + 50); if (q < bd) { bd = q; c = d; } } return (c ||= BDOORS.find((d) => d.kind === 'lobby')!); }; })();
+const skyDoor = (() => { let c: typeof BDOORS[number] | null = null; return () => { if (c) return c; let bd = 1e9; for (const d of BDOORS) { if (d.kind !== 'lobby') continue; const b = buildings[d.b], T = topFoot(b); if (b.up || b.shape === 'spiral' || b.h < 50 || b.h > 150 || T.x1 - T.x0 < 22 || T.z1 - T.z0 < 20) continue; const q = Math.hypot(d.x, d.z + 50); if (q < bd) { bd = q; c = d; } } return (c ||= BDOORS.find((d) => d.kind === 'lobby' && !buildings[d.b].up) || BDOORS.find((d) => d.kind === 'lobby')!); }; })();
 const skyPad = () => { const b = buildings[skyDoor().b], T = topFoot(b), long = T.x1 - T.x0 >= T.z1 - T.z0, cx = (T.x0 + T.x1) / 2, cz = (T.z0 + T.z1) / 2; const x = long ? cx + 7 : cx, z = long ? cz : cz + 7; return { x, z, y: floorAt(x, z, 1e4) }; };
 const hangarPos = () => ({ x: AIRPORT.x0 + 150, z: 250 });
 const RAY = 'レイ', VINCE = 'ヴィンス';

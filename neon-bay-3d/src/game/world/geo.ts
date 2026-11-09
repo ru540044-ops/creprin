@@ -74,6 +74,32 @@ export class Geo {
     }
   }
   /** Typed GPU-ready geometry. Built once; the JS arrays are released afterwards (they are 2-3x the size of the typed ones). */
+  /** Quad with a normal per corner (smooth curved walls). */
+  quadN(a: number[], b: number[], c: number[], d: number[], na: number[], nb: number[], nc: number[], nd: number[], uvs: number[][], col: number[]) {
+    this.v(a[0], a[1], a[2], na, uvs[0][0], uvs[0][1], col); this.v(b[0], b[1], b[2], nb, uvs[1][0], uvs[1][1], col); this.v(c[0], c[1], c[2], nc, uvs[2][0], uvs[2][1], col);
+    this.v(a[0], a[1], a[2], na, uvs[0][0], uvs[0][1], col); this.v(c[0], c[1], c[2], nc, uvs[2][0], uvs[2][1], col); this.v(d[0], d[1], d[2], nd, uvs[3][0], uvs[3][1], col);
+  }
+  /**
+   * Vertical prism over a convex plan (x, z points in order): walls with the facade running round the perimeter
+   * (su / sv metres per texture repeat, v measured from yo so windows line up between tiers), and a flat roof on `top`.
+   * smooth: one normal per corner pointing away from the centre (a cylinder), else flat faces.
+   */
+  extrude(poly: number[][], y0: number, y1: number, col: number[], su: number, sv: number, top: Geo | null = this, smooth = false, yo = 0, roofScale = 8) {
+    const n = poly.length; let cx = 0, cz = 0; for (const q of poly) { cx += q[0] / n; cz += q[1] / n; }
+    const rad = (q: number[]) => { const dx = q[0] - cx, dz = q[1] - cz, l = Math.hypot(dx, dz) || 1; return [dx / l, 0, dz / l]; };
+    let u = 0;
+    for (let i = 0; i < n; i++) {
+      let p = poly[i], q = poly[(i + 1) % n]; const ex = q[0] - p[0], ez = q[1] - p[1], len = Math.hypot(ex, ez); if (len < 1e-4) continue;
+      let nx = ez / len, nz = -ex / len; if (nx * ((p[0] + q[0]) / 2 - cx) + nz * ((p[1] + q[1]) / 2 - cz) < 0) { nx = -nx; nz = -nz; } // outward
+      const rx = nz, rz = -nx; // the viewer's right, seen from outside
+      let ua = u, ub = u + len; if (ex * rx + ez * rz < 0) { const t = p; p = q; q = t; }
+      const V0 = (y0 - yo) / sv, V1 = (y1 - yo) / sv, fn = [nx, 0, nz];
+      if (smooth) this.quadN([p[0], y0, p[1]], [q[0], y0, q[1]], [q[0], y1, q[1]], [p[0], y1, p[1]], rad(p), rad(q), rad(q), rad(p), [[ua / su, V0], [ub / su, V0], [ub / su, V1], [ua / su, V1]], col);
+      else this.quad([p[0], y0, p[1]], [q[0], y0, q[1]], [q[0], y1, q[1]], [p[0], y1, p[1]], fn, [[ua / su, V0], [ub / su, V0], [ub / su, V1], [ua / su, V1]], col);
+      u += len; void ua; void ub;
+    }
+    if (top) { const T = (a: number) => a / roofScale; for (let i = 0; i < n; i++) { const p = poly[i], q = poly[(i + 1) % n], a = [cx, y1, cz], b = [p[0], y1, p[1]], c = [q[0], y1, q[1]]; const up = (b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0]) < 0; top.tri(a, up ? b : c, up ? c : b, [0, 1, 0], [[T(a[0]), T(-a[2])], [T((up ? b : c)[0]), T(-(up ? b : c)[2])], [T((up ? c : b)[0]), T(-(up ? c : b)[2])]], col); } }
+  }
   build(): THREE.BufferGeometry {
     if (this.built) return this.built;
     const g = new THREE.BufferGeometry();

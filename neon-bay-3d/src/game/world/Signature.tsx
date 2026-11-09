@@ -177,7 +177,7 @@ function Screens() {
     const nx = roadC(O + 4), nz = roadC(O + 4), list: { x: number; y: number; z: number; w: number; h: number; ry: number }[] = [];
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       let best: (typeof buildings)[number] | null = null, bd = 1e9;
-      for (const b of buildings) { if (b.gable || b.h < 16) continue; const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2; if (Math.sign(cx - nx) !== sx || Math.sign(cz - nz) !== sz) continue; const d = Math.hypot(Math.max(b.x0 - nx, nx - b.x1, 0), Math.max(b.z0 - nz, nz - b.z1, 0)); if (d < bd) { bd = d; best = b; } }
+      for (const b of buildings) { if (b.gable || b.h < 16 || b.shape || b.y0 > 3) continue; const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2; if (Math.sign(cx - nx) !== sx || Math.sign(cz - nz) !== sz) continue; const d = Math.hypot(Math.max(b.x0 - nx, nx - b.x1, 0), Math.max(b.z0 - nz, nz - b.z1, 0)); if (d < bd) { bd = d; best = b; } }
       if (!best || bd > 30) continue;
       const b = best, faceX = sx > 0 ? b.x0 : b.x1, faceZ = sz > 0 ? b.z0 : b.z1, w = Math.min(16, (b.z1 - b.z0) - 3), w2 = Math.min(16, (b.x1 - b.x0) - 3);
       const y = b.y0 + Math.min(b.h - 2, 22) - 5;

@@ -30,7 +30,12 @@ export type Zone = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'p
 export type BType = 'glass' | 'office' | 'brick' | 'house' | 'warehouse' | 'shop' | 'terminal' | 'hangar';
 
 export interface Building { x0: number; z0: number; x1: number; z1: number; y0: number; h: number; type: BType; tint: [number, number, number]; gable?: boolean; roofTint?: [number, number, number]; /** a named public building (its interior is a concourse) */ name?: string;
-  /** house roof shape (gable by default) and regional style */ roof?: 'hip' | 'flat'; style?: 'machiya' | 'okinawa'; carport?: boolean; }
+  /** house roof shape (gable by default) and regional style */ roof?: 'hip' | 'flat'; style?: 'machiya' | 'okinawa'; carport?: boolean;
+  /** tower plan: a cylinder, a box with chamfered corners, or the twisting landmark (default: a box) */ shape?: 'round' | 'cham' | 'spiral';
+  /** curtain-wall facade (default: by type) */ fac?: 'curtain' | 'ribbon' | 'fin' | 'podium';
+  /** a podium's tower (the roof you reach by the lobby elevator) */ up?: Building; }
+/** Chamfer of a 'cham' tower's corners (m). */
+export const chamCut = (b: { x0: number; x1: number; z0: number; z1: number }) => Math.min(b.x1 - b.x0, b.z1 - b.z0) * 0.16;
 export interface Solid { x0: number; z0: number; x1: number; z1: number; y0: number; y1: number; }
 export interface Door { id: string; x: number; z: number; ang: number; label: string; interior: string; color: string; }
 export interface BlockInfo { i: number; j: number; x0: number; z0: number; x1: number; z1: number; zone: Zone; }
@@ -310,11 +315,81 @@ const SAKURA: [number, number, number] = [1.0, 0.72, 0.84], MOMIJI: [number, num
 void HOUSE_T; void ROOF_T;
 
 /** Fraction of the footprint each side the top tier is inset by (setback towers); 0 = plain box. */
-export const topInset = (b: Building) => (b.type === 'glass' && b.h > 140 ? 0.26 : (b.type === 'glass' && b.h > 90) || (b.type === 'office' && b.h > 42) ? 0.13 : 0);
+export const topInset = (b: Building) => (b.shape === 'round' || b.shape === 'spiral' || b.fac === 'podium' ? 0 : b.type === 'glass' && b.h > 140 ? 0.26 : (b.type === 'glass' && b.h > 90) || (b.type === 'office' && b.h > 42) ? 0.13 : 0);
 /** Footprint of the topmost tier. */
-export const topFoot = (b: Building) => { const k = topInset(b), ix = (b.x1 - b.x0) * k, iz = (b.z1 - b.z0) * k; return { x0: b.x0 + ix, z0: b.z0 + iz, x1: b.x1 - ix, z1: b.z1 - iz }; };
+export const topFoot = (b: Building) => {
+  if (b.shape === 'round' || b.shape === 'spiral') { const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, h = Math.min(b.x1 - b.x0, b.z1 - b.z0) / 2 * (b.shape === 'spiral' ? 0.18 : 0.68); return { x0: cx - h, z0: cz - h, x1: cx + h, z1: cz + h }; } // the square inside the round roof
+  const k = topInset(b), ix = (b.x1 - b.x0) * k, iz = (b.z1 - b.z0) * k, c = b.shape === 'cham' ? chamCut(b) * (1 - 2 * k) * 0.5 : 0; return { x0: b.x0 + ix + c, z0: b.z0 + iz + c, x1: b.x1 - ix - c, z1: b.z1 - iz - c };
+};
 
-function addB(b: Building) { buildings.push(b); solids.push({ x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, y0: b.y0, y1: b.y0 + b.h + (b.gable ? 4 : 0) }); }
+function addB(b: Building) {
+  buildings.push(b); const y0 = b.y0, y1 = b.y0 + b.h + (b.gable ? 4 : 0);
+  if (b.shape === 'round' || b.shape === 'spiral') { // three boxes inside the circle
+    const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, R = Math.min(b.x1 - b.x0, b.z1 - b.z0) / 2;
+    for (const [a, c] of [[0.92, 0.4], [0.4, 0.92], [0.7, 0.7]]) solids.push({ x0: cx - R * a, z0: cz - R * c, x1: cx + R * a, z1: cz + R * c, y0, y1 });
+  } else if (b.shape === 'cham') { const c = chamCut(b); for (const [a, e] of [[0, c], [c, 0], [c / 2, c / 2]]) solids.push({ x0: b.x0 + a, z0: b.z0 + e, x1: b.x1 - a, z1: b.z1 - e, y0, y1 }); }
+  else solids.push({ x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, y0, y1 });
+  return b;
+}
+/* ---------- downtown: Japanese skyscraper districts (podium + tower, round towers, twin towers by the station, clusters) ---------- */
+const DT = (() => {
+  // the downtown block nearest the main station gets the twin round towers; the block at the heart of the skyline gets the spiral tower
+  let twin = -1, spiral = -1, bt = 1e9, bs = 1e9;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    if (zoneOf(i, j) !== 'downtown') continue;
+    const d = Math.hypot(i - STATION_BLOCK.i, j - STATION_BLOCK.j); if (d < bt) { bt = d; twin = j * N + i; }
+    const f = towerFall(i - O, j - O) + Math.hypot(i - STATION_BLOCK.i, j - STATION_BLOCK.j) * 0.002; if (f < bs) { bs = f; spiral = j * N + i; }
+  }
+  if (spiral === twin) { // next best for the spiral
+    bs = 1e9; for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { if (j * N + i === twin || zoneOf(i, j) !== 'downtown') continue; const f = towerFall(i - O, j - O); if (f < bs) { bs = f; spiral = j * N + i; } }
+  }
+  return { twin, spiral };
+})();
+const FAC_GLASS = ['curtain', 'curtain', 'fin', undefined] as const, FAC_OFFICE = ['ribbon', 'ribbon', undefined] as const;
+function downtownBlock(i: number, j: number, ix0: number, iz0: number, ix1: number, iz1: number, r: () => number, dc: number, S: number) {
+  const hm = REGION.heightMul, f = (1.25 - dc * 0.7) * hm, low = hm < 0.5, minH = inTokyo() ? 40 : 16;
+  const tower = (x0: number, z0: number, x1: number, z1: number, y0: number, top: number, shape?: Building['shape'], glass = r() < 0.7) => {
+    const type: BType = glass ? 'glass' : 'office', fac = glass ? FAC_GLASS[Math.floor(r() * FAC_GLASS.length)] : FAC_OFFICE[Math.floor(r() * FAC_OFFICE.length)];
+    return addB({ x0, z0, x1, z1, y0, h: Math.max(18, top - y0), type, tint: pick(glass ? GLASS_T : OFFICE_T, r), shape, fac });
+  };
+  const podium = (x0: number, z0: number, x1: number, z1: number, h: number) => addB({ x0, z0, x1, z1, y0: S, h, type: 'office', tint: pick(OFFICE_T, r), fac: 'podium' });
+  const sq = (cx: number, cz: number, s: number) => [cx - s / 2, cz - s / 2, cx + s / 2, cz + s / 2] as const;
+  const W = ix1 - ix0, D = iz1 - iz0, cx = (ix0 + ix1) / 2, cz = (iz0 + iz1) / 2, k = j * N + i;
+  const pickShape = (): Building['shape'] => { const u = r(); return u < 0.3 ? 'round' : u < 0.62 ? 'cham' : undefined; };
+  if (k === DT.twin) { // twin round towers on a long podium (the station's landmark office and hotel towers)
+    const P = podium(ix0, iz0 + 6, ix1, iz1 - 6, low ? 16 : 30), py = S + P.h, d1 = Math.min(44, W * 0.5), d2 = d1 * 0.9;
+    const a = tower(...sq(ix0 + W * 0.27, cz, d1), py, S + Math.max(minH + 30, 245 * hm), 'round', true), b = tower(...sq(ix1 - W * 0.27, cz, d2), py, S + Math.max(minH + 20, 226 * hm), 'round', true);
+    a.fac = 'fin'; b.fac = 'curtain'; P.up = a; return;
+  }
+  if (k === DT.spiral) { // the twisting landmark tower on a plaza
+    addB({ ...{ x0: 0, z0: 0, x1: 0, z1: 0 }, ...(() => { const [x0, z0, x1, z1] = sq(cx, cz, Math.min(W, D) * 0.56); return { x0, z0, x1, z1 }; })(), y0: S, h: Math.max(minH + 40, 200 * hm + 30), type: 'glass', tint: [0.8, 0.88, 0.95], shape: 'spiral', fac: 'curtain' });
+    return;
+  }
+  const u = r();
+  if (u < 0.22) { // two slab towers (the classic office pair)
+    const alongX = r() < 0.5, mid = alongX ? cx : cz, a = 3;
+    const halves = alongX ? [[ix0, iz0, mid - a, iz1], [mid + a, iz0, ix1, iz1]] : [[ix0, iz0, ix1, mid - a], [ix0, mid + a, ix1, iz1]];
+    for (const [a0, b0, a1, b1] of halves) tower(a0, b0, a1, b1, S, S + Math.max(minH, (60 + r() * 150) * f), r() < 0.4 ? 'cham' : undefined);
+  } else if (u < 0.52) { // podium (department store / shops) with one tower set on it
+    const ph = low ? 10 + r() * 8 : 16 + r() * 18, P = podium(ix0, iz0, ix1, iz1, ph), s = Math.min(W, D) * (0.5 + r() * 0.16);
+    const ox = (W - s) / 2 * (r() - 0.5) * 1.2, oz = (D - s) / 2 * (r() - 0.5) * 1.2;
+    P.up = tower(...sq(cx + ox, cz + oz, s), S + ph, S + Math.max(ph + 24, minH, (100 + r() * 170) * f), pickShape());
+  } else if (u < 0.66) { // a round tower standing on its own plaza
+    const s = Math.min(W, D) * (0.58 + r() * 0.14); tower(...sq(cx, cz, s), S, S + Math.max(minH, (90 + r() * 170) * f), 'round');
+  } else if (u < 0.84) { // a cluster of four towers of different heights
+    const g = 4, hw = (W - g) / 2, hd = (D - g) / 2;
+    for (const [qx, qz] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      const x0 = ix0 + qx * (hw + g), z0 = iz0 + qz * (hd + g), lowOne = r() < 0.3;
+      if (lowOne) addB({ x0, z0, x1: x0 + hw, z1: z0 + hd, y0: S, h: 12 + r() * 20, type: 'office', tint: pick(OFFICE_T, r), fac: r() < 0.5 ? 'podium' : 'ribbon' });
+      else tower(x0, z0, x0 + hw, z0 + hd, S, S + Math.max(minH * 0.8, (45 + r() * 125) * f), r() < 0.35 ? 'cham' : undefined);
+    }
+  } else { // podium with two towers
+    const ph = low ? 10 + r() * 6 : 14 + r() * 14, P = podium(ix0, iz0, ix1, iz1, ph), alongX = W >= D, s = Math.min(alongX ? W * 0.4 : W * 0.6, alongX ? D * 0.6 : D * 0.4);
+    const t1 = alongX ? sq(ix0 + W * 0.26, cz, s) : sq(cx, iz0 + D * 0.26, s), t2 = alongX ? sq(ix1 - W * 0.26, cz, s * 0.92) : sq(cx, iz1 - D * 0.26, s * 0.92);
+    const sh = pickShape(), A = tower(...t1, S + ph, S + Math.max(ph + 24, minH, (90 + r() * 150) * f), sh); tower(...t2, S + ph, S + Math.max(ph + 20, minH, (70 + r() * 120) * f), sh);
+    P.up = A;
+  }
+}
 
 const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', '食堂 ネオン亭', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store'], ['arms', 'BAY ARMS', '#ff5a36', 'arms']];
 let shopDoorsLeft = SHOP_LABELS.length;
@@ -326,13 +401,7 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
   const r = mulberry(ci * 7919 + cj * 104729 + 7), S = 0.15, m = 5; // sidewalk margin (core blocks keep their original seeds)
   const ix0 = x0 + m, iz0 = z0 + m, ix1 = x1 - m, iz1 = z1 - m;
   if (zone === 'downtown') {
-    const alongX = r() < 0.5, mid = alongX ? (ix0 + ix1) / 2 : (iz0 + iz1) / 2, a = 3;
-    const halves = alongX ? [[ix0, iz0, mid - a, iz1], [mid + a, iz0, ix1, iz1]] : [[ix0, iz0, ix1, mid - a], [ix0, mid + a, ix1, iz1]];
-    const dc = towerFall(ci, cj);
-    for (const [a0, b0, a1, b1] of halves) {
-      const glass = r() < 0.65, h = (60 + r() * 150) * (1.25 - dc * 0.7) * REGION.heightMul;
-      addB({ x0: a0, z0: b0, x1: a1, z1: b1, y0: S, h: Math.max(inTokyo() ? 40 : 16, h), type: glass ? 'glass' : 'office', tint: pick(glass ? GLASS_T : OFFICE_T, r) });
-    }
+    downtownBlock(i, j, ix0, iz0, ix1, iz1, r, towerFall(ci, cj), S);
   } else if (zone === 'commercial') {
     // perimeter buildings around a service alley ring
     const d2 = 30, gap = 4;
@@ -500,7 +569,7 @@ export const CUSTOMS = landmark('customs', 'BAY CUSTOMS', '#ff9a3a', 300, 420);
 export const HELIPADS: { x: number; z: number; y: number; name: string }[] = [{ x: AIRPORT.x0 + 610, z: 150, y: 0, name: '空港ヘリパッド' }];
 {
   let best: Building | null = null, bd = 1e9;
-  for (const b of buildings) { if (b.type !== 'glass' && b.type !== 'office') continue; if (b.x1 - b.x0 < 26 || b.z1 - b.z0 < 26 || b.h > 140) continue; const d = Math.hypot((b.x0 + b.x1) / 2 - 60, (b.z0 + b.z1) / 2 + 60); if (d < bd) { bd = d; best = b; } }
+  for (const b of buildings) { if (b.type !== 'glass' && b.type !== 'office') continue; if (b.up || b.shape === 'spiral' || b.x1 - b.x0 < 26 || b.z1 - b.z0 < 26 || b.h > 140) continue; const d = Math.hypot((b.x0 + b.x1) / 2 - 60, (b.z0 + b.z1) / 2 + 60); if (d < bd) { bd = d; best = b; } }
   if (best) HELIPADS.push({ x: (best.x0 + best.x1) / 2, z: (best.z0 + best.z1) / 2, y: best.y0 + best.h, name: RN.downtown + '屋上ヘリパッド' });
   for (const h of HELIPADS) parkSlots.push({ x: h.x, z: h.z, yaw: Math.PI, kind: 'heli', ci: 0 });
   for (let n = 0; n < 3; n++) parkSlots.push({ x: AIRPORT.x0 + 360 + n * 7, z: 110, yaw: Math.PI, kind: 'taxi', ci: 0 });
@@ -567,7 +636,7 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
   const free = (x: number, z: number) => !doors.some((d) => Math.hypot(d.x - x, d.z - z) < 30);
   const pick = (test: (b: Building, blk: BlockInfo) => boolean, tx: number, tz: number, maxSet = 9) => {
     let best: Building | null = null, bd = 1e9;
-    for (const b of buildings) { const blk = blkOf(b); if (!blk || blk === GARAGE.block || b.z0 - blk.z0 > maxSet || !test(b, blk)) continue; const cx = (b.x0 + b.x1) / 2; if (!free(cx, b.z0)) continue; const d = Math.hypot(cx - tx, b.z0 - tz); if (d < bd) { bd = d; best = b; } }
+    for (const b of buildings) { const blk = blkOf(b); if (!blk || blk === GARAGE.block || b.y0 > 3 || b.up || b.shape || b.z0 - blk.z0 > maxSet || !test(b, blk)) continue; const cx = (b.x0 + b.x1) / 2; if (!free(cx, b.z0)) continue; const d = Math.hypot(cx - tx, b.z0 - tz); if (d < bd) { bd = d; best = b; } }
     return best;
   };
   const front = (id: string, b: Building | null, label: string, color: string) => { if (b) doors.push({ id: 'h_' + id, x: (b.x0 + b.x1) / 2, z: b.z0 - 0.8, ang: Math.PI, label, interior: id, color }); };
