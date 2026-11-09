@@ -49,11 +49,15 @@ export function stream(px: number, pz: number, dt: number) {
     if (d > 240 && !v.touched) remove(v);
     else if (d > 520) remove(v); // abandoned cars far away disappear
   }
-  parkSlots.forEach((s, i) => {
-    if (activeSlot.has(i)) return;
-    if (Math.abs(s.x - px) > 170 || Math.abs(s.z - pz) > 170 || Math.hypot(s.x - px, s.z - pz) > 170) return;
-    const def = VDEFS[s.kind as VKind]; spawn(s.kind as VKind, s.x, s.z, s.yaw, def.colors[s.ci % def.colors.length], i);
-  });
+  // parked cars: the nearest slots first, up to a cap per quality level (each car is a dozen draw calls)
+  const cap = game.quality === 'low' ? 24 : game.quality === 'medium' ? 38 : 52;
+  let parked = 0; for (const v of vehicles) if (v.slot >= 0) parked++;
+  if (parked < cap) {
+    const cand: [number, number][] = [];
+    parkSlots.forEach((s, i) => { if (activeSlot.has(i) || Math.abs(s.x - px) > 170 || Math.abs(s.z - pz) > 170) return; const d = Math.hypot(s.x - px, s.z - pz); if (d <= 170) cand.push([d, i]); });
+    cand.sort((a, b) => a[0] - b[0]);
+    for (const [, i] of cand) { if (parked >= cap) break; const s = parkSlots[i], def = VDEFS[s.kind as VKind]; spawn(s.kind as VKind, s.x, s.z, s.yaw, def.colors[s.ci % def.colors.length], i); parked++; }
+  }
   // owned cars: present in their garage bay unless already somewhere in the world
   owned.forEach((o, i) => {
     if (vehicles.some((v) => v.owned === i)) return;
