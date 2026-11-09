@@ -72,6 +72,8 @@ export function save() {
     const now = Date.now(); if (now - lastBak > 60000) { lastBak = now; localStorage.setItem(KEY + '.bak', data); }
   } catch { /* storage unavailable */ }
 }
+/** How we came into this city this session (set by load): driving the bullet train continues in its cab. */
+export const arrival = { drive: false, from: '' as string };
 export function load(): boolean {
   try {
     const parse = (k: string) => { try { const r = localStorage.getItem(k); const o = r ? JSON.parse(r) : null; return o && (o.v === 1 || o.v === 2) ? o : null; } catch { return null; } };
@@ -99,7 +101,7 @@ export function load(): boolean {
     // a save from another city: start where the train / plane arrives
     const here = (s.rg || 'tokyo') === REGION.id;
     let arrive = ''; try { arrive = localStorage.getItem(ARRIVE_KEY) || ''; localStorage.removeItem(ARRIVE_KEY); } catch { /* ignore */ }
-    if (!here) { const a = arrive === 'train' && STATION ? STATION.spawn : arrive === 'plane' ? AIRPORT_ARRIVAL : { x: SPAWN.x, z: SPAWN.z, yaw: Math.PI }; game.player.x = a.x; game.player.z = a.z; game.player.yaw = a.yaw; game.cam.yaw = a.yaw + Math.PI; s.p = null; s.wp = null; }
+    if (!here) { arrival.drive = arrive === 'drive'; try { arrival.from = JSON.parse(localStorage.getItem('neonbay3d.travelling') || '{}').from || ''; } catch { /* ignore */ } const a = (arrive === 'train' || arrive === 'drive') && STATION ? STATION.spawn : arrive === 'plane' ? AIRPORT_ARRIVAL : { x: SPAWN.x, z: SPAWN.z, yaw: Math.PI }; game.player.x = a.x; game.player.z = a.z; game.player.yaw = a.yaw; game.cam.yaw = a.yaw + Math.PI; s.p = null; s.wp = null; }
     if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI;
       // the city grew around the old one: a saved spot that is now inside a building or the sea goes back to the safehouse
       if (!Number.isFinite(s.p.x) || pointBlocked(s.p.x, 0.9, s.p.z) || pointBlocked(s.p.x, 1.6, s.p.z) || isWater(s.p.x, s.p.z)) { game.player.x = SPAWN.x; game.player.z = SPAWN.z; } }

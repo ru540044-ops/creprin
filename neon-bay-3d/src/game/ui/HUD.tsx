@@ -1,3 +1,4 @@
+import { trainInfo } from '../crime/japan';
 import { REGION } from '../world/region';
 import StyleStudio from './StyleStudio';
 import { settings, QualityMode } from '../settings';
@@ -173,6 +174,7 @@ function Speedo() {
       <div className="spd"><b>{kmh}</b><span>km/h</span></div>
       <div className="gear">{me.def.kind === 'heli' || me.def.kind === 'jet' ? Math.round(me.y) + 'm' : isBoat(me.def.kind) ? (fv < -0.5 ? 'R' : Math.round(game.speed * 1.944) + 'kt') : gear}</div>
       {me.def.kind === 'jet' && <div className="jetinfo"><span>THR {Math.round(me.rotor * 100)}%</span><span>{me.nitroOn ? 'AB ON' : me.air ? (me.spd < 60 ? '失速注意' : 'FLY') : me.spd > 60 ? '離陸可' : 'TAXI'}</span><span>PITCH {Math.round(me.pitch * 57)}°</span></div>}
+      {me.def.kind === 'shinkansen' && trainInfo.on && <div className="traininfo"><span className={trainInfo.atc ? 'atc on' : 'atc'}>ATC {trainInfo.limit}</span><span>次 {trainInfo.next.replace('駅', '')} {trainInfo.dist >= 1000 ? (trainInfo.dist / 1000).toFixed(1) + 'km' : trainInfo.dist + 'm'}</span><span>{trainInfo.notch}</span></div>}
       <div className="vname">{me.def.name}</div>
       <i className="vhp"><b style={{ width: hp * 100 + '%', background: hp > 0.5 ? 'var(--mint)' : hp > 0.25 ? 'var(--amber)' : '#ff4b4b' }} /></i>
       <div className="rpm"><b style={{ width: Math.round(me.rpm * 100) + '%' }} /></div>

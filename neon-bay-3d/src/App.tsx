@@ -51,15 +51,17 @@ import * as raceMod from './game/crime/race';
 import * as story from './game/crime/story';
 import { BDOORS } from './game/world/bldgInteriors';
 import { RAMPS, HELIPADS, CUSTOMS, floorAt, solids } from './game/world/cityGen';
-import { game, load, save, clearSave, Quality, toast } from './game/state/store';
+import { game, load, save, clearSave, Quality, toast, arrival } from './game/state/store';
 import { bindKeyboard, input } from './game/input';
 import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ } from './game/world/cityGen';
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
 import { ArrivalScreen, TRAVEL_KEY } from './game/ui/TravelApp';
+import * as japanMod from './game/crime/japan';
+import type { RegionId } from './game/world/region';
 import { REGION } from './game/world/region'; // after the game modules (import cycles resolve in the old order)
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, japanMod, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -90,7 +92,7 @@ function Ticker({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
     // auto quality: if the frame rate stays low even at the lowest render scale, step the quality down (once per level)
     const W = slow.current; if (game.started && settings.quality === 'auto' && quality !== 'low') { W.t += dt; if (W.t > 1) { W.bad = D.dpr <= min + 0.01 && game.fps < 24 ? W.bad + W.t : 0; W.t = 0; if (W.bad > 8) { W.bad = 0; onSlow(); } } }
     boot.frames++; if (!boot.ready && boot.frames > 12 && (cityStream.pending === 0 || boot.frames > 1200)) boot.ready = true; // wait until the streamed city around the camera is built
-    updateProgression(dt);
+    updateProgression(dt); japanMod.updateTrain();
     // ambient sound
     const p = game.where === 'out' ? game.player : game.outsidePos, me = playerCar(), h = game.hour, day = h > 6.5 && h < 18.5 ? 1 : 0;
     ambience({ out: game.where === 'out' && game.started, inCar: !!me, day, city: Math.abs(p.x) < HALF && Math.abs(p.z) < HALF ? 1 : 0.2, sea: Math.max(0, Math.min(1, 1 - Math.abs(p.x - BEACH_X - 13) / 70)), height: me ? me.y : game.player.y, dt });
@@ -178,6 +180,7 @@ export default function App() {
   const firstTouch = () => { initAudio(); music.title = true; };
   const begin = (fresh: boolean) => {
     initAudio(); music.title = false; game.started = true; game.hour = fresh ? 9.5 : savedHour.current; setStarted(true); save();
+    if (arrival.drive) { arrival.drive = false; setTimeout(() => japanMod.startArrivalDrive(arrival.from as RegionId), 300); } // came in driving the bullet train: carry on in the cab
     if (fresh && !settings.tutorialDone) setTimeout(() => startTutorial(), 600);
     setTimeout(() => { const n = (giftsMod.dailyState().can ? 1 : 0) + giftsMod.unclaimed().length; if (n && tutorial.step < 0) toast(`🎁 ギフトが${n}件届いています（スマホ →「ギフト」）`, 3.2); }, 2500);
   };

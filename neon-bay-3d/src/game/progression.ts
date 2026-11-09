@@ -52,6 +52,7 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'yatai', icon: '🍜', title: '屋台めぐり', desc: '屋台で食事をする', test: (s) => !!s.flags.yatai },
   { id: 'train', icon: '🚃', title: '電車通勤', desc: '高架線に乗る', test: (s) => !!s.flags.train },
   { id: 'shinkansen', icon: '🚄', title: '新幹線の運転士', desc: '新幹線を運転する', test: (s) => !!s.flags.shinkansen },
+  { id: 'teii', icon: '🎯', title: '定位置停止', desc: '新幹線をホームの停止位置±1.5m以内に止める', test: (s) => !!s.flags.teii },
   { id: 'vend', icon: '🥤', title: 'のどが渇いた', desc: '自販機で飲み物を買う', test: (s) => !!s.flags.vend },
 ];
 

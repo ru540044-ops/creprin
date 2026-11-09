@@ -1,5 +1,5 @@
 import { mulberry, fbm, smooth, clamp } from './rng';
-import { REGION, inTokyo } from './region';
+import { REGION, inTokyo, RegionId } from './region';
 
 const RN = REGION.names;
 
@@ -387,7 +387,7 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     // the main station: a long hall facing the railway (red brick with domes in Tokyo, glass elsewhere), a forecourt behind
     const red = inTokyo(), nm = (REGION.station || REGION.names.downtown + '駅') + ' 駅構内';
     addB({ x0: ix0, z0: iz0 + 1, x1: ix0 + 24, z1: iz1 - 1, y0: S, h: red ? 15 : 19, type: red ? 'brick' : 'glass', tint: red ? [0.86, 0.42, 0.32] : [0.78, 0.86, 0.94], name: nm });
-    for (let k = 0; k < 6; k++) props.trees.push({ x: ix0 + 40 + (k % 2) * 22, z: iz0 + 10 + Math.floor(k / 2) * 26, s: 0.9, y: S });
+    for (const z of [iz0 + 6, iz1 - 6]) props.trees.push({ x: ix0 + 34, z, s: 0.9, y: S });
   } else if (zone === 'gas') {
     const sx0 = ix0 + 10, sz0 = iz0 + 50;
     addB({ x0: sx0, z0: sz0, x1: sx0 + 26, z1: sz0 + 16, y0: S, h: 5, type: 'shop', tint: [0.95, 0.95, 0.95] });
@@ -641,15 +641,43 @@ export const RAIL = (() => {
 }
 
 /* ---------- the bullet-train line: its own high viaduct along the avenue east of the main station (Naha has none) ---------- */
+export interface ShinPlatform { side: number; x0: number; x1: number; dir: number; to?: RegionId; num: number }
 export const SHIN = (() => {
-  const x = roadC(O + 13), sz = blockX0(STATION_BLOCK.j) + BLOCK / 2;
-  return { has: !!REGION.shinkansen, x, y: 15, z0: -HALF + ROAD + 6, z1: HALF - ROAD - 6, stationZ: sz, half: 5, track: 2.3, piers: [] as number[], gate: { x: x - 9.6, z: sz + 30 }, next: REGION.shinkansen ?? {} };
+  const x = roadC(O + 13), sz = blockX0(STATION_BLOCK.j) + BLOCK / 2, bx0 = blockX0(STATION_BLOCK.i), next = REGION.shinkansen ?? {};
+  // west platform: the northbound track (trains run on the left); east platform: the southbound track
+  const platforms: ShinPlatform[] = [{ side: -1, x0: x - 10.5, x1: x - 5, dir: -1, to: next.north, num: 14 }, { side: 1, x0: x + 5, x1: x + 10.5, dir: 1, to: next.south, num: 15 }];
+  return {
+    has: !!REGION.shinkansen, x, y: 15, z0: -HALF + ROAD + 6, z1: HALF - ROAD - 6, stationZ: sz, half: 5, track: 2.3, piers: [] as number[], next, platforms,
+    /** the Shinkansen concourse at street level, in the east half of the station block, entered from the forecourt */
+    hall: { x0: bx0 + 46, x1: bx0 + 80, z0: sz - 32, z1: sz + 32, h: 7.5, gateX: bx0 + 62 },
+    /** street entrance (map marker / directions) */
+    gate: { x: bx0 + 44, z: sz },
+  };
 })();
+/** Where a waiting train's lead car stands at a platform, and the cab door you board it by. */
+export const shinStand = (P: ShinPlatform) => ({ x: SHIN.x + P.side * SHIN.track, z: SHIN.stationZ + P.dir * 90 });
+export const shinCabDoor = (P: ShinPlatform) => ({ x: P.side < 0 ? P.x1 - 0.9 : P.x0 + 0.9, z: SHIN.stationZ + P.dir * 94 });
+/** Stairs: up from the concourse (behind the ticket gates) to each platform, and down from the platform end. */
+export const shinUp = (P: ShinPlatform) => ({ x: SHIN.hall.x0 + 28, z: SHIN.stationZ + P.side * 14 });
+export const shinDown = (P: ShinPlatform) => ({ x: (P.x0 + P.x1) / 2, z: SHIN.stationZ - 70 });
 if (SHIN.has) {
-  const R = SHIN;
-  for (let z = R.z0 + 10; z <= R.z1 - 10; z += 30) { const rel = ((z + HALF) % PITCH + PITCH) % PITCH; if (rel < ROAD + 4 || rel > PITCH - 4) continue; R.piers.push(z); solids.push({ x0: R.x - 1, z0: z - 1.4, x1: R.x + 1, z1: z + 1.4, y0: 0, y1: R.y - 1.3 }); }
-  solids.push({ x0: R.x - R.half, z0: R.z0, x1: R.x + R.half, z1: R.z1, y0: R.y - 1.3, y1: R.y });
-  solids.push({ x0: R.x - R.half - 5.5, z0: R.stationZ - 80, x1: R.x - R.half, z1: R.stationZ + 80, y0: R.y - 1.3, y1: R.y + 0.2 });
+  const R = SHIN, H = R.hall, sz = R.stationZ, box = (x0: number, z0: number, x1: number, z1: number, y0: number, y1: number) => solids.push({ x0, z0, x1, z1, y0, y1 });
+  for (let z = R.z0 + 10; z <= R.z1 - 10; z += 30) { const rel = ((z + HALF) % PITCH + PITCH) % PITCH; if (rel < ROAD + 4 || rel > PITCH - 4) continue; R.piers.push(z); box(R.x - 1, z - 1.4, R.x + 1, z + 1.4, 0, R.y - 1.3); }
+  box(R.x - R.half, R.z0, R.x + R.half, R.z1, R.y - 1.3, R.y);
+  for (const P of R.platforms) {
+    box(P.x0, sz - 112, P.x1, sz + 112, R.y - 1.3, R.y + 0.2);
+    // platform fence along the track edge, open at every car door of a standing train
+    const fx = P.side < 0 ? P.x1 - 0.15 : P.x0, doors: number[] = [];
+    for (let k = 0; k < 8; k++) for (const o of [-10.6, 10.6]) doors.push(sz + P.dir * 90 - P.dir * k * 25.6 + o);
+    let z = sz - 110; for (const d of doors.sort((a, b) => a - b)) { if (d - 1.1 > z + 0.3) box(fx, z, fx + 0.15, d - 1.1, R.y + 0.2, R.y + 1.4); z = d + 1.1; } if (z < sz + 110) box(fx, z, fx + 0.15, sz + 110, R.y + 0.2, R.y + 1.4);
+    box((P.x0 + P.x1) / 2 - 1.6, sz + 22, (P.x0 + P.x1) / 2 + 1.6, sz + 32, R.y + 0.2, R.y + 3); // waiting room
+  }
+  // concourse: walls (glass front with three entrances), ticket gates, stairs up behind them
+  box(H.x0, H.z0, H.x1, H.z0 + 0.4, 0, H.h); box(H.x0, H.z1 - 0.4, H.x1, H.z1, 0, H.h); box(H.x1 - 0.4, H.z0, H.x1, H.z1, 0, H.h);
+  { let z = H.z0; for (const g of [sz - 18, sz, sz + 18]) { box(H.x0, z, H.x0 + 0.3, g - 3, 0, H.h); z = g + 3; } box(H.x0, z, H.x0 + 0.3, H.z1, 0, H.h); }
+  for (let z = H.z0 + 5; z < H.z1 - 5; z += 1.5) box(H.gateX - 0.75, z - 0.15, H.gateX + 0.75, z + 0.15, 0, 1.05);
+  for (const P of R.platforms) { const u = shinUp(P); box(u.x + 2.2, u.z - 4, H.x1 - 0.4, u.z + 4, 0, 3); }
+  for (const L of [props.trees, props.benches, props.lamps, props.bins] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (L[k].x > H.x0 - 2 && L[k].x < H.x1 + 1 && L[k].z > H.z0 - 2 && L[k].z < H.z1 + 2) L.splice(k, 1);
 }
 
 /* ---------- Japanese streets: utility poles with sagging wires, vending machines ---------- */

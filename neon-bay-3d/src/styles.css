@@ -300,3 +300,4 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .arriveCard .arIcon{font-size:44px}.arriveCard .arFrom{margin:0;color:var(--dim);font-weight:700;letter-spacing:.1em}
 .arriveCard h2{margin:0;font-size:clamp(44px,10vw,72px);font-weight:900;letter-spacing:.08em;display:grid;line-height:1.05;text-shadow:0 4px 24px rgba(0,0,0,.7)}.arriveCard h2 small{font-size:15px;letter-spacing:.5em;color:#2be4ff}
 .arriveCard .arIntro{margin:0 0 6px;font-weight:700;line-height:1.6}.arriveCard .mbtn{width:100%}
+.traininfo{display:grid;grid-template-columns:auto 1fr auto;gap:6px;font-size:11px;font-weight:800;margin:2px 0;white-space:nowrap}.traininfo .atc{color:#3dff7a}.traininfo .atc.on{color:#ff4b4b;animation:blink .5s steps(2) infinite}@keyframes blink{50%{opacity:.3}}

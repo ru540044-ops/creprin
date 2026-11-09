@@ -89,7 +89,7 @@ export const REGION: RegionDef = (() => {
 })();
 export const inTokyo = () => REGION.id === 'tokyo';
 export function setRegion(id: RegionId) { try { localStorage.setItem(REGION_KEY, id); } catch { /* ignore */ } }
-export type TravelMode = 'train' | 'plane';
+export type TravelMode = 'train' | 'plane' | 'drive';
 /** Travel options between regions: mode, hours on the clock, fare. Naha (an island) is reached by plane only. */
 export function route(from: RegionId, to: RegionId) {
   const order: RegionId[] = ['tokyo', 'osaka', 'fukuoka'];

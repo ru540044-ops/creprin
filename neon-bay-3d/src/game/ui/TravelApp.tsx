@@ -6,7 +6,7 @@ import { law, trial } from '../crime/crime';
 import { race } from '../crime/race';
 import { mission } from '../crime/story';
 import { REGION, REGIONS, REGION_ORDER, RegionId, route } from '../world/region';
-import { STATION, AIRPORT } from '../world/cityGen';
+import { STATION, AIRPORT, SHIN } from '../world/cityGen';
 import { sfx } from '../audio';
 
 export { TRAVEL_KEY };
@@ -71,6 +71,7 @@ export default function TravelApp({ close }: { close: () => void }) {
       </div>
       <p className="appNote">{REGION.shinkansen && '駅の「新幹線のりば」から新幹線を自分で運転して行くこともできます（運賃なし）。'}お金・車・武器・服・実績は持っていけます。ストーリーと仕事はどの街でも続きができます。持ち家（不動産）は東京にあります。ギフトボックスは街ごとに別です。</p>
       <div className="jobBtns">
+        {SHIN.has && <button type="button" onClick={() => { game.waypoint = { x: SHIN.gate.x, z: SHIN.gate.z }; save(); toast('新幹線のりかえ口を目的地に設定（改札→ホーム→運転席）', 2.4); close(); }}>新幹線のりばへ案内</button>}
         {ST && <button type="button" onClick={() => { game.waypoint = { x: ST.x, z: ST.z - 3 }; save(); toast(ST.label + 'を目的地に設定'); close(); }}>{ST.label}へ案内</button>}
         <button type="button" onClick={() => { game.waypoint = { x: AIRPORT.x0 + 390, z: 168 }; save(); toast(REGION.names.airport + 'を目的地に設定'); close(); }}>{REGION.names.airport}へ案内</button>
       </div>

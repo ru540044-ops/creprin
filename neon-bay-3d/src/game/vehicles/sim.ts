@@ -257,14 +257,24 @@ function flyJet(v: Veh, c: Drive | null, dt: number) {
 export const SHIN_HEAD = 16, SHIN_TAIL = 195.2, SHIN_FLIP = 179.2;
 /** Track limits for the lead car's centre, facing south (dir 1) or north (dir -1). */
 export const shinLimits = (dir: number) => (dir > 0 ? [SHIN.z0 + SHIN_TAIL + 2, SHIN.z1 - SHIN_HEAD - 2] : [SHIN.z0 + SHIN_HEAD + 2, SHIN.z1 - SHIN_TAIL - 2]);
-/** Bullet train on its viaduct: power and brake notches along the track, a slow reverse when stopped, buffers at both ends. */
+const ATC_STEPS = [300, 275, 230, 170, 120, 70, 45, 30];
+/** Cab-signal speed (km/h) for the train: a braking curve to the buffers at the end of the line, shown in the usual ATC steps. */
+export function atcKmh(v: Veh) {
+  const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, [lo, hi] = shinLimits(dir), d = dir > 0 ? hi - v.z : v.z - lo;
+  if (d < 2) return 0;
+  const curve = Math.sqrt(2 * 2.2 * Math.max(0, d - 4)) * 3.6; // service braking at 2.2 m/s2 stops before the buffers
+  for (const s of ATC_STEPS) if (s <= curve) return s;
+  return 30;
+}
+/** Bullet train on its viaduct: power and brake along the track, ATC limits, buffers at both ends. */
 function rail(v: Veh, c: Drive | null, dt: number) {
   const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, thr = c ? c.thr : 0, br = c ? c.brake : 0;
   let sp = v.vz * dir;
   if (thr > 0.05 && sp >= -0.2) sp += v.def.accel * thr * (1.4 - 0.9 * Math.max(0, sp) / v.def.top) * dt;
-  if (br > 0.05) { if (sp > 0.3) sp = Math.max(0, sp - v.def.brake * br * dt); else if (thr <= 0.05) sp = Math.max(-5, sp - 0.8 * br * dt); }
-  if (sp < 0 && thr > 0.05) sp = Math.min(0, sp + 2.5 * dt);
+  if (br > 0.05) sp = Math.max(0, sp - v.def.brake * br * dt); // a train does not back up on the brake: overshoot and you are judged on it
   sp *= 1 - 0.0025 * dt;
+  const lim = atcKmh(v) / 3.6;
+  if (sp > lim + 0.5) sp = Math.max(lim, sp - 4.5 * dt); // ATC brake
   const [lo, hi] = shinLimits(dir);
   let z = v.z + dir * sp * dt; if (z < lo) { z = lo; sp = 0; } if (z > hi) { z = hi; sp = 0; }
   v.z = z; v.x = SHIN.x + (dir > 0 ? SHIN.track : -SHIN.track); v.y = SHIN.y + 0.05; v.vx = 0; v.vz = dir * sp; v.yr = 0; v.pitch = 0; v.roll = 0; v.air = false; v.vy = 0;
