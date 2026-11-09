@@ -307,7 +307,7 @@ const rng = mulberry(20261107);
 const pick = <T,>(a: T[], r: () => number) => a[Math.floor(r() * a.length)];
 const GLASS_T: [number, number, number][] = [[0.75, 0.85, 0.95], [0.7, 0.78, 0.9], [0.85, 0.9, 0.95], [0.6, 0.72, 0.85]];
 const OFFICE_T: [number, number, number][] = [[0.92, 0.88, 0.8], [0.85, 0.85, 0.88], [0.95, 0.92, 0.86], [0.8, 0.78, 0.75]];
-const BRICK_T: [number, number, number][] = [[0.75, 0.45, 0.38], [0.65, 0.42, 0.35], [0.82, 0.6, 0.5], [0.6, 0.55, 0.52]];
+const BRICK_T: [number, number, number][] = [[0.98, 0.95, 0.89], [0.86, 0.85, 0.83], [0.94, 0.89, 0.8], [0.84, 0.64, 0.54], [0.76, 0.77, 0.79], [0.96, 0.92, 0.86]]; // tiled mid-rises: beige, grey, white, a brick-red tile
 const HOUSE_T: [number, number, number][] = [[0.98, 0.92, 0.82], [0.9, 0.82, 0.72], [0.82, 0.9, 0.92], [0.98, 0.86, 0.7], [0.88, 0.94, 0.86], [0.96, 0.84, 0.86]];
 const ROOF_T: [number, number, number][] = [[0.55, 0.25, 0.2], [0.35, 0.35, 0.4], [0.45, 0.32, 0.25], [0.3, 0.38, 0.36]];
 const SHOP_T: [number, number, number][] = [[0.95, 0.9, 0.82], [0.88, 0.8, 0.9], [0.8, 0.9, 0.95], [0.98, 0.85, 0.75]];
@@ -627,7 +627,7 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
     if (h < 3 || (TUN.on && Math.abs(x - TUN.x) < 30 && z > TUN.portal - 6)) continue; props.pines.push({ x, z, s: 0.7 + r() * 0.8, y: h }); // none in the cutting or on the portal
   }
   // billboards on mid-rise roofs
-  for (const b of buildings) { const q = mulberry(Math.floor(b.x0 * 13 + b.z0 * 7 + 991)); if ((b.type === 'office' || b.type === 'brick') && b.h < 50 && q() < 0.12) props.billboards.push({ x: (b.x0 + b.x1) / 2, z: b.z0 + 2, y: b.y0 + b.h, a: 0, w: Math.min(18, b.x1 - b.x0 - 4), c: Math.floor(q() * 4) }); }
+  for (const b of buildings) { const q = mulberry(Math.floor(b.x0 * 13 + b.z0 * 7 + 991)); if ((b.type === 'office' || b.type === 'brick') && b.h < 50 && q() < (blockOfB(b)?.zone === 'commercial' ? 0.3 : 0.12)) props.billboards.push({ x: (b.x0 + b.x1) / 2, z: b.z0 + 2, y: b.y0 + b.h, a: 0, w: Math.min(18, b.x1 - b.x0 - 4), c: Math.floor(q() * 4) }); }
 }
 
 /* ---------- homes you can walk into (danchi flat, family house, tower penthouse, beach villa) ---------- */

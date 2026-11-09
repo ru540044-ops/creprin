@@ -39,7 +39,7 @@ function useMaterials() {
     const pool = new THREE.MeshBasicMaterial({ map: T.glow, color: '#ffcf8a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
     nightMats.push({ m: pool, k: 0.55, kind: 'opacity' });
     return {
-      curtain: fac(T.curtain, 0.62, 1.3), ribbon: fac(T.ribbon, 0.15, 1.15), fin: fac(T.fin, 0.4, 1.25), podium: fac(T.podium, 0.05, 1.35),
+      curtain: fac(T.curtain, 0.62, 0.85), ribbon: fac(T.ribbon, 0.15, 0.75), fin: fac(T.fin, 0.4, 0.85), podium: fac(T.podium, 0.05, 1.1),
       crown: (() => { const m = new THREE.MeshStandardMaterial({ color: '#d9e1ea', emissive: new THREE.Color('#d6ecff'), emissiveIntensity: 0, roughness: 0.4, metalness: 0.3 }); nightMats.push({ m, k: 2.6, kind: 'emissive' }); return m; })(),
       glass: fac(T.glass, 0.55), office: fac(T.office, 0.1), brick: fac(T.brick, 0.02), shop: fac(T.shop, 0.05, 1.3), house: fac(T.house, 0.02, 0.9), machiya: fac(T.machiya, 0.02, 0.8), okinawa: fac(T.okinawa, 0.02, 0.9), warehouse: fac(T.warehouse, 0.3, 0.6), terminal: fac(T.terminal, 0.5), hangar: fac(T.warehouse, 0.35, 0.4),
       roof: std({ map: rep(T.roof), vertexColors: true, roughness: 0.95 }),

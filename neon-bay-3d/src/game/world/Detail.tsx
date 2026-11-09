@@ -129,7 +129,7 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
           aw.push({ m: M.compose(P, Q, S).clone(), c: col });
         }
       }
-      if ((k.zone === 'commercial' || k.zone === 'canal') && b.type !== 'shop' && b.h > 13 && f.len > 7 && f.len < 34 && r() < 0.6) { // a sign for every floor's tenant, stacked up the front
+      if ((k.zone === 'commercial' || k.zone === 'canal') && b.type !== 'shop' && b.h > 13 && f.len > 7 && f.len < 34 && r() < 0.85) { // a sign for every floor's tenant, stacked up the front
         const floors = Math.min(7, Math.floor((b.h - 5) / 3.4)), pw = Math.min(f.len * 0.82, 12), side = r() < 0.5 ? -1 : 1, off = (f.len - pw) / 2 * 0.9 * side;
         for (let q = 1; q < floors; q++) {
           if (r() < 0.15) continue;

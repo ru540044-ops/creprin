@@ -78,7 +78,7 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
     fog.color.copy(cols.fogDay).lerp(cols.fogDusk, dusk * 0.7).lerp(cols.fogNight, night);
     fog.color.lerp(cols.night.clone().setRGB(0.45, 0.48, 0.53).multiplyScalar(0.25 + day * 0.75), cl * 0.75);
     fog.color.multiplyScalar(1 - 0.93 * tun);
-    fog.near = (120 + day * 120) * (1 - 0.65 * W.rain) * (1 - 0.6 * tun); fog.far = (900 + day * 700) * (1 - 0.62 * W.rain) * (1 - 0.55 * tun);
+    fog.near = (170 + day * 70) * (1 - 0.65 * W.rain) * (1 - 0.6 * tun); fog.far = (1450 + day * 150) * (1 - 0.62 * W.rain) * (1 - 0.55 * tun); // clear nights: the lit skyline stays visible across the city
     gl.toneMappingExposure = (0.85 + day * 0.25 + night * 0.35) * (1 - 0.12 * cl) * look.exposure;
     for (const w of wetMats) { w.m.roughness = w.r * (1 - 0.62 * W.wet); w.m.color.setScalar(1 - 0.3 * W.wet); }
     (scene as any).environmentIntensity = (0.45 + day * 0.55) * look.env * (1 - 0.8 * tun);
