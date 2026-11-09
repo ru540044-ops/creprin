@@ -125,7 +125,7 @@ export const BAY = new Set<number>();
 {
   const bay = REGION.bay, inCore = (i: number, j: number) => i >= O - 1 && i <= O + CORE && j >= O - 1 && j <= O + CORE;
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-    if (inCore(i, j) || i === N / 2 || i === O + 12 || i === O + 13) continue; // keep the core, the highway-run column and the railways on land
+    if (inCore(i, j) || ((i === N / 2 || i === N / 2 - 1) && j < 2)) continue; // keep the core and the corner the highway time trial enters by (the railways cross the water on their viaducts)
     const n = hash01(i, j) * 1.6 + Math.sin(j * 0.55) * 0.9 + Math.sin(i * 0.47 + 1) * 0.9;
     let w = false;
     if (bay === 'southeast') w = i + j > 2 * N - 13 + n && i > N - 11 && j > N - 12;
@@ -781,6 +781,8 @@ export const SHORE: { x0: number; z0: number; x1: number; z1: number; top: numbe
     if (wet(ci, cj - 1)) SHORE.push({ x0, z0, x1, z1: z0 + t, top }); if (wet(ci, cj + 1)) SHORE.push({ x0, z0: z1 - t, x1, z1, top });
   }
   for (const s of SHORE) solids.push({ x0: s.x0, z0: s.z0, x1: s.x1, z1: s.z1, y0: -3, y1: s.top + 1.05 });
+  // trees and benches round the ponds
+  { const r = mulberry(919); for (const P of CANAL_RECTS) { if (P.axis !== 'pond') continue; for (let t = P.x0 + 4; t < P.x1 - 2; t += 11) for (const z of [P.z0 - 4.5, P.z1 + 4.5]) props.trees.push({ x: t + r() * 2, z, s: 0.8 + r() * 0.4, y: 0.17, c: r() < 0.35 ? SAKURA : undefined }); for (let t = P.z0 + 9; t < P.z1 - 2; t += 11) for (const x of [P.x0 - 4.5, P.x1 + 4.5]) props.trees.push({ x, z: t + r() * 2, s: 0.8 + r() * 0.4, y: 0.17, c: r() < 0.35 ? SAKURA : undefined }); props.benches.push({ x: (P.x0 + P.x1) / 2, z: P.z1 + 1.6, a: 0, y: 0.15 }, { x: (P.x0 + P.x1) / 2, z: P.z0 - 1.6, a: Math.PI, y: 0.15 }); } }
   // remove what the generic street furniture put in the water
   const wetAt = (x: number, z: number) => inBay(x, z) || inCanal(x, z);
   for (const L of [props.lamps, props.signals, props.hydrants, props.trees, props.palms, props.benches, props.bins, props.poles, props.vends, props.billboards, props.shisa] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (wetAt(L[k].x, L[k].z)) L.splice(k, 1);
