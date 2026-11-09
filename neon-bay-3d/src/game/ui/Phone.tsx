@@ -8,10 +8,10 @@ import { PROF } from '../vehicles/models';
 import { vehicles, deliverNear, sellOwned, repairAll, ownedSpot } from '../vehicles/sim';
 import { mediumOf } from '../vehicles/defs';
 import GiftApp from './GiftApp';
-import TravelApp from './TravelApp';
+import TravelApp, { ShinApp } from './TravelApp';
 import { REGION, inTokyo } from '../world/region';
 import { hasRoom, capOf, usedOf, homeName, dailyState, unclaimed } from '../crime/gifts';
-import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT } from '../world/cityGen';
+import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT, SHIN } from '../world/cityGen';
 import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
 import { RACES, PRIZES } from '../crime/race';
 import { MISSIONS, nextMission, mission as storyMission } from '../crime/story';
@@ -21,7 +21,7 @@ import { PROPERTIES } from '../world/homes';
 import { admin } from '../admin';
 import { audio, sfx } from '../audio';
 
-type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin' | 'realty' | 'gift' | 'travel';
+type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin' | 'realty' | 'gift' | 'travel' | 'shin';
 
 /** Side view drawn from the same profile the 3D model is extruded from. */
 export function CarSVG({ kind, color }: { kind: VKind; color: string }) {
@@ -235,7 +235,7 @@ export default function Phone({ onClose, openMap, quality, mode, setMode }: { on
     game.money -= d.price; ownedCars.push({ kind: k, color: c }); const s = ownedSpot(ownedCars.length - 1); game.waypoint = { x: s.x, z: s.z };
     sfx('buy'); toast(d.name + 'を購入！' + homeName(k) + 'に納車しました（目的地に設定）', 3.2); save(); refresh();
   };
-  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者', realty: '不動産', gift: 'ギフト', travel: '日本旅行' }[app];
+  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者', realty: '不動産', gift: 'ギフト', travel: '日本旅行', shin: '新幹線' }[app];
   return (
     <div className="overlay phoneWrap" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="phone" role="dialog" aria-label="スマートフォン">
@@ -249,6 +249,7 @@ export default function Phone({ onClose, openMap, quality, mode, setMode }: { on
             <button type="button" className="appIc" onClick={() => open('gift')}><i style={{ background: 'linear-gradient(135deg,#ff3f6e,#ffcf4a)' }}>🎁</i>ギフト{(dailyState().can ? 1 : 0) + unclaimed().length > 0 && <em className="badge">{(dailyState().can ? 1 : 0) + unclaimed().length}</em>}</button>
             <button type="button" className="appIc" onClick={() => { sfx('ui'); if (playerCar()) { toast('車を降りてから使えます', 1.6); return; } onClose(); game.openStyle = true; }}><i style={{ background: 'linear-gradient(135deg,#c9a25a,#5a3a22)' }}>👗</i>スタイル</button>
             <button type="button" className="appIc" onClick={() => open('travel')}><i style={{ background: 'linear-gradient(135deg,#ff4a4a,#ffffff)' }}>🗾</i>旅行</button>
+            {SHIN.has && <button type="button" className="appIc" onClick={() => open('shin')}><i style={{ background: 'linear-gradient(135deg,#1e5bd8,#e9f0ff)' }}>🚄</i>新幹線</button>}
             <button type="button" className="appIc" onClick={() => open('realty')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#2b6bff)' }}>🏠</i>不動産</button>
             {admin.is && <button type="button" className="appIc" onClick={() => open('admin')}><i style={{ background: 'linear-gradient(135deg,#ff2a40,#7a00ff)' }}>🛡</i>管理者</button>}
             <button type="button" className="appIc" onClick={() => open('settings')}><i style={{ background: 'linear-gradient(135deg,#8a8aa8,#3c3c55)' }}>⚙</i>設定</button>
@@ -262,6 +263,7 @@ export default function Phone({ onClose, openMap, quality, mode, setMode }: { on
             {app === 'realty' && <Realty close={onClose} />}
             {app === 'gift' && <GiftApp close={onClose} refresh={refresh} />}
             {app === 'travel' && <TravelApp close={onClose} />}
+            {app === 'shin' && <ShinApp close={onClose} />}
             {app === 'jobs' && <Jobs close={onClose} refresh={refresh} />}
             {app === 'settings' && <Settings quality={quality} mode={mode} setMode={setMode} />}
           </>

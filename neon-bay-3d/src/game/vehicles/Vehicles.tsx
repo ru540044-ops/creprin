@@ -8,7 +8,7 @@ import { isBoat } from './defs';
 import { explode, tickExplosives } from '../combat/explode';
 import { game, toast } from '../state/store';
 import { input } from '../input';
-import { engine } from '../audio';
+import { engine, trainSound } from '../audio';
 import { getTextures, labelTexture } from '../world/textures';
 import { GARAGE } from '../world/cityGen';
 import { updateCrime, law } from '../crime/crime';
@@ -206,8 +206,9 @@ export default function Vehicles() {
     for (const v of vehicles) if (v.nitroOn) { const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw); flash(v.x - fx * (v.def.len / 2 + 0.3), v.y + 0.38, v.z - fz * (v.def.len / 2 + 0.3), 0.7 + Math.random() * 0.4); }
     // burnt-out owned cars are towed back to the garage (repaired) once you walk away
     for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && v.exploded && v.owned >= 0 && v.id !== game.inCar && Math.hypot(v.x - fx, v.z - fz) > 45) { remove(v); toast(v.def.name + 'はガレージで修理された', 2.4); }
-    if (me) { const c = driveInput(me.def.kind); engine(game.started, me.rpm, me.gear, c.thr, me.slip, me.def.kind); game.speed = Math.hypot(me.vx, me.vz); }
-    else engine(false, 0, 0, 0, 0, '');
+    const train = !!me && me.def.kind === 'shinkansen';
+    if (me) { const c = driveInput(me.def.kind); engine(game.started && !train, me.rpm, me.gear, c.thr, me.slip, me.def.kind); trainSound(game.started && train, Math.abs(me.vz) * 3.6, c.thr, c.brake, game.tunnel, dt); game.speed = Math.hypot(me.vx, me.vz); }
+    else { engine(false, 0, 0, 0, 0, ''); trainSound(false, 0, 0, 0, 0, dt); }
     // headlight cone for the player's car at night
     const L = headSpot.current;
     if (L) { const night = game.hour > 18.6 || game.hour < 6.2; L.intensity = me && night && !me.dead ? 900 : 0; if (me) { const fxx = Math.sin(me.yaw), fzz = Math.cos(me.yaw); L.position.set(me.x + fxx * me.def.len * 0.5, me.y + 0.8, me.z + fzz * me.def.len * 0.5); target.position.set(me.x + fxx * 25, me.y, me.z + fzz * 25); target.updateMatrixWorld(); } }

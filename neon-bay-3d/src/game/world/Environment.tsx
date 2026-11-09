@@ -6,6 +6,7 @@ import { Sky, Stars } from '@react-three/drei';
 import { game } from '../state/store';
 import { nightMats, wetMats } from './City';
 import { smooth } from './rng';
+import { inTunnel, TUN } from './cityGen';
 
 /** Sun, sky, fog and day/night cycle. One in-game day = game.dayLen real seconds. */
 /** Lighting balance, tweakable from the debug hook. */
@@ -18,7 +19,7 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
   const hemi = useRef<THREE.HemisphereLight>(null!);
   const sky = useRef<any>(null!);
   const stars = useRef<THREE.Points>(null!);
-  const { scene, gl } = useThree();
+  const { scene, gl, camera } = useThree();
   const fog = useMemo(() => new THREE.Fog('#c9d6e6', 200, 1500), []);
   scene.fog = fog;
   // Reflections come from a painted copy of the current sky (zenith, horizon, sun glow, ground), re-baked as time passes.
@@ -66,17 +67,21 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
     L.position.set(p.x + dir.x * 220, (game.where === 'out' ? 0 : -50) + dir.y * 220, p.z + dir.z * 220); L.target.position.set(p.x, game.where === 'out' ? 0 : -50, p.z); L.target.updateMatrixWorld();
     const W = game.weather, cl = W.cloud;
     const indoor = game.where !== 'out';
-    L.intensity = ((day * look.sun + night * 0.25) * (1 - 0.7 * cl) + W.flash * 3) * (indoor ? 0.1 : 1);
+    // in the Shinkansen tunnel: no daylight, a dark haze down the bore
+    { const c = camera.position, want = game.where === 'out' && inTunnel(c.x, c.z) && c.y < TUN.y + 10 ? 1 : 0; game.tunnel += (want - game.tunnel) * Math.min(1, dt * 3); }
+    const tun = game.tunnel;
+    L.intensity = ((day * look.sun + night * 0.25) * (1 - 0.7 * cl) + W.flash * 3) * (indoor ? 0.1 : 1) * (1 - 0.92 * tun);
     L.color.copy(cols.day).lerp(cols.dusk, dusk * 0.8).lerp(cols.night, night);
-    hemi.current.intensity = ((0.3 + day * look.hemi + night * 0.22) * (1 + 0.3 * cl) + W.flash * 2.5) * (indoor ? 0.45 : 1);
+    hemi.current.intensity = ((0.3 + day * look.hemi + night * 0.22) * (1 + 0.3 * cl) + W.flash * 2.5) * (indoor ? 0.45 : 1) * (1 - 0.7 * tun);
     hemi.current.color.setRGB(0.62 + day * 0.2, 0.7 + day * 0.15, 0.85 + day * 0.1).lerp(cols.night, night * 0.6);
     hemi.current.groundColor.setRGB(0.32, 0.28, 0.25).multiplyScalar(0.4 + day * 0.6);
     fog.color.copy(cols.fogDay).lerp(cols.fogDusk, dusk * 0.7).lerp(cols.fogNight, night);
     fog.color.lerp(cols.night.clone().setRGB(0.45, 0.48, 0.53).multiplyScalar(0.25 + day * 0.75), cl * 0.75);
-    fog.near = (120 + day * 120) * (1 - 0.65 * W.rain); fog.far = (900 + day * 700) * (1 - 0.62 * W.rain);
+    fog.color.multiplyScalar(1 - 0.93 * tun);
+    fog.near = (120 + day * 120) * (1 - 0.65 * W.rain) * (1 - 0.6 * tun); fog.far = (900 + day * 700) * (1 - 0.62 * W.rain) * (1 - 0.55 * tun);
     gl.toneMappingExposure = (0.85 + day * 0.25 + night * 0.35) * (1 - 0.12 * cl) * look.exposure;
     for (const w of wetMats) { w.m.roughness = w.r * (1 - 0.62 * W.wet); w.m.color.setScalar(1 - 0.3 * W.wet); }
-    (scene as any).environmentIntensity = (0.45 + day * 0.55) * look.env;
+    (scene as any).environmentIntensity = (0.45 + day * 0.55) * look.env * (1 - 0.8 * tun);
     if (stars.current) (stars.current.material as THREE.PointsMaterial).opacity = night * (1 - W.cloud);
     envGen(h, day, dusk, night, sunPos, W.cloud);
     sunState.dir.copy(sunPos); sunState.isSun = elev > -0.05; sunState.day = day; sunState.dusk = dusk;

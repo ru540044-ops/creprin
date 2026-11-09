@@ -12,7 +12,7 @@ import { vehicles, playerCar, Veh } from '../vehicles/sim';
 import { sfx } from '../audio';
 import { jobNear, jobAction, onEnterCar, law } from '../crime/crime';
 import { hooks } from '../vehicles/sim';
-import { collide, groundAt, floorAt, doors, pointBlocked, districtAt, isWater } from '../world/cityGen';
+import { collide, groundAt, floorAt, doors, pointBlocked, districtAt, isWater, TUN } from '../world/cityGen';
 import { INTERIORS, FLOOR, interiorCollide } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
@@ -343,11 +343,13 @@ export default function Player() {
         const ly = me.yaw + st.look; want.set(camera.position.x + Math.sin(ly) * 10, camera.position.y - 0.6 - st.lookP * 6 - me.pitch * 10, camera.position.z + Math.cos(ly) * 10);
         camera.lookAt(want); return;
       }
-      const L = me.def.len, jet = me.def.kind === 'jet', train = me.def.kind === 'shinkansen', dist2 = train ? (cm === 0 ? 26 : 48) : jet ? (cm === 0 ? 20 : 34) : cm === 0 ? 3.6 + L * 0.75 : 7 + L * 1.1, ht = train ? (cm === 0 ? 8 : 15) : me.def.hgt * 0.9 + (cm === 0 ? 0.55 : 1.3), pitch2 = (cm === 0 ? 0.1 : 0.18) + st.lookP - (jet ? me.pitch * 0.85 : 0);
+      const L = me.def.len, jet = me.def.kind === 'jet', train = me.def.kind === 'shinkansen', bore = train && me.z < TUN.portal + TUN.hood + 70;
+      const dist2 = bore ? (cm === 0 ? 20 : 30) : train ? (cm === 0 ? 26 : 48) : jet ? (cm === 0 ? 20 : 34) : cm === 0 ? 3.6 + L * 0.75 : 7 + L * 1.1, ht = bore ? 3.6 : train ? (cm === 0 ? 8 : 15) : me.def.hgt * 0.9 + (cm === 0 ? 0.55 : 1.3);
+      const pitch2 = bore ? Math.min(0.09, 0.06 + st.lookP) : (cm === 0 ? 0.1 : 0.18) + st.lookP - (jet ? me.pitch * 0.85 : 0);
       camTgt.set(me.x, me.y + ht, me.z);
       const cx = Math.sin(cyaw) * Math.cos(pitch2), cz = Math.cos(cyaw) * Math.cos(pitch2), cy = Math.sin(pitch2);
       let d2 = dist2;
-      for (let k = 1; k <= 12; k++) { const t = (k / 12) * dist2, x = camTgt.x + cx * t, y = camTgt.y + cy * t, z = camTgt.z + cz * t; if (pointBlocked(x, y, z) || y < groundAt(x, z) + 0.3) { d2 = Math.max(1.2, t - dist2 / 12); break; } }
+      if (!bore) for (let k = 1; k <= 12; k++) { const t = (k / 12) * dist2, x = camTgt.x + cx * t, y = camTgt.y + cy * t, z = camTgt.z + cz * t; if (pointBlocked(x, y, z) || y < groundAt(x, z) + 0.3) { d2 = Math.max(1.2, t - dist2 / 12); break; } }
       want.set(camTgt.x + cx * d2 + jx, camTgt.y + cy * d2 + jy, camTgt.z + cz * d2);
       camPos.lerp(want, Math.min(1, dt * 12)); if (camPos.distanceTo(want) > 12) camPos.copy(want);
       camera.position.copy(camPos); camera.lookAt(camTgt.x, camTgt.y - 0.15, camTgt.z); return;

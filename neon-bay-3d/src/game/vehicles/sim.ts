@@ -258,9 +258,11 @@ export const SHIN_HEAD = 16, SHIN_TAIL = 195.2, SHIN_FLIP = 179.2;
 /** Track limits for the lead car's centre, facing south (dir 1) or north (dir -1). */
 export const shinLimits = (dir: number) => (dir > 0 ? [SHIN.z0 + SHIN_TAIL + 2, SHIN.z1 - SHIN_HEAD - 2] : [SHIN.z0 + SHIN_HEAD + 2, SHIN.z1 - SHIN_TAIL - 2]);
 const ATC_STEPS = [300, 275, 230, 170, 120, 70, 45, 30];
+/** Set each frame by the driving logic: the line goes on beyond the tunnel (a trip to the next city), so no braking curve to the north end. */
+export const shinRun = { open: false };
 /** Cab-signal speed (km/h) for the train: a braking curve to the buffers at the end of the line, shown in the usual ATC steps. */
 export function atcKmh(v: Veh) {
-  const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, [lo, hi] = shinLimits(dir), d = dir > 0 ? hi - v.z : v.z - lo;
+  const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, [lo, hi] = shinLimits(dir), d = dir > 0 ? hi - v.z : v.z - lo + (shinRun.open ? 4000 : 0);
   if (d < 2) return 0;
   const curve = Math.sqrt(2 * 2.2 * Math.max(0, d - 4)) * 3.6; // service braking at 2.2 m/s2 stops before the buffers
   for (const s of ATC_STEPS) if (s <= curve) return s;
@@ -277,7 +279,7 @@ function rail(v: Veh, c: Drive | null, dt: number) {
   if (sp > lim + 0.5) sp = Math.max(lim, sp - 4.5 * dt); // ATC brake
   const [lo, hi] = shinLimits(dir);
   let z = v.z + dir * sp * dt; if (z < lo) { z = lo; sp = 0; } if (z > hi) { z = hi; sp = 0; }
-  v.z = z; v.x = SHIN.x + (dir > 0 ? SHIN.track : -SHIN.track); v.y = SHIN.y + 0.05; v.vx = 0; v.vz = dir * sp; v.yr = 0; v.pitch = 0; v.roll = 0; v.air = false; v.vy = 0;
+  v.z = z; v.x = SHIN.x + (v.x >= SHIN.x ? SHIN.track : -SHIN.track); v.y = SHIN.y + 0.05; v.vx = 0; v.vz = dir * sp; v.yr = 0; v.pitch = 0; v.roll = 0; v.air = false; v.vy = 0;
   v.steer = 0; v.braking = br > 0.05; v.reversing = sp < -0.1; v.rpm = Math.min(1, Math.abs(sp) / v.def.top); v.gear = sp < -0.1 ? -1 : 1; v.slip = 0; v.spd = Math.abs(sp);
 }
 export function collisions(dt: number): number {

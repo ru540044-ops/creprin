@@ -6,6 +6,7 @@ import CruiseShip from './game/world/CruiseShip';
 import Landmarks from './game/world/Landmarks';
 import Signature from './game/world/Signature';
 import ShinkansenLine from './game/world/ShinkansenLine';
+import Mountains from './game/world/Mountains';
 import Railway from './game/world/Railway';
 import Environment from './game/world/Environment';
 import Interiors from './game/world/Interiors';
@@ -113,6 +114,7 @@ function Scene({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
   return (
     <>
       <Environment shadows={q.shadows} shadowSize={q.size} />
+      <Mountains />
       <City shadows={q.shadows} />
       <CruiseShip />
       <Landmarks />

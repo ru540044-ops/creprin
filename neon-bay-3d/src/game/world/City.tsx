@@ -6,7 +6,7 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay, TUN,
 } from './cityGen';
 import { REGION } from './region';
 import { game } from '../state/store';
@@ -575,14 +575,27 @@ function buildGround() {
 function Terrain({ mats }: { mats: Mats }) {
   const geo = useMemo(() => {
     const x0 = LAND.x0, x1 = LAND.x1, z0 = LAND.z0, z1 = -HALF - 40, nx = 300, nz = 80;
-    const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz); g.rotateX(-Math.PI / 2); g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
-    const p = g.attributes.position as THREE.BufferAttribute, cols: number[] = [];
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), h = heightAt(x, z); p.setY(i, h); }
+    // a regular grid, with extra columns and rows where the Shinkansen cuts into the hills (the cutting, the portal)
+    let xs: number[] = [], zs: number[] = [];
+    for (let i = 0; i <= nx; i++) xs.push(x0 + ((x1 - x0) * i) / nx);
+    for (let j = 0; j <= nz; j++) zs.push(z0 + ((z1 - z0) * j) / nz);
+    if (TUN.on) {
+      for (const o of [0, 3, 6.2, 9, 12.9, 13.1, 16, 20, 24, 30, 40, 55]) { xs.push(TUN.x + o); if (o) xs.push(TUN.x - o); }
+      for (let z = TUN.portal + 0.6; z < -HALF - 40; z += 6) zs.push(z);
+      zs.push(TUN.portal - 1, TUN.portal - 6);
+    }
+    const uniq = (a: number[]) => { a.sort((p, q) => p - q); return a.filter((v, i) => i === 0 || v - a[i - 1] > 0.05); };
+    xs = uniq(xs); zs = uniq(zs);
+    const W = xs.length, H = zs.length, pos = new Float32Array(W * H * 3), uv = new Float32Array(W * H * 2), idx: number[] = [];
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { const k = j * W + i, x = xs[i], z = zs[j]; pos[k * 3] = x; pos[k * 3 + 1] = heightAt(x, z); pos[k * 3 + 2] = z; uv[k * 2] = ((x - x0) / (x1 - x0)) * 140; uv[k * 2 + 1] = ((z1 - z) / (z1 - z0)) * 80; }
+    // the mouth of the bore stays open: no ground across it at the portal
+    const hole = (i: number, j: number) => TUN.on && Math.abs(xs[i] - TUN.x) < TUN.hw + 0.65 && Math.abs(xs[i + 1] - TUN.x) < TUN.hw + 0.65 && zs[j] > TUN.portal - 1.05 && zs[j + 1] < TUN.portal + 0.65;
+    for (let j = 0; j + 1 < H; j++) for (let i = 0; i + 1 < W; i++) { if (hole(i, j)) continue; const a = j * W + i, b = a + 1, c = a + W, d = c + 1; idx.push(a, c, b, b, c, d); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx);
     g.computeVertexNormals();
-    const n = g.attributes.normal as THREE.BufferAttribute;
+    const p = g.attributes.position as THREE.BufferAttribute, n = g.attributes.normal as THREE.BufferAttribute, cols: number[] = [];
     for (let i = 0; i < p.count; i++) { const h = p.getY(i), sl = 1 - n.getY(i), t = Math.min(1, h / 200); const c = new THREE.Color().setRGB(0.36 + t * 0.25, 0.48 + t * 0.12, 0.26 + t * 0.12); if (sl > 0.18) c.lerp(new THREE.Color(0.5, 0.47, 0.44), Math.min(1, (sl - 0.18) * 4)); cols.push(c.r, c.g, c.b); }
     g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    const uv = g.attributes.uv as THREE.BufferAttribute; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 140, uv.getY(i) * 80);
     return g;
   }, []);
   return <mesh geometry={geo} material={mats.dirt} receiveShadow />;

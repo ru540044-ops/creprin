@@ -27,6 +27,7 @@ export const game = {
   yachtId: 0, // the yacht whose cabin you are in
   homes: [] as string[], // properties the player owns
   fadeT: 0, // black fade (sleeping)
+  tunnel: 0, // 0..1 while the camera is inside the Shinkansen tunnel (lights and fog go dark)
   carAnim: 0, // 1 while getting into a car (driving is blocked)
   hurtT: 0, // red damage flash timer
   blast: null as null | { x: number; z: number }, // knockback from an explosion (consumed by the player) // full-screen shop panel currently open ('' = none)

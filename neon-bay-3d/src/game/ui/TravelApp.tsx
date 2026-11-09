@@ -97,3 +97,27 @@ export function ArrivalScreen({ ready, onGo }: { ready: boolean; onGo: () => voi
     </div>
   );
 }
+
+/** The Shinkansen app: where the station is, what leaves from it, directions or a taxi to the entrance, how to ride. */
+export function ShinApp({ close }: { close: () => void }) {
+  const p = game.where !== 'out' ? game.outsidePos : game.player, d = Math.hypot(SHIN.gate.x - p.x, SHIN.gate.z - p.z), why = blocker(), FARE = 30;
+  const stName = REGION.station || REGION.names.downtown + '駅';
+  const guide = () => { game.waypoint = { x: SHIN.gate.x, z: SHIN.gate.z }; save(); sfx('ui'); toast('🚄 新幹線のりかえ口を目的地に設定（マップの青い🚄マーク）', 2.6); close(); };
+  const taxiGo = () => {
+    if (why || game.money < FARE) return;
+    game.money -= FARE; const P = game.player; P.x = SHIN.gate.x - 7; P.z = SHIN.gate.z + 1.5; P.y = 0.15; P.vy = 0; P.yaw = Math.PI / 2; game.cam.yaw = -Math.PI / 2; game.fadeT = 1.1; game.waypoint = null;
+    save(); sfx('door'); toast(`🚕 ${stName}の新幹線のりかえ口に着いた（$${FARE}）。正面の入口から改札へ`, 3); close();
+  };
+  return (
+    <div className="appBody">
+      <div className="jobCard">
+        <b>🚄 {stName} 新幹線のりば</b>
+        <p>ここから約 {d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'}（マップの青い🚄マーク・ミニマップの縁に方向が出ます）</p>
+        {SHIN.platforms.map((P) => <p key={P.num}>{P.num}番線：{P.to ? `のぞみ ${REGIONS[P.to].name}行き（運転席に乗れます・運賃なし・約${route(REGION.id, P.to).hours}時間）` : '到着ホーム'}</p>)}
+        <div className="jobBtns"><button type="button" onClick={guide}>のりばへ案内</button><button type="button" disabled={!!why || game.money < FARE} onClick={taxiGo}>タクシーで駅前へ（${FARE}）</button></div>
+        {why ? <p className="gmsg">タクシー：{why}</p> : game.money < FARE ? <p className="gmsg">お金が足りません</p> : null}
+      </div>
+      <p className="appNote">乗り方：入口 → 改札 → 階段で{SHIN.platforms.filter((q) => q.to).map((q) => q.num + '番線').join('・')}ホームへ → ホーム北端の先頭車で「運転席に乗る」 → W で発車・S でブレーキ。ATCの制限速度を守って北の山のトンネルへ。トンネルを抜けると次の街に着き、終点の駅で停止位置に止めるとボーナス。</p>
+    </div>
+  );
+}

@@ -1,5 +1,5 @@
 import { RACES } from '../crime/race';
-import { GARAGE, LANDMARKS, EXPORT_DOCK, TRIALS, CUSTOMS, HELIPADS, RAMPS, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD, HWY_LINKS, RAIL, LANDMARK3D, districtAt, CANAL_RECTS, SIG, inBay, SHIN } from '../world/cityGen';
+import { GARAGE, LANDMARKS, EXPORT_DOCK, TRIALS, CUSTOMS, HELIPADS, RAMPS, blocks, buildings, doors, LAND, PORT, AIRPORT, HALF, HWY_C, HWY_W, BEACH_X, heightAt, N, roadC, ROAD, HWY_LINKS, RAIL, LANDMARK3D, districtAt, CANAL_RECTS, SIG, inBay, SHIN, TUN } from '../world/cityGen';
 import { REGION } from '../world/region';
 
 /** World bounds of the map image and its scale. */
@@ -34,7 +34,14 @@ export function mapImage() {
   // elevated railway and its stations
   R(RAIL.x - 3.5, RAIL.z0, RAIL.x + 3.5, RAIL.z1, '#2a2b30'); c.fillStyle = '#e8e8e8'; for (let z = RAIL.z0; z < RAIL.z1; z += 60) { const [a, b] = toMap(RAIL.x - 1, z); c.fillRect(a, b, 2 * MAP.s + 0.6, 30 * MAP.s); }
   for (const sz of RAIL.stations) R(RAIL.x - 8, sz - 55, RAIL.x + 8, sz + 55, '#d8d8de');
-  if (SHIN.has) { R(SHIN.x - 5, SHIN.z0, SHIN.x + 5, SHIN.z1, '#f2f2f2'); R(SHIN.x - 2, SHIN.z0, SHIN.x + 2, SHIN.z1, '#2b5fb8'); R(SHIN.x - 11, SHIN.stationZ - 80, SHIN.x - 5, SHIN.stationZ + 80, '#d8d8de'); }
+  if (SHIN.has) {
+    // the Shinkansen: on its viaduct to the hills, then dashed through the tunnel; the station, the portal and the tunnel's name
+    const zH = TUN.portal + TUN.hood; R(SHIN.x - 6, zH, SHIN.x + 6, SHIN.z1, '#f2f2f2'); R(SHIN.x - 2.5, zH, SHIN.x + 2.5, SHIN.z1, '#2b5fb8');
+    for (let z = SHIN.z0; z < zH; z += 40) R(SHIN.x - 2.5, z, SHIN.x + 2.5, Math.min(zH, z + 22), '#2b5fb8');
+    R(SHIN.x - 12, SHIN.stationZ - 112, SHIN.x + 12, SHIN.stationZ + 112, '#d8d8de'); R(SHIN.hall.x0, SHIN.hall.z0, SHIN.hall.x1, SHIN.hall.z1, '#9fb8e0');
+    R(SHIN.x - 16, TUN.portal - 4, SHIN.x + 16, TUN.portal + 6, '#5a5a60');
+    c.fillStyle = '#ffffff'; c.font = '800 13px system-ui, sans-serif'; c.textAlign = 'left'; { const [a, b] = toMap(SHIN.x + 16, (TUN.portal + SHIN.z0) / 2); c.fillText('新幹線 ' + TUN.name, a, b); }
+  }
   // district names, each at the block of that district nearest its centre
   c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '600 13px system-ui, sans-serif'; c.textAlign = 'center';
   const lab = (t: string, x: number, z: number) => { const [a, b] = toMap(x, z); c.fillText(t, a, b); };
@@ -46,6 +53,11 @@ export function mapImage() {
   img = cv; return cv;
 }
 
-export const POI = () => [...doors.map((d) => ({ x: d.x, z: d.z, c: d.color, t: d.label })), ...(SHIN.has ? [{ x: SHIN.gate.x, z: SHIN.gate.z, c: '#2b5fb8', t: '新幹線' }] : []), ...SIG.shrines.map((s) => ({ x: s.x, z: s.z, c: '#e2432a', t: s.name })), ...SIG.gates.map((g) => ({ x: g.x, z: g.z, c: '#2be4ff', t: g.name })), { x: GARAGE.x, z: GARAGE.z + 20, c: '#3dffb0', t: 'GARAGE' }, { x: LANDMARK3D.x, z: LANDMARK3D.z, c: '#ff6a2a', t: LANDMARK3D.label },
+/** The Shinkansen station badge: a big blue roundel with the train, drawn upright at screen position (x, y), r px. */
+export function shinBadge(c: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  c.save(); c.fillStyle = '#1e5bd8'; c.strokeStyle = '#ffffff'; c.lineWidth = Math.max(1.5, r * 0.16); c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.stroke();
+  c.font = `${Math.round(r * 1.15)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🚄', x, y + r * 0.06); c.restore();
+}
+export const POI = () => [...doors.map((d) => ({ x: d.x, z: d.z, c: d.color, t: d.label })), ...SIG.shrines.map((s) => ({ x: s.x, z: s.z, c: '#e2432a', t: s.name })), ...SIG.gates.map((g) => ({ x: g.x, z: g.z, c: '#2be4ff', t: g.name })), { x: GARAGE.x, z: GARAGE.z + 20, c: '#3dffb0', t: 'GARAGE' }, { x: LANDMARK3D.x, z: LANDMARK3D.z, c: '#ff6a2a', t: LANDMARK3D.label },
   ...LANDMARKS.map((L) => ({ x: L.x, z: L.z, c: L.color, t: L.label })), { x: EXPORT_DOCK.x, z: EXPORT_DOCK.z, c: '#ff9a3a', t: 'EXPORT DOCK' }, ...TRIALS.map((T) => ({ x: T.start.x, z: T.start.z, c: '#c07aff', t: 'TIME TRIAL' })), { x: CUSTOMS.x, z: CUSTOMS.z, c: '#ff9a3a', t: 'BAY CUSTOMS' }, ...HELIPADS.map((h) => ({ x: h.x, z: h.z, c: '#ffffff', t: 'HELIPAD' })), ...RAMPS.map((r) => ({ x: r.x, z: r.z, c: '#ffcc00', t: 'STUNT JUMP' })), ...RACES.map((R) => ({ x: R.x, z: R.z, c: '#ff2a40', t: 'STREET RACE' }))];
 export { N };

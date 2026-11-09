@@ -2,11 +2,12 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Geo } from './geo';
-import { SHIN, shinStand, shinUp, shinDown, ShinPlatform } from './cityGen';
+import { SHIN, shinStand, shinUp, shinDown, ShinPlatform, TUN, heightAt, HALF } from './cityGen';
 import { REGION, REGIONS } from './region';
 import { labelTexture } from './textures';
 import { game } from '../state/store';
-import { vehicles, SHIN_HEAD, SHIN_TAIL } from '../vehicles/sim';
+import { trainBy, chime } from '../audio';
+import { vehicles, SHIN_FLIP } from '../vehicles/sim';
 import { buildCarModel } from '../vehicles/models';
 import { VDEFS } from '../vehicles/defs';
 
@@ -29,11 +30,18 @@ const destName = (P: ShinPlatform) => (P.to ? (REGIONS[P.to].station || REGIONS[
 function viaduct() {
   const C = new Geo(), M = new Geo(), Gl = new Geo(), y = S.y, x = S.x, hw = S.half, CON = [0.78, 0.77, 0.75], SLAB = [0.5, 0.5, 0.5], RAILC = [0.55, 0.52, 0.5];
   C.box(x - hw, y - 1.3, S.z0, x + hw, y, S.z1, CON, 4, 4, C, 8);
-  for (const s of [-1, 1]) { const a = S.stationZ - 114, b = S.stationZ + 114; C.box(x + s * hw - (s > 0 ? 0.35 : 0), y, S.z0, x + s * hw + (s < 0 ? 0.35 : 0), y + 2.0, a, CON); C.box(x + s * hw - (s > 0 ? 0.35 : 0), y, b, x + s * hw + (s < 0 ? 0.35 : 0), y + 2.0, S.z1, CON); } // sound walls (open along the platforms)
+  const zHood = TUN.portal + TUN.hood;
+  for (const s of [-1, 1]) { const a = S.stationZ - 114; C.box(x + s * hw - (s > 0 ? 0.35 : 0), y, zHood, x + s * hw + (s < 0 ? 0.35 : 0), y + 2.0, a, CON); } // sound walls (open along the platforms, none in the tunnel)
   for (const s of [-1, 1]) { const tx = x + s * S.track; M.box(tx - 1.4, y, S.z0, tx + 1.4, y + 0.25, S.z1, SLAB, 4, 4, M, 2); for (const o of [-0.75, 0.75]) M.box(tx + o - 0.04, y + 0.25, S.z0, tx + o + 0.04, y + 0.42, S.z1, RAILC); }
   for (const z of S.piers) { C.box(x - 1, 0, z - 1.4, x + 1, y - 1.3, z + 1.4, CON); C.box(x - 3.6, y - 2.4, z - 1.5, x + 3.6, y - 1.3, z + 1.5, CON); }
-  for (const z of [S.z0, S.z1]) C.box(x - hw, y, z - 0.5, x + hw, y + 2.6, z + 0.5, CON);
-  for (let z = S.z0 + 20; z < S.z1; z += 50) { for (const s of [-1, 1]) M.box(x + s * (hw - 0.6) - 0.15, y, z - 0.15, x + s * (hw - 0.6) + 0.15, y + 7, z + 0.15, [0.4, 0.42, 0.45]); M.box(x - hw + 0.4, y + 6.6, z - 0.12, x + hw - 0.4, y + 6.85, z + 0.12, [0.4, 0.42, 0.45]); }
+  // the terminus: an end wall and a buffer stop on each track
+  C.box(x - hw, y, S.z1 - 0.5, x + hw, y + 2.6, S.z1 + 0.5, CON);
+  for (const s of [-1, 1]) { const tx = x + s * S.track; M.box(tx - 1.3, y + 0.25, S.z1 - 2.2, tx + 1.3, y + 1.3, S.z1 - 0.5, [0.95, 0.78, 0.1]); for (let k = 0; k < 4; k++) M.box(tx - 1.3 + k * 0.7, y + 0.6, S.z1 - 2.25, tx - 1.3 + k * 0.7 + 0.35, y + 1.0, S.z1 - 2.2, [0.08, 0.08, 0.08]); Gl.box(tx - 0.2, y + 1.3, S.z1 - 1.6, tx + 0.2, y + 1.6, S.z1 - 1.2, [1, 0.15, 0.1], 4, 4, null); }
+  // in the cutting the deck rests on an embankment, with retaining walls along the foot of the cut slopes
+  { let zc = zHood; while (zc < -HALF && heightAt(x, zc) > 5) zc += 5; if (zc > zHood) C.box(x - hw, 0, TUN.portal, x + hw, y - 1.3, zc, [0.6, 0.6, 0.58]);
+    let zr = zHood; while (zr < -HALF && heightAt(x + TUN.cutW + 3, zr) > TUN.cut + 2) zr += 5;
+    for (const s of [-1, 1]) if (zr > zHood) C.box(x + s * TUN.cutW - (s > 0 ? 0.6 : 0), TUN.cut - 1, TUN.portal + 2, x + s * TUN.cutW + (s < 0 ? 0.6 : 0), TUN.cut + 4.5, zr, [0.66, 0.65, 0.62]); }
+  for (let z = zHood + 8; z < S.z1; z += 50) { for (const s of [-1, 1]) M.box(x + s * (hw - 0.6) - 0.15, y, z - 0.15, x + s * (hw - 0.6) + 0.15, y + 7, z + 0.15, [0.4, 0.42, 0.45]); M.box(x - hw + 0.4, y + 6.6, z - 0.12, x + hw - 0.4, y + 6.85, z + 0.12, [0.4, 0.42, 0.45]); }
   const sz = S.stationZ, top = y + 0.2;
   for (const P of S.platforms) {
     const inner = P.side < 0 ? P.x1 : P.x0, outer = P.side < 0 ? P.x0 : P.x1, cx = (P.x0 + P.x1) / 2;
@@ -56,6 +64,55 @@ function viaduct() {
     const d = shinDown(P); C.box(d.x - 1.6, top - 0.02, d.z - 4, d.x + 1.6, top + 0.01, d.z + 4, [0.25, 0.25, 0.27]); for (const s of [-1, 1]) M.box(d.x + s * 1.6 - 0.05, top, d.z - 4, d.x + s * 1.6 + 0.05, top + 1.1, d.z + 4, [0.75, 0.77, 0.8]);
   }
   return { C: C.build(), M: M.build(), G: Gl.build() };
+}
+
+/** Horseshoe profile of the bore, from the east foot up over the crown to the west foot (x across, y above the track). */
+function boreProfile(angs: number[]) {
+  const hw = TUN.hw, wall = TUN.wall;
+  return [[hw, 0], ...angs.map((a) => [Math.cos(a) * hw, wall + Math.sin(a) * hw]), [-hw, 0]];
+}
+const ARCH = Array.from({ length: 15 }, (_, k) => (k / 14) * Math.PI);
+/** A vertical face at z facing south: the rectangle |x - cx| < W, y0..top, with the bore's opening cut out of it. */
+function faceWithHole(G: Geo, cx: number, z: number, W: number, y0: number, top: number, col: number[]) {
+  const y = TUN.y, ac = Math.atan2(top - y - TUN.wall, W), angs = [...ARCH, ac, Math.PI - ac].sort((a, b) => a - b);
+  const inner = boreProfile(angs), outer = [[W, 0], ...angs.map((a) => { const c = Math.cos(a), s = Math.sin(a), t = Math.min(Math.abs(c) > 1e-6 ? W / Math.abs(c) : 1e9, s > 1e-6 ? (top - y - TUN.wall) / s : 1e9); return [c * t, TUN.wall + s * t]; }), [-W, 0]];
+  const P = (q: number[]) => [cx + q[0], y + q[1], z], U = (q: number[]) => [q[0] / 4, q[1] / 4];
+  for (let i = 0; i + 1 < inner.length; i++) G.quad(P(inner[i]), P(outer[i]), P(outer[i + 1]), P(inner[i + 1]), [0, 0, 1], [U(inner[i]), U(outer[i]), U(outer[i + 1]), U(inner[i + 1])], col);
+  G.quad([cx - W, y0, z], [cx + W, y0, z], [cx + W, y, z], [cx - W, y, z], [0, 0, 1], [[0, 0], [W / 2, 0], [W / 2, 1], [0, 1]], col);
+}
+/** The mountain tunnel: a lined horseshoe bore with lamps, a hood out of the portal, the portal face with its name plate. */
+function tunnel() {
+  const In = new Geo(), Out = new Geo(), Lamp = new Geo(), x = TUN.x, y = TUN.y, hw = TUN.hw, zH = TUN.portal + TUN.hood, prof = boreProfile(ARCH);
+  // the lining in 10.5 m rings (slightly different shades), the invert, walkways along both walls, the dark far end
+  for (let z = TUN.end - 2, k = 0; z < zH; z += 10.5, k++) {
+    const z2 = Math.min(zH, z + 10.5), sh = k % 2 ? 0.23 : 0.2;
+    for (let i = 0; i + 1 < prof.length; i++) { const a = prof[i], b = prof[i + 1], c = [sh * (a[1] < 3 ? 1.08 : 1), sh, sh * 0.96]; In.quad([x + a[0], y + a[1], z2], [x + a[0], y + a[1], z], [x + b[0], y + b[1], z], [x + b[0], y + b[1], z2], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], c); }
+    In.quad([x - hw, y - 0.03, z2], [x + hw, y - 0.03, z2], [x + hw, y - 0.03, z], [x - hw, y - 0.03, z], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], [0.13, 0.13, 0.13]);
+  }
+  for (const s of [-1, 1]) In.box(x + s * hw - (s > 0 ? 0.9 : 0), y - 0.03, TUN.end - 2, x + s * hw + (s < 0 ? 0.9 : 0), y + 0.55, zH, [0.3, 0.3, 0.29]);
+  { const ze = TUN.end - 2, c0 = [x, y + TUN.wall, ze], P = (q: number[]) => [x + q[0], y + q[1], ze], K = [0.02, 0.02, 0.025];
+    for (let i = 0; i + 1 < prof.length; i++) In.tri(c0, P(prof[i]), P(prof[i + 1]), [0, 0, 1], [[0, 0], [1, 0], [0, 1]], K);
+    In.quad([x - hw, y - 0.03, ze], [x + hw, y - 0.03, ze], [x + hw, y + TUN.wall, ze], [x - hw, y + TUN.wall, ze], [0, 0, 1], [[0, 0], [1, 0], [1, 1], [0, 1]], K); }
+  // lamps on both walls every 25 m, the overhead wires
+  for (let z = TUN.end + 6; z < zH - 2; z += 25) for (const s of [-1, 1]) Lamp.box(x + s * (hw - 0.14) - 0.06, y + 1.75, z - 0.7, x + s * (hw - 0.14) + 0.06, y + 1.95, z + 0.7, [1, 0.93, 0.75], 4, 4, null);
+  for (const s of [-1, 1]) Out.box(x + s * S.track - 0.03, y + 5.9, TUN.end - 2, x + s * S.track + 0.03, y + 5.96, zH, [0.3, 0.3, 0.32]);
+  // the hood (a concrete shell out of the mountain) and its mouth, then the portal face set into the hillside
+  const CONC = [0.74, 0.73, 0.7], top = y + TUN.wall + hw + 0.6;
+  for (const s of [-1, 1]) Out.box(x + s * hw - (s > 0 ? 0 : 0.6), y - 1.3, TUN.portal - 1, x + s * hw + (s > 0 ? 0.6 : 0), top, zH, CONC);
+  Out.box(x - hw - 0.6, top - 0.6, TUN.portal - 1, x + hw + 0.6, top, zH, CONC, 4, 4, Out);
+  faceWithHole(Out, x, zH + 0.02, hw + 0.6, y - 1.3, top, CONC);
+  const W = 29, fTop = y + 29;
+  faceWithHole(Out, x, TUN.portal + 2, W, y - 7, fTop, [0.7, 0.69, 0.66]);
+  Out.box(x - W - 1, fTop, TUN.portal - 2, x + W + 1, fTop + 1.6, TUN.portal + 2.4, [0.62, 0.61, 0.58]);
+  for (const s of [-1, 1]) Out.box(x + s * W - (s > 0 ? 0 : 1), y - 7, TUN.portal - 2, x + s * W + (s > 0 ? 1 : 0), fTop, TUN.portal + 2.4, [0.62, 0.61, 0.58]);
+  return { In: In.build(), Out: Out.build(), Lamp: Lamp.build() };
+}
+/** The stone name plate over the portal. */
+function plateTexture(name: string) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const c = cv.getContext('2d')!;
+  c.fillStyle = '#d9d4c7'; c.fillRect(0, 0, 512, 128); c.strokeStyle = '#8a8478'; c.lineWidth = 8; c.strokeRect(4, 4, 504, 120);
+  c.fillStyle = '#23211d'; c.font = '900 72px "Hiragino Mincho ProN","Noto Serif JP",serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(name, 256, 68);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
 /** The concourse at street level. */
@@ -106,37 +163,39 @@ function makeBoard(lines: () => string[][], title: string) {
 }
 const tt = (addMin: number) => { const m = Math.floor(game.hour * 60) + addMin, h = Math.floor(m / 60) % 24; return String(h).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 
-/** Timetable train on a track without a waiting train: in from the far end, stop, out the other end, rest, back. */
-const V = 70, DWELL = 30, REST = 50, LEN = S.z1 - S.z0;
-function timetable(t: number, dirOnly: number) {
-  const run = (LEN - SHIN_TAIL) / V * 1.4, half = run + DWELL + REST, T = 2 * half; t = ((t % T) + T) % T;
-  const dir = t < half ? 1 : -1, tt2 = t < half ? t : t - half;
-  const a = dir > 0 ? S.z0 + SHIN_TAIL + 2 : S.z1 - SHIN_TAIL - 2, st = S.stationZ + dir * 90, b = dir > 0 ? S.z1 - SHIN_HEAD - 2 : S.z0 + SHIN_HEAD + 2;
-  const p1 = Math.abs(st - a) / V * 1.4, p2 = Math.abs(b - st) / V * 1.4, easeOut = (u: number) => 1 - (1 - u) * (1 - u), easeIn = (u: number) => u * u;
-  let z: number, vis = dir === dirOnly;
-  if (tt2 < p1) z = a + (st - a) * easeOut(tt2 / p1); else if (tt2 < p1 + DWELL) z = st; else if (tt2 < p1 + DWELL + p2) z = st + (b - st) * easeIn((tt2 - p1 - DWELL) / p2); else { z = b; vis = false; }
-  return { z, dir, vis };
+/** Timetable train on the arrivals track (Tokyo, Hakata): out of the tunnel, stop at track 15, change ends, back into the tunnel, rest. */
+const V = 70, DWELL = 45, REST = 70;
+export function timetable(t: number) {
+  const a = TUN.portal - 150, st = S.stationZ + 90, st2 = st - SHIN_FLIP, b = TUN.portal - 300;
+  const p1 = (st - a) / V * 1.6, p2 = (st2 - b) / V * 1.6, T = p1 + DWELL + p2 + REST, easeOut = (u: number) => 1 - (1 - u) * (1 - u), easeIn = (u: number) => u * u;
+  t = ((t % T) + T) % T;
+  if (t < p1) return { z: a + (st - a) * easeOut(t / p1), dir: 1, vis: true, v: V * 1.25 * (1 - t / p1), left: 99 };
+  if (t < p1 + DWELL) return { z: st, dir: 1, vis: true, v: 0, left: p1 + DWELL - t };
+  if (t < p1 + DWELL + p2) { const u = (t - p1 - DWELL) / p2; return { z: st2 - (st2 - b) * easeIn(u), dir: -1, vis: true, v: V * 1.25 * u, left: 99 }; }
+  return { z: b, dir: -1, vis: false, v: 0, left: 99 };
 }
 
 export default function ShinkansenLine() {
   const D = useMemo(() => {
     if (!S.has) return null;
-    const v = viaduct(), cc = concourse();
+    const v = viaduct(), cc = concourse(), tn = tunnel();
     const conc = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), metal = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.5 }), glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
     // the concourse is seen from inside too: its walls, ceiling and fittings are two-sided
     const concIn = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide }), metalIn = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.4, side: THREE.DoubleSide });
     const glass = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.45 });
+    // the bore is lit only by its own lamps (unlit vertex colours, seen from inside)
+    const bore = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
     const plain = (t: THREE.Texture) => new THREE.MeshBasicMaterial({ map: t, toneMapped: false }); // one-sided: back-to-back pairs where both sides are seen
-    const north = S.next.north ? (REGIONS[S.next.north].station || REGIONS[S.next.north].name).replace('駅', '') : '（車両基地）', south = S.next.south ? (REGIONS[S.next.south].station || REGIONS[S.next.south].name).replace('駅', '') : '（車両基地）';
-    const board = plain(nameBoard(north, south));
+    const north = S.dests.map((d) => (REGIONS[d].station || REGIONS[d].name).replace('駅', '')).join('・');
+    const boardW = plain(nameBoard('', north)), boardE = plain(nameBoard(north, '')); // terminus: the next stations are all to the north
     const signs: { m: THREE.Material; x: number; y: number; z: number; w: number; h: number; ry: number }[] = [];
     // car-number signs hanging over each boarding position, name boards, LED boards per platform
     const boards: { draw: () => void }[] = [];
     for (const P of S.platforms) {
       const cx = (P.x0 + P.x1) / 2, top = S.y + 0.2, ry = P.side < 0 ? Math.PI / 2 : -Math.PI / 2;
       for (let k = 0; k < 8; k++) { const z = S.stationZ + P.dir * 90 - P.dir * k * 25.6, m = plain(labelTexture(`${k + 1}号車`, '#ffffff', 256, 128)); signs.push({ m, x: cx, y: top + 4.2, z, w: 1.6, h: 0.8, ry: 0 }, { m, x: cx, y: top + 4.2, z: z - 0.04, w: 1.6, h: 0.8, ry: Math.PI }); void ry; }
-      for (const z of [S.stationZ - 50, S.stationZ + 54]) signs.push({ m: board, x: (P.side < 0 ? P.x0 : P.x1) - P.side * 0.3, y: top + 2.2, z, w: 4.2, h: 1.4, ry: P.side < 0 ? Math.PI / 2 : -Math.PI / 2 });
-      const B = makeBoard(() => P.to ? [['のぞみ', destName(P), tt(4), '#ff9a2a', `${P.num}番線`], ['ひかり', destName(P), tt(22), '#ff4a4a', `${P.num}番線`]] : [['回送', '当駅止まり', '', '#9aa0a8', `${P.num}番線`]], `${P.num}番線　${P.to ? REGIONS[P.to].name + '方面' : ''}`);
+      for (const z of [S.stationZ - 50, S.stationZ + 54]) signs.push({ m: P.side < 0 ? boardW : boardE, x: (P.side < 0 ? P.x0 : P.x1) - P.side * 0.3, y: top + 2.2, z, w: 4.2, h: 1.4, ry: P.side < 0 ? Math.PI / 2 : -Math.PI / 2 });
+      const B = makeBoard(() => P.to ? [['のぞみ', destName(P), tt(4), '#ff9a2a', `${P.num}番線`], ['ひかり', destName(P), tt(22), '#ff4a4a', `${P.num}番線`]] : [['到着', 'のぞみ 当駅止まり', tt(9), '#9aa0a8', `${P.num}番線`]], `${P.num}番線　${P.to ? REGIONS[P.to].name + '方面' : '到着ホーム'}`);
       boards.push(B); for (const z of [S.stationZ - 8, S.stationZ + 40]) signs.push({ m: plain(B.tex), x: cx, y: top + 3.4, z, w: 3.6, h: 0.9, ry: 0 }, { m: plain(B.tex), x: cx, y: top + 3.4, z: z + 0.05, w: 3.6, h: 0.9, ry: Math.PI });
       { const m = plain(labelTexture('↓ 改札口・のりかえ', '#ffd23a', 512, 128)), d = shinDown(P); signs.push({ m, x: d.x, y: top + 3, z: d.z + 4.5, w: 3.2, h: 0.8, ry: 0 }, { m, x: d.x, y: top + 3, z: d.z + 4.45, w: 3.2, h: 0.8, ry: Math.PI }); } // readable from both sides
     }
@@ -145,19 +204,32 @@ export default function ShinkansenLine() {
     signs.push({ m: plain(labelTexture(stName.replace('駅', '') + '  ' + roma[REGION.id], '#ffffff', 768, 160)), x: H.x0 - 0.5, y: H.h + 1.4, z: S.stationZ, w: 12, h: 2.5, ry: -Math.PI / 2 });
     signs.push({ m: plain(labelTexture('新幹線 中央改札', '#ffffff', 768, 128)), x: H.gateX - 1.2, y: 4.2, z: S.stationZ, w: 7, h: 1.2, ry: -Math.PI / 2 });
     { const all = S.platforms.filter((p) => p.to); const B = makeBoard(() => all.flatMap((P) => [['のぞみ', destName(P), tt(4), '#ff9a2a', `${P.num}番線`]]).concat([['ひかり', all[0] ? destName(all[0]) : '', tt(22), '#ff4a4a', `${all[0]?.num ?? ''}番線`]]).slice(0, 2), '新幹線 発車案内'); boards.push(B); signs.push({ m: plain(B.tex), x: H.gateX - 1.3, y: 5.6, z: S.stationZ - 8, w: 6, h: 1.5, ry: -Math.PI / 2 }, { m: plain(B.tex), x: H.gateX - 1.3, y: 5.6, z: S.stationZ + 8, w: 6, h: 1.5, ry: -Math.PI / 2 }); }
-    for (const P of S.platforms) { const u = shinUp(P); signs.push({ m: plain(labelTexture(`${P.num}番線  ${P.to ? REGIONS[P.to].name + '方面' : '回送'} ↑`, P.to ? '#ffd23a' : '#9aa0a8', 768, 128)), x: u.x, y: 3.6, z: u.z, w: 5, h: 0.85, ry: -Math.PI / 2 }); }
+    for (const P of S.platforms) { const u = shinUp(P); signs.push({ m: plain(labelTexture(`${P.num}番線  ${P.to ? REGIONS[P.to].name + '方面' : '到着ホーム'} ↑`, P.to ? '#ffd23a' : '#9aa0a8', 768, 128)), x: u.x, y: 3.6, z: u.z, w: 5, h: 0.85, ry: -Math.PI / 2 }); }
+    signs.push({ m: new THREE.MeshBasicMaterial({ map: plateTexture(TUN.name) }), x: TUN.x, y: TUN.y + 14.5, z: TUN.portal + 2.06, w: 9, h: 2.25, ry: 0 });
     signs.push({ m: plain(labelTexture('駅弁  EKIBEN', '#ff9a2a', 512, 128)), x: H.x0 + 7, y: 3.1, z: H.z1 - 4.1, w: 5, h: 1.2, ry: Math.PI });
     signs.push({ m: plain(labelTexture('きっぷうりば', '#2be4ff', 512, 128)), x: H.x0 + 7.3, y: 2.6, z: H.z0 + 1.2, w: 5, h: 1.1, ry: 0 });
     // the trains waiting at the platforms with a destination, and the timetable train on another track
     const standing = S.platforms.filter((p) => p.to).map((P) => { const m = buildCarModel(VDEFS.shinkansen, '#f4f5f7'), s = shinStand(P); m.root.position.set(s.x, S.y + 0.05, s.z); m.root.rotation.y = P.dir > 0 ? 0 : Math.PI; return m; });
-    const free = S.platforms.find((p) => !p.to), ai = free ? buildCarModel(VDEFS.shinkansen, '#f4f5f7') : null;
-    return { v, cc, conc, metal, glow, glass, concIn, metalIn, signs, boards, standing, ai, aiDir: free ? free.dir : 0 };
+    const ai = S.platforms.some((p) => !p.to) ? buildCarModel(VDEFS.shinkansen, '#f4f5f7') : null;
+    return { v, cc, tn, conc, metal, glow, glass, concIn, metalIn, bore, signs, boards, standing, ai, lastSoon: false };
   }, []);
   useFrame(() => {
     if (!D) return;
     const driving = vehicles.some((q) => q.def.kind === 'shinkansen');
     for (const m of D.standing) m.root.visible = !driving;
-    if (D.ai) { const T = timetable(game.clock, D.aiDir), root = D.ai.root; root.visible = T.vis; if (T.vis) { root.position.set(S.x + T.dir * S.track, S.y + 0.05, T.z); root.rotation.y = T.dir > 0 ? 0 : Math.PI; } }
+    let by = 0, byKmh = 0;
+    if (D.ai) {
+      const T = timetable(game.clock), root = D.ai.root; root.visible = T.vis && !driving;
+      if (root.visible) {
+        root.position.set(S.x + S.track, S.y + 0.05, T.z); root.rotation.y = T.dir > 0 ? 0 : Math.PI;
+        // heard on foot: distance from the player to the nearest point of the train
+        const p = game.player, a = T.dir > 0 ? T.z - 195 : T.z - 16, b = T.dir > 0 ? T.z + 16 : T.z + 195, zz = Math.max(a, Math.min(b, p.z)), d = Math.hypot(p.x - S.x - S.track, (p.y - S.y) * 1.5, p.z - zz);
+        if (!game.inCar && game.where === 'out') { by = Math.max(0, 1 - d / 260) ** 2; byKmh = T.v * 3.6; }
+      }
+      // the departure melody on the platform as the timetable train is about to leave
+      const soon = T.left < 7; if (soon && !D.lastSoon && !game.inCar && game.where === 'out' && Math.abs(game.player.z - S.stationZ) < 160 && Math.abs(game.player.x - S.x) < 60) chime('depart'); D.lastSoon = soon;
+    }
+    trainBy(by, byKmh);
     for (const b of D.boards) b.draw();
   });
   if (!D) return null;
@@ -170,6 +242,9 @@ export default function ShinkansenLine() {
       <mesh geometry={D.cc.M} material={D.metalIn} castShadow receiveShadow />
       <mesh geometry={D.cc.G} material={D.glass} />
       <mesh geometry={D.cc.L} material={D.glow} />
+      <mesh geometry={D.tn.In} material={D.bore} />
+      <mesh geometry={D.tn.Out} material={D.conc} castShadow receiveShadow />
+      <mesh geometry={D.tn.Lamp} material={D.glow} />
       {D.standing.map((m, i) => <primitive key={i} object={m.root} />)}
       {D.ai && <primitive object={D.ai.root} />}
       {D.signs.map((s, i) => <mesh key={i} position={[s.x, s.y, s.z]} rotation-y={s.ry} material={s.m}><planeGeometry args={[s.w, s.h]} /></mesh>)}

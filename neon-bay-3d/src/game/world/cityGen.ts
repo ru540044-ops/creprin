@@ -253,6 +253,15 @@ export const LAND = { x0: -HALF - 793, x1: HALF + 160, z0: -HALF - 993, z1: HALF
 export const PORT = { x0: 160, x1: HALF + 200, z0: HALF + 70, z1: HALF + 330 };
 export const AIRPORT = { x0: -HALF - 753, x1: -HALF - 70, z0: -420, z1: 420 };
 export const BEACH_X = HALF + 70; // sand from here to LAND.x1
+/**
+ * The Shinkansen corridor north of the city (not in Naha): the viaduct crosses the ring highway, runs into a cutting
+ * through the foothills and enters a double-track tunnel under the mountains (portal face at `portal`, a hood out to
+ * `portal + hood`, the modelled bore ends at `end`). Horseshoe bore: half width hw, vertical walls `wall` high, then a
+ * half-circle arch; floor at the track level y.
+ */
+export const TUN = { on: !!REGION.shinkansen, x: roadC(O + 13), y: 15, portal: -HALF - 215, end: -HALF - 735, hood: 18, hw: 5.6, wall: 2.4, cut: 12.4, cutW: 13, name: ({ tokyo: '武蔵野トンネル', osaka: '北摂トンネル', fukuoka: '筑紫トンネル' } as Record<string, string>)[REGION.id] || '山岳トンネル' };
+/** Inside the bore (or its hood) of the Shinkansen tunnel. */
+export const inTunnel = (x: number, z: number) => TUN.on && Math.abs(x - TUN.x) < TUN.hw + 0.3 && z < TUN.portal + TUN.hood && z > TUN.end - 5;
 export function heightAt(x: number, z: number): number {
   if ((CANAL_RECTS.length && inCanal(x, z)) || inBay(x, z)) return WATER_Y - 3;
   const inPort = x > PORT.x0 && x < PORT.x1 && z > PORT.z0 && z < PORT.z1;
@@ -265,6 +274,17 @@ export function heightAt(x: number, z: number): number {
     h += smooth(0, 260, d) * (40 + fbm(x * 0.004, z * 0.004) * 170) + smooth(200, 700, d) * 90;
     const e = Math.min(x - LAND.x0, LAND.x1 - x, z - LAND.z0);
     h *= smooth(0, 220, e);
+  }
+  if (TUN.on && z < -HALF - 30) {
+    const dx = Math.abs(x - TUN.x);
+    if (z > TUN.portal) {
+      // the foothills close in round the approach, and the line runs through a cutting with steep sides
+      h = Math.max(h, smooth(TUN.portal + 150, TUN.portal, z) * (1 - smooth(24, 170, dx)) * (TUN.y + 22));
+      h = Math.min(h, TUN.cut + Math.max(0, dx - TUN.cutW) * 1.6);
+    } else {
+      // the mountain over the bore: well above the crown, higher further in
+      h = Math.max(h, (1 - smooth(14, 190, dx)) * (TUN.y + 24 + smooth(TUN.portal, TUN.portal - 260, z) * 60));
+    }
   }
   return h;
 }
@@ -533,7 +553,7 @@ for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
   // hills: pines
   for (let k = 0; k < 1900; k++) {
     const x = LAND.x0 + 60 + r() * (LAND.x1 - LAND.x0 - 120), z = LAND.z0 + 60 + r() * (-HALF - 120 - LAND.z0 - 60), h = heightAt(x, z);
-    if (h < 3) continue; props.pines.push({ x, z, s: 0.7 + r() * 0.8, y: h });
+    if (h < 3 || (TUN.on && Math.abs(x - TUN.x) < 30 && z > TUN.portal - 6)) continue; props.pines.push({ x, z, s: 0.7 + r() * 0.8, y: h }); // none in the cutting or on the portal
   }
   // billboards on mid-rise roofs
   for (const b of buildings) { const q = mulberry(Math.floor(b.x0 * 13 + b.z0 * 7 + 991)); if ((b.type === 'office' || b.type === 'brick') && b.h < 50 && q() < 0.12) props.billboards.push({ x: (b.x0 + b.x1) / 2, z: b.z0 + 2, y: b.y0 + b.h, a: 0, w: Math.min(18, b.x1 - b.x0 - 4), c: Math.floor(q() * 4) }); }
@@ -640,14 +660,15 @@ export const RAIL = (() => {
   for (const sz of R.stations) for (const s of [-1, 1]) solids.push({ x0: s < 0 ? R.x - 7.8 : R.x + R.half, z0: sz - 55, x1: s < 0 ? R.x - R.half : R.x + 7.8, z1: sz + 55, y0: R.y - 0.9, y1: R.y + 0.2 });
 }
 
-/* ---------- the bullet-train line: its own high viaduct along the avenue east of the main station (Naha has none) ---------- */
-export interface ShinPlatform { side: number; x0: number; x1: number; dir: number; to?: RegionId; num: number }
+/* ---------- the bullet-train line (not in Naha): a terminus at the main station; every train leaves north, over the ring highway and into the mountain tunnel ---------- */
+export interface ShinPlatform { side: number; x0: number; x1: number; /** direction a departing train faces (always north, -1) */ dir: number; /** where the train waiting here goes (none: arrivals only) */ to?: RegionId; num: number }
 export const SHIN = (() => {
-  const x = roadC(O + 13), sz = blockX0(STATION_BLOCK.j) + BLOCK / 2, bx0 = blockX0(STATION_BLOCK.i), next = REGION.shinkansen ?? {};
-  // west platform: the northbound track (trains run on the left); east platform: the southbound track
-  const platforms: ShinPlatform[] = [{ side: -1, x0: x - 10.5, x1: x - 5, dir: -1, to: next.north, num: 14 }, { side: 1, x0: x + 5, x1: x + 10.5, dir: 1, to: next.south, num: 15 }];
+  const x = TUN.x, sz = blockX0(STATION_BLOCK.j) + BLOCK / 2, bx0 = blockX0(STATION_BLOCK.i), next = REGION.shinkansen ?? {};
+  const dests = [next.north, next.south].filter((q): q is RegionId => !!q);
+  // west platform: track 14, east platform: track 15. Departures wait at both (facing north); arrivals come in from the tunnel on the east track
+  const platforms: ShinPlatform[] = [{ side: -1, x0: x - 10.5, x1: x - 5, dir: -1, to: dests[0], num: 14 }, { side: 1, x0: x + 5, x1: x + 10.5, dir: -1, to: dests[1], num: 15 }];
   return {
-    has: !!REGION.shinkansen, x, y: 15, z0: -HALF + ROAD + 6, z1: HALF - ROAD - 6, stationZ: sz, half: 5, track: 2.3, piers: [] as number[], next, platforms,
+    has: !!REGION.shinkansen, x, y: TUN.y, z0: TUN.end, z1: sz + 125, stationZ: sz, half: 5, track: 2.3, piers: [] as number[], next, dests, platforms,
     /** the Shinkansen concourse at street level, in the east half of the station block, entered from the forecourt */
     hall: { x0: bx0 + 46, x1: bx0 + 80, z0: sz - 32, z1: sz + 32, h: 7.5, gateX: bx0 + 62 },
     /** street entrance (map marker / directions) */
@@ -662,7 +683,11 @@ export const shinUp = (P: ShinPlatform) => ({ x: SHIN.hall.x0 + 28, z: SHIN.stat
 export const shinDown = (P: ShinPlatform) => ({ x: (P.x0 + P.x1) / 2, z: SHIN.stationZ - 70 });
 if (SHIN.has) {
   const R = SHIN, H = R.hall, sz = R.stationZ, box = (x0: number, z0: number, x1: number, z1: number, y0: number, y1: number) => solids.push({ x0, z0, x1, z1, y0, y1 });
-  for (let z = R.z0 + 10; z <= R.z1 - 10; z += 30) { const rel = ((z + HALF) % PITCH + PITCH) % PITCH; if (rel < ROAD + 4 || rel > PITCH - 4) continue; R.piers.push(z); box(R.x - 1, z - 1.4, R.x + 1, z + 1.4, 0, R.y - 1.3); }
+  for (let z = TUN.portal + TUN.hood + 12; z <= R.z1 - 10; z += 30) {
+    if (z > -HALF) { const rel = ((z + HALF) % PITCH + PITCH) % PITCH; if (rel < ROAD + 4 || rel > PITCH - 4) continue; } // not on a street
+    else if (Math.abs(z + HWY_C) < 17 || heightAt(R.x, z) > 9) continue; // not on the ring highway, none in the cutting
+    R.piers.push(z); box(R.x - 1, z - 1.4, R.x + 1, z + 1.4, 0, R.y - 1.3);
+  }
   box(R.x - R.half, R.z0, R.x + R.half, R.z1, R.y - 1.3, R.y);
   for (const P of R.platforms) {
     box(P.x0, sz - 112, P.x1, sz + 112, R.y - 1.3, R.y + 0.2);

@@ -86,3 +86,66 @@ export function sfx(kind: 'crash' | 'door' | 'buy' | 'ui' | 'shot' | 'boom' | 't
   const f = kind === 'door' ? 180 : kind === 'buy' ? 880 : 620; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(kind === 'door' ? 90 : f * 1.5, t + 0.15);
   g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.22);
 }
+
+/* ---------- the bullet train: inverter whine, rolling rumble, wind, rail joints, the tunnel; chimes; trains passing by ---------- */
+let TR: { inv: OscillatorNode; inv2: OscillatorNode; invF: BiquadFilterNode; invG: GainNode; rollF: BiquadFilterNode; rollG: GainNode; windF: BiquadFilterNode; windG: GainNode; byF: BiquadFilterNode; byG: GainNode; byO: OscillatorNode; byOG: GainNode; dist: number; tun: number } | null = null;
+function trainNodes() {
+  if (!C) return null; if (TR) return TR;
+  const c = C, loop = (type: BiquadFilterType, f: number, q: number) => { const s = c.createBufferSource(); s.buffer = noise; s.loop = true; const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = c.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(master); s.start(0, Math.random() * 1.5); return [fl, g] as const; };
+  const inv = c.createOscillator(), inv2 = c.createOscillator(), invF = c.createBiquadFilter(), invG = c.createGain(), g2 = c.createGain();
+  inv.type = 'sawtooth'; inv2.type = 'square'; invF.type = 'bandpass'; invF.Q.value = 2.5; invF.frequency.value = 1200; invG.gain.value = 0; g2.gain.value = 0.35;
+  inv.connect(invF); inv2.connect(g2); g2.connect(invF); invF.connect(invG); invG.connect(master); inv.start(); inv2.start();
+  const [rollF, rollG] = loop('lowpass', 200, 0.8), [windF, windG] = loop('bandpass', 900, 0.6), [byF, byG] = loop('lowpass', 400, 0.7);
+  const byO = c.createOscillator(), byOG = c.createGain(); byO.type = 'triangle'; byOG.gain.value = 0; byO.connect(byOG); byOG.connect(master); byO.start();
+  TR = { inv, inv2, invF, invG, rollF, rollG, windF, windG, byF, byG, byO, byOG, dist: 0, tun: 0 };
+  return TR;
+}
+/** One wheel over a rail joint: a short metallic click with a thump under it. */
+function clack(at: number, vol: number) {
+  if (!C) return; const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 1.5; const g = C.createGain();
+  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.06); s.connect(f); f.connect(g); g.connect(master); s.start(at, Math.random() * 1.5); s.stop(at + 0.08);
+  const o = C.createOscillator(), g2 = C.createGain(); o.frequency.setValueAtTime(95, at); o.frequency.exponentialRampToValueAtTime(45, at + 0.07); g2.gain.setValueAtTime(vol * 0.9, at); g2.gain.exponentialRampToValueAtTime(0.0001, at + 0.08); o.connect(g2); g2.connect(master); o.start(at); o.stop(at + 0.09);
+}
+/** Driving the bullet train, every frame: the VVVF inverter (an asynchronous whine pulling away, then a tone rising with the motors,
+ *  loud while powering or braking on the motors), the rolling rumble and the wind growing with speed, the rail joints, and the
+ *  roar and pressure thump of the tunnel. */
+export function trainSound(on: boolean, kmh: number, thr: number, brake: number, tunnel: number, dt: number) {
+  if (!C || (!on && !TR)) return; const R = trainNodes(); if (!R) return;
+  const t = C.currentTime, m = audio.muted ? 0 : 1, v = Math.max(0, kmh), s = Math.min(1, v / 300), work = on ? Math.min(1, Math.max(thr, brake * 0.8)) : 0;
+  const motor = 55 + v * 5.4, carrier = v < 22 ? 1050 + v * 6 : v < 75 ? 620 + (v - 22) * 14 : motor * 2;
+  R.inv.frequency.setTargetAtTime(motor, t, 0.05); R.inv2.frequency.setTargetAtTime(carrier, t, 0.05); R.invF.frequency.setTargetAtTime(Math.min(4200, 600 + v * 10), t, 0.1);
+  R.invG.gain.setTargetAtTime(on && v > 0.3 ? m * work * (0.03 + 0.03 * Math.min(1, v / 80)) * (1 - 0.45 * s) : 0, t, 0.12);
+  R.rollF.frequency.setTargetAtTime(130 + v * 2.4 - tunnel * 30, t, 0.2);
+  R.rollG.gain.setTargetAtTime(on ? m * Math.min(1, v / 50) * (0.045 + 0.07 * s) * (1 + 1.7 * tunnel) : 0, t, 0.15);
+  R.windF.frequency.setTargetAtTime(450 + v * 5, t, 0.2);
+  R.windG.gain.setTargetAtTime(on ? m * s * s * 0.1 * (1 + 1.3 * tunnel) : 0, t, 0.2);
+  if (on && v > 3 && m) { R.dist += (v / 3.6) * dt; if (R.dist > 50) { R.dist -= 50; const sp = v / 3.6, vol = (0.035 + 0.06 * Math.min(1, v / 150)) * (1 + tunnel); for (const d of [0, 2.5, 17.5, 20]) clack(t + d / sp, vol); } }
+  if (on && m && v > 40 && (tunnel > 0.5) !== (R.tun > 0.5)) { // the pressure wave going in or out of the bore
+    const S = C.createBufferSource(); S.buffer = noise; const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(120, t + 0.9); const g = C.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35 * Math.min(1, v / 200), t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0); S.connect(f); f.connect(g); g.connect(master); S.start(t, Math.random()); S.stop(t + 1.05);
+  }
+  R.tun = tunnel;
+}
+/** A train near you on foot (on the viaduct, at the platform): rumble and motor tone, vol 0..1 by distance. */
+export function trainBy(vol: number, kmh: number) {
+  if (!C || (vol <= 0.001 && !TR)) return; const R = trainNodes(); if (!R) return;
+  const t = C.currentTime, m = audio.muted ? 0 : 1;
+  R.byF.frequency.setTargetAtTime(220 + kmh * 7, t, 0.2); R.byG.gain.setTargetAtTime(m * vol * (0.03 + Math.min(0.16, (kmh / 300) * 0.3)), t, 0.15);
+  R.byO.frequency.setTargetAtTime(70 + kmh * 5.4, t, 0.1); R.byOG.gain.setTargetAtTime(m * vol * (kmh > 2 ? 0.018 : 0), t, 0.15);
+}
+/** Station and in-train chimes (original tunes): 'door' (two tones as the doors open), 'announce' (four rising notes before an
+ *  announcement), 'depart' (the platform departure melody, then the door-closing beeps). */
+export function chime(kind: 'door' | 'announce' | 'depart') {
+  if (!C || audio.muted) return; const c = C, t = c.currentTime;
+  const N = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
+  const note = (f: number, at: number, len: number, vol: number, type: OscillatorType = 'sine') => {
+    const o = c.createOscillator(), o2 = c.createOscillator(), g = c.createGain(), g2 = c.createGain(); o.type = type; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 2.005; g2.gain.value = 0.22;
+    o.connect(g); o2.connect(g2); g2.connect(g); g.connect(master); g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    o.start(at); o2.start(at); o.stop(at + len + 0.05); o2.stop(at + len + 0.05);
+  };
+  if (kind === 'door') { note(N(84), t, 0.9, 0.11); note(N(79), t + 0.42, 1.2, 0.11); return; }
+  if (kind === 'announce') { [76, 79, 84, 88].forEach((n, i) => note(N(n), t + i * 0.15, 0.9, 0.07)); return; }
+  const mel: [number, number][] = [[79, 0], [84, 0.24], [88, 0.48], [86, 0.72], [84, 0.96], [81, 1.2], [83, 1.44], [79, 1.68], [81, 1.92], [84, 2.16], [88, 2.4], [91, 2.64], [89, 2.88], [88, 3.12], [86, 3.36], [84, 3.6]];
+  for (const [n, d] of mel) note(N(n), t + d, 0.6, 0.065);
+  for (let k = 0; k < 3; k++) note(N(81), t + 4.5 + k * 0.45, 0.22, 0.05, 'square');
+}

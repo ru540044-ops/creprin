@@ -18,7 +18,8 @@ import { STATIONS } from '../radio';
 import { playerCar, vehicles } from '../vehicles/sim';
 import { law, jobStatus, armored, searchRadius } from '../crime/crime';
 import { input, releaseDrive } from '../input';
-import { mapImage, toMap, fromMap, POI, MAP } from './mapRender';
+import { mapImage, toMap, fromMap, POI, MAP, shinBadge } from './mapRender';
+import { SHIN } from '../world/cityGen';
 import { INTERIORS } from '../world/Interiors';
 import { isBoat } from '../vehicles/defs';
 
@@ -60,6 +61,8 @@ function Minimap({ onOpen }: { onOpen: () => void }) {
       for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 3.6 / zoom * 1.4, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1 / zoom; c.stroke(); }
       drawDynamic(c, 1 / zoom, t);
       c.restore();
+      const rim = (wx: number, wz: number, pad: number) => { const [a, b] = toMap(wx, wz), dx = (a - px) * zoom, dz = (b - pz) * zoom, cs = Math.cos(game.cam.yaw), sn = Math.sin(game.cam.yaw); let rx = dx * cs - dz * sn, rz = dx * sn + dz * cs; const L = Math.hypot(rx, rz), m = S / 2 - pad, out = L > m; if (out) { rx *= m / L; rz *= m / L; } return [S / 2 + rx, S / 2 + rz, out ? 1 : 0] as const; };
+      if (SHIN.has && !(playerCar()?.def.kind === 'shinkansen')) { const [x, y, out] = rim(SHIN.gate.x, SHIN.gate.z, 12); shinBadge(c, x, y, out ? 9 : 11); }
       if (game.waypoint) { // waypoint, clamped to the rim
         const [a, b] = toMap(game.waypoint.x, game.waypoint.z); let dx = (a - px) * zoom, dz = (b - pz) * zoom; const cs = Math.cos(game.cam.yaw), sn = Math.sin(game.cam.yaw);
         let rx = dx * cs - dz * sn, rz = dx * sn + dz * cs; const L = Math.hypot(rx, rz), m = S / 2 - 9; if (L > m) { rx *= m / L; rz *= m / L; }
@@ -95,6 +98,7 @@ function FullMap({ onClose }: { onClose: () => void }) {
       const s = 1 / v.z; // marker sizes stay the same on screen whatever the zoom
       for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 6 * s, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1.5 * s; c.stroke(); }
       drawDynamic(c, 1.6 * s, performance.now());
+      if (SHIN.has) { const [a, b] = toMap(SHIN.gate.x, SHIN.gate.z); c.save(); c.translate(a, b); c.scale(s, s); shinBadge(c, 0, 0, 14); c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 3; c.font = '800 13px system-ui, sans-serif'; c.textAlign = 'center'; c.strokeText('新幹線のりば', 0, 28); c.fillText('新幹線のりば', 0, 28); c.restore(); }
       if (game.waypoint) { const [a, b] = toMap(game.waypoint.x, game.waypoint.z); c.fillStyle = '#ffd84a'; c.beginPath(); c.arc(a, b, 8 * s, 0, Math.PI * 2); c.fill(); c.stroke(); }
       const p = game.where !== 'out' ? game.outsidePos : game.player, [a, b] = toMap(p.x, p.z);
       c.save(); c.translate(a, b); c.scale(s, s); c.rotate(Math.PI - p.yaw); c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, -12); c.lineTo(-8, 9); c.lineTo(0, 4); c.lineTo(8, 9); c.closePath(); c.fill(); c.stroke(); c.restore();
@@ -124,7 +128,7 @@ function FullMap({ onClose }: { onClose: () => void }) {
         <div className="mapZoom"><button type="button" aria-label="拡大" onClick={() => zoomAt(1.4)}>＋</button><button type="button" aria-label="縮小" onClick={() => zoomAt(1 / 1.4)}>−</button><button type="button" onClick={() => centerOnPlayer()}>現在地</button><button type="button" onClick={() => { view.current.z = view.current.fit; const img = mapImage(); view.current.cx = img.width / 2; view.current.cy = img.height / 2; clampV(); }}>全体</button></div>
       </div>
       <div className="row"><button type="button" onClick={() => { game.waypoint = null; save(); onClose(); }}>目的地を消す</button><button type="button" className="pri" onClick={onClose}>閉じる</button></div>
-      <div className="legend">{POI().filter((q, i, a) => a.findIndex((o) => o.t === q.t) === i).map((q) => <span key={q.t}><i style={{ background: q.c }} />{q.t}</span>)}<span><i style={{ background: '#3dffb0' }} />$ 現金輸送車</span><span><i style={{ background: '#ffd84a' }} />目的地</span></div>
+      <div className="legend">{POI().filter((q, i, a) => a.findIndex((o) => o.t === q.t) === i).map((q) => <span key={q.t}><i style={{ background: q.c }} />{q.t}</span>)}<span><i style={{ background: '#3dffb0' }} />$ 現金輸送車</span><span><i style={{ background: '#ffd84a' }} />目的地</span>{SHIN.has && <span><i style={{ background: '#1e5bd8' }} />🚄 新幹線のりば</span>}</div>
     </div>
   );
 }
