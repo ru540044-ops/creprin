@@ -48,13 +48,13 @@ export function addCabin(def: VDef, P: { lower: number[][]; glass: number[][]; r
   }
   add(box(0.6, 0.3, W * 0.88, gx1 - 0.12, belt - 0.07, 0), dark); // dashboard
   add(box(0.2, 0.03, W * 0.6, gx1 - 0.38, belt + 0.075, 0), trimM); // dash trim
-  const clu = new THREE.PlaneGeometry(0.34, 0.12).rotateY(-Math.PI / 2); clu.translate(gx1 - 0.43, belt + 0.03, -W * 0.22); add(clu, glowM(sport ? '#ff5a3a' : '#7ad8ff'));
+  const clu = new THREE.PlaneGeometry(0.34, 0.12).rotateY(-Math.PI / 2); clu.translate(gx1 - 0.43, belt + 0.03, W * 0.22); // right-hand drive add(clu, glowM(sport ? '#ff5a3a' : '#7ad8ff'));
   const scr = new THREE.PlaneGeometry(0.24, 0.15).rotateY(-Math.PI / 2); scr.translate(gx1 - 0.43, belt - 0.03, 0); add(scr, glowM('#9fd8ff'));
   add(box(1.0, 0.24, 0.24, sx + 0.12, floorY + 0.2, 0), dark); add(box(0.06, 0.12, 0.06, sx + 0.3, floorY + 0.38, 0), shared().chrome);
   for (const s of [-1, 1]) { add(box(gx1 - gx0 + 0.2, belt - floorY + 0.02, 0.05, (gx0 + gx1) / 2, (belt + floorY) / 2, s * (W / 2 - 0.12)), dark); add(box(gx1 - gx0, 0.05, 0.06, (gx0 + gx1) / 2, belt - 0.12, s * (W / 2 - 0.15)), leather); }
   add(box(gx1 - gx0 + 0.4, 0.04, W - 0.25, (gx0 + gx1) / 2, floorY, 0), dark);
-  const steering = steeringWheel(0.18, gx1 - 0.58, belt + 0.0, -W * 0.22, 0.42, body);
-  return { eye: new THREE.Vector3(sx - 0.02, Math.min(belt + 0.27, P.roofY - 0.12), -W * 0.22), steering };
+  const steering = steeringWheel(0.18, gx1 - 0.58, belt + 0.0, W * 0.22, 0.42, body);
+  return { eye: new THREE.Vector3(sx - 0.02, Math.min(belt + 0.27, P.roofY - 0.12), W * 0.22), steering };
 }
 
 /* ------------------------------------------------------------------ boats */

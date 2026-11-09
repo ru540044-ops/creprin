@@ -32,7 +32,7 @@ function stepNode(ai: AI, ti: number, tj: number, wander: boolean) {
 
 /**
  * Decide controls for one AI car this frame.
- * target: where to go (null = wander); speed: cruise m/s; lane: metres right of the centre line; stopAt: brake when this close to the target.
+ * target: where to go (null = wander); speed: cruise m/s; lane: metres left of the centre line (left-hand traffic); stopAt: brake when this close to the target.
  */
 export function steer(v: Veh, target: { x: number; z: number } | null, dt: number, o: { speed: number; lane?: number; stopAt?: number; ram?: boolean }): Drive {
   const ai = v.ai!; ai.t += dt;
@@ -59,9 +59,9 @@ export function steer(v: Veh, target: { x: number; z: number } | null, dt: numbe
       else { stepNode(ai, ti, tj, !target); nx = roadC(ai.ni); nz = roadC(ai.nj); dn = Math.hypot(nx - v.x, nz - v.z); }
     }
     ax = nx; az = nz;
-    if (o.lane && ai.pi >= 0) { // keep right of the centre line
+    if (o.lane && ai.pi >= 0) { // keep left of the centre line (Japan drives on the left)
       const dx = roadC(ai.ni) - roadC(ai.pi), dz = roadC(ai.nj) - roadC(ai.pj), L = Math.hypot(dx, dz) || 1;
-      ax += (-dz / L) * o.lane; az += (dx / L) * o.lane;
+      ax -= (-dz / L) * o.lane; az -= (dx / L) * o.lane;
     }
     if (dn < 32) want = Math.min(want, 8 + dn * 0.45); // slow down for the junction
   }

@@ -7,7 +7,7 @@ import { steer, newAI, nodeIdx } from './driver';
 import { clamp } from '../world/rng';
 import { admin } from '../admin';
 
-/** Civilian traffic: cars wander the street grid in the right-hand lane, stop at red lights and keep their distance. */
+/** Civilian traffic: cars wander the street grid in the left-hand lane (Japan), stop at red lights and keep their distance. */
 const KINDS: VKind[] = ['sedan', 'sedan', 'sedan', 'suv', 'suv', 'truck', 'sport', 'bike', 'super', 'taxi', 'taxi', 'hatch', 'hatch', 'pickup', 'pickup', 'muscle'];
 const LANE = 3.3;
 export const trafficCap = () => Math.round((game.quality === 'low' ? 8 : game.quality === 'medium' ? 13 : 18) * (admin.is ? admin.density : 1));
@@ -51,7 +51,7 @@ function spawnTraffic(px: number, pz: number, role: '' | 'police' = '') {
     const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, b]) => i + a >= 0 && i + a <= N && j + b >= 0 && j + b <= N);
     const [di, dj] = dirs[Math.floor(Math.random() * dirs.length)];
     const ax = roadC(i), az = roadC(j), ux = di, uz = dj; // unit direction (grid aligned)
-    const x = ax + ux * 22 - uz * LANE, z = az + uz * 22 + ux * LANE; // right of the centre line
+    const x = ax + ux * 22 + uz * LANE, z = az + uz * 22 - ux * LANE; // left of the centre line (Japan)
     const d = Math.hypot(x - px, z - pz); if (d < 85 || d > 210) continue;
     if (k < 14 && (x - px) * bx + (z - pz) * bz < 0) continue; // prefer spawning behind the camera
     if (vehicles.some((v) => Math.hypot(v.x - x, v.z - z) < 10)) continue;

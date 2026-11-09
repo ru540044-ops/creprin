@@ -182,17 +182,17 @@ function buildInner(def: VDef, color: string): Omit<CarModel, 'tilt'> {
   const wx = def.wheelbase / 2, wz = W / 2 - 0.16;
   for (const x of [wx, -wx]) for (const s of [-1, 1]) { const wg = wheel(def.wheelR, 0.28, rim); wg.position.set(x, def.wheelR, s * wz); root.add(wg); wheels.push(wg); }
   void gx0;
-  // turn signals (inner -z = the car's left), reverse lights, and a driver's door hinged at its front edge
+  // turn signals (inner -z = the car's left), reverse lights, and a driver's door (right side: Japanese right-hand drive) hinged at its front edge
   const amber = () => new THREE.MeshStandardMaterial({ color: '#5a3a00', emissive: new THREE.Color('#ffa21a'), emissiveIntensity: 0 });
   const blinkL = amber(), blinkR = amber(), rev = new THREE.MeshStandardMaterial({ color: '#cfcfcf', emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0 });
   const small = (mm: THREE.Mesh) => { mm.userData.small = true; };
   for (const [sz, m] of [[-1, blinkL], [1, blinkR]] as const) { small(add(box(0.07, 0.07, 0.14, nose + 0.01, hy, sz * W * 0.46), m, false)); small(add(box(0.07, 0.07, 0.12, rear - 0.01, ty - 0.1, sz * W * 0.45), m, false)); }
   for (const sz of [-1, 1]) small(add(box(0.05, 0.06, 0.12, rear - 0.008, ty - 0.12, sz * W * 0.16), rev, false));
   const door = new THREE.Group(), xf = Math.min(gx1 * 0.9, L - 0.9), dl = 1.25, belt = P.lower[4][1] - 0.02;
-  door.position.set(xf, 0, -W / 2 - 0.012);
+  door.position.set(xf, 0, W / 2 + 0.012);
   const panel = new THREE.Mesh(box(dl, belt - 0.36, 0.045, -dl / 2, (belt + 0.36) / 2, 0), paint); panel.castShadow = true; door.add(panel);
   const win = new THREE.Mesh(box(dl * 0.78, Math.min(0.36, P.roofY - belt - 0.12), 0.03, -dl * 0.45, belt + Math.min(0.36, P.roofY - belt - 0.12) / 2 + 0.02, 0.005), glass); door.add(win);
-  const handle = new THREE.Mesh(box(0.14, 0.03, 0.03, -dl * 0.82, belt - 0.12, -0.03), S.chrome); door.add(handle);
+  const handle = new THREE.Mesh(box(0.14, 0.03, 0.03, -dl * 0.82, belt - 0.12, 0.03), S.chrome); door.add(handle);
   door.userData.small = true; root.add(door);
   // per-model extras
   if (def.kind === 'taxi') {

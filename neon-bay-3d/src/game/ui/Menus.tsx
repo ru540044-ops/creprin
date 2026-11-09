@@ -3,11 +3,12 @@ import { game, progress, save } from '../state/store';
 import { settings, saveSettings, QualityMode } from '../settings';
 import { applyVolumes, sfx } from '../audio';
 import { ACHIEVEMENTS, DISTRICT_GOAL } from '../progression';
-import { giftBoxes } from '../crime/gifts';
+import { giftBoxes, boxesFound } from '../crime/gifts';
+import { REGION } from '../world/region';
 import { MISSIONS } from '../crime/story';
 import { VDEFS } from '../vehicles/defs';
 
-export const VERSION = 'v1.0';
+export const VERSION = 'v1.1';
 const fmtTime = (s: number) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h ? `${h}時間${m}分` : `${m}分`; };
 const km = (m: number) => (m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m');
 
@@ -96,7 +97,7 @@ export function StatsPanel() {
     ['所持金', '$' + game.money.toLocaleString('en-US')], ['累計で稼いだお金', '$' + Math.round(S.earned).toLocaleString('en-US')],
     ['歩いた距離', km(S.walk)], ['運転した距離', km(S.drive)], ['飛んだ距離', km(S.fly)], ['船で進んだ距離', km(S.sail)],
     ['乗った乗り物', `${S.vehicles.length} / ${Object.keys(VDEFS).length} 種類`], ['最高速度（地上）', `${S.top} km/h`], ['最高手配度', '★'.repeat(S.maxWanted) || 'なし'],
-    ['訪れた地区', `${S.districts.length} / ${DISTRICT_GOAL}`], ['ギフトボックス', `${progress.gift.boxes.length} / ${giftBoxes().length}`], ['持ち家', `${game.homes.length} 軒`],
+    ['訪れた地区', `${S.districts.length} / ${DISTRICT_GOAL}`], [`ギフトボックス（${REGION.name}）`, `${boxesFound()} / ${giftBoxes().length}（全国 ${progress.gift.boxes.length}）`], ['持ち家', `${game.homes.length} 軒`],
   ];
   return <div className="stats2">{rows.map(([a, b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
 }
@@ -105,7 +106,7 @@ export function CreditsPanel() {
     <div className="credits">
       <p className="clogo">NEON BAY</p>
       <p>オリジナルのオープンワールド・ゲーム</p>
-      <p className="snote">この作品に登場する人物・団体・地名・店舗・乗り物・ブランドはすべて架空のものです。</p>
+      <p className="snote">舞台は実在の都市名・地名を使っていますが、街並みはゲーム用に作り直したもので実際の地理や建物とは異なります。登場する人物・団体・店舗・乗り物・ブランドはすべて架空のものです。</p>
       <h4>音楽・効果音</h4><p>すべてゲーム内でリアルタイムに合成しています。</p>
       <h4>使用しているオープンソース</h4>
       <ul><li>three.js — MIT License</li><li>React / React DOM — MIT License</li><li>React Three Fiber — MIT License</li><li>drei — MIT License</li></ul>
@@ -153,8 +154,9 @@ export function TitleScreen({ hadSave, ready, onStart, onNewGame, mode, setMode,
     <div className="overlay ttl" onPointerDown={onFirstTouch}>
       <div className="brand">
         <div className="logo" aria-label="NEON BAY"><span className="l1">NEON</span><span className="l2">BAY</span></div>
-        <p className="tag">ネオンに染まる湾岸都市を、自由に生きろ。</p>
-        <p className="feat">歩く・走る・奪う・飛ぶ · 戦闘機と豪華客船 · 全ビルに入れる · ストーリー5話</p>
+        <p className="tag">東京から那覇まで。ネオンの日本を、自由に生きろ。</p>
+        <p className="feat">東京・大阪・福岡・那覇 · 新幹線と飛行機で移動 · 全ビルに入れる · ストーリー5話</p>
+        {hadSave && <p className="tcity">現在地：{REGION.name}（{REGION.en}）</p>}
       </div>
       <div className="menu">
         {!ready && <div className="loading"><span>街を読み込み中…</span><i><b /></i></div>}

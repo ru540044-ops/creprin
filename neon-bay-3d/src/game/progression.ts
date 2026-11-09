@@ -1,9 +1,10 @@
+import { REGION } from './world/region';
 import { game, progress, ownedCars, save, toast } from './state/store';
 import { playerCar, spawn, vehicles } from './vehicles/sim';
 import { isBoat, VKind } from './vehicles/defs';
 import { law } from './crime/crime';
 import { mission, nextMission } from './crime/story';
-import { giftBoxes } from './crime/gifts';
+import { giftBoxes, boxesFound } from './crime/gifts';
 import { roadC } from './world/cityGen';
 import { nodeIdx } from './ai/driver';
 import { settings, saveSettings } from './settings';
@@ -31,7 +32,7 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'walk', icon: '👟', title: '街歩き', desc: '合計5km歩く', test: (s) => s.walk >= 5000 },
   { id: 'road', icon: '🛣️', title: 'ロードトリップ', desc: '合計50km運転する', test: (s) => s.drive >= 50000 },
   { id: 'explore', icon: '🗺️', title: '探検家', desc: `${DISTRICT_GOAL}の地区を訪れる`, test: (s) => s.districts.length >= DISTRICT_GOAL },
-  { id: 'story1', icon: '📖', title: 'ようこそネオンベイへ', desc: 'ミッション1をクリア', test: () => progress.story >= 1 },
+  { id: 'story1', icon: '📖', title: 'はじめての仕事', desc: 'ミッション1をクリア', test: () => progress.story >= 1 },
   { id: 'story5', icon: '👑', title: 'ベイの帝王', desc: 'ストーリーを全てクリア', test: () => progress.story >= 5 },
   { id: 'rich', icon: '💰', title: '百万長者', desc: '所持金$1,000,000', test: () => game.money >= 1_000_000 },
   { id: 'earn', icon: '💵', title: '稼ぎ頭', desc: '累計$250,000稼ぐ', test: (s) => s.earned >= 250_000 },
@@ -41,7 +42,7 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'villa', icon: '🏝️', title: '豪邸の主', desc: 'モダン豪邸を買う', test: () => game.homes.includes('villa') },
   { id: 'garage', icon: '🅿️', title: 'コレクター', desc: '乗り物を5台所有する', test: () => ownedCars.length >= 5 },
   { id: 'gift10', icon: '🎁', title: '宝探し', desc: 'ギフトボックスを10個見つける', test: () => progress.gift.boxes.length >= 10 },
-  { id: 'giftall', icon: '🎉', title: '全部見つけた', desc: 'ギフトボックスをすべて見つける', test: () => progress.gift.boxes.length >= giftBoxes().length },
+  { id: 'giftall', icon: '🎉', title: '全部見つけた', desc: 'どこかの街のギフトボックスをすべて見つける', test: () => boxesFound() >= giftBoxes().length },
   { id: 'cruise', icon: '🛳️', title: '船旅', desc: '豪華客船に乗船する', test: (s) => !!s.flags.cruise },
   { id: 'stunt', icon: '🤸', title: 'スタントマン', desc: 'スタントジャンプを成功させる', test: () => Object.keys(progress.stunts).length >= 1 },
   { id: 'daily', icon: '☀️', title: '皆勤賞', desc: 'ログインボーナス7日目を受け取る', test: () => progress.gift.streak >= 7 },
@@ -121,6 +122,6 @@ function updateTutorial(dt: number) {
   if (S.done(dt)) {
     sfx('ui'); tutorial.step++; tutorial.t = 0; tutorial.acc = 0; tutorial.yaw = game.cam.yaw;
     const N = tutorialStep();
-    if (N) N.enter?.(); else { settings.tutorialDone = true; saveSettings(); game.money += 1000; showBanner('ok', 'チュートリアル完了', 'ようこそネオンベイへ！ +$1,000', 3.5); save(); }
+    if (N) N.enter?.(); else { settings.tutorialDone = true; saveSettings(); game.money += 1000; showBanner('ok', 'チュートリアル完了', `ようこそ${REGION.name}へ！ +$1,000`, 3.5); save(); }
   }
 }

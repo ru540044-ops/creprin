@@ -6,7 +6,7 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O,
 } from './cityGen';
 import { game } from '../state/store';
 import { BDOORS, BDoor } from './bldgInteriors';
@@ -111,7 +111,13 @@ function buildChunkLevel(list: Building[], hi: boolean): Built {
       if (b.gable) {
         wall.box(b.x0, b.y0, b.z0, b.x1, top, b.z1, col, F.su, F.sv, null, 8, true, b.y0);
         g('tiles').gable(b.x0, b.z0, b.x1, b.z1, top, Math.min(4, (Math.min(b.x1 - b.x0, b.z1 - b.z0)) * 0.35), b.roofTint || [0.5, 0.3, 0.25], wall, col);
-        if (hi) { const cx = b.x0 + (b.x1 - b.x0) * 0.25; g('misc').box(cx, top, (b.z0 + b.z1) / 2 - 0.5, cx + 1, top + 3.2, (b.z0 + b.z1) / 2 + 0.5, [0.55, 0.4, 0.35]); g('misc').box((b.x0 + b.x1) / 2 - 0.7, b.y0, b.z0 - 0.08, (b.x0 + b.x1) / 2 + 0.7, b.y0 + 2.2, b.z0, [0.35, 0.22, 0.16]); }
+        if (hi) { // Japanese house: front door, a first-floor balcony with a railing, an air-conditioner unit on the side wall
+          const m = g('misc'), mt = g('metal'), cx = (b.x0 + b.x1) / 2, bw = (b.x1 - b.x0) * 0.32, by = b.y0 + 3.05, bx = b.x0 + (b.x1 - b.x0) * (r() < 0.5 ? 0.3 : 0.7);
+          m.box(cx - 0.6 + (bx > cx ? -2.2 : 2.2), b.y0, b.z0 - 0.08, cx + 0.6 + (bx > cx ? -2.2 : 2.2), b.y0 + 2.1, b.z0, [0.35, 0.26, 0.2]);
+          m.solid(bx - bw, by - 0.14, b.z0 - 1.0, bx + bw, by, b.z0, [0.82, 0.8, 0.76]); mt.solid(bx - bw, by, b.z0 - 1.0, bx + bw, by + 1.0, b.z0 - 0.94, [0.55, 0.57, 0.6]);
+          mt.solid(bx - bw - 0.06, by, b.z0 - 1.0, bx - bw, by + 1.0, b.z0, [0.55, 0.57, 0.6]); mt.solid(bx + bw, by, b.z0 - 1.0, bx + bw + 0.06, by + 1.0, b.z0, [0.55, 0.57, 0.6]);
+          const az = b.z0 + 1.5 + r() * Math.max(0.5, b.z1 - b.z0 - 3.5); m.solid(b.x1, b.y0, az, b.x1 + 0.32, b.y0 + 0.62, az + 0.82, [0.9, 0.9, 0.88]);
+        }
         continue;
       }
       // setbacks: tall glass towers step in twice, tall offices once (snapped to whole floors so windows line up)
@@ -188,7 +194,13 @@ function usePropGeos() {
     const billboardFrame = merge([tr(new THREE.BoxGeometry(0.3, 6, 0.3), -4, 3, 0.4), tr(new THREE.BoxGeometry(0.3, 6, 0.3), 4, 3, 0.4), tr(new THREE.BoxGeometry(10.4, 5.2, 0.25), 0, 7.2, 0.35)]);
     const billboardPanel = tr(new THREE.PlaneGeometry(10, 4.8), 0, 7.2, 0.2); billboardPanel.rotateY(Math.PI); billboardPanel.translate(0, 0, 0);
     const pool = new THREE.PlaneGeometry(12, 12); pool.rotateX(-Math.PI / 2); pool.translate(0, 0.2, 2);
-    return { lampPole, lampHead, signalPole, signalBulb, trunk, canopy, palmTrunk, palmTop, pine, bench, bin, hydrant, container, umbrella, billboardFrame, billboardPanel, pool };
+    // Japanese concrete utility pole: shaft, two cross-arms with insulators, step bolts; a pole-top transformer on some
+    const ins = (x: number, y: number) => tr(new THREE.CylinderGeometry(0.06, 0.08, 0.22, 5), x, y, 0);
+    const pole = merge([tr(new THREE.CylinderGeometry(0.13, 0.2, 10.5, 7), 0, 5.4, 0), tr(new THREE.BoxGeometry(1.8, 0.12, 0.12), 0, 9.1, 0), tr(new THREE.BoxGeometry(1.1, 0.1, 0.1), 0, 7.1, 0), ins(-0.75, 9.27), ins(0.75, 9.27), ins(0, 9.27), ...[2.6, 3.4, 4.2, 5, 5.8].map((y, k) => tr(new THREE.BoxGeometry(0.34, 0.04, 0.04), 0, y, 0, 0, 0).rotateY(k % 2 ? Math.PI / 2 : 0))]);
+    const transformer = merge([tr(new THREE.CylinderGeometry(0.3, 0.3, 1.05, 8), 0, 7.95, 0.5), tr(new THREE.BoxGeometry(0.1, 0.5, 0.36), 0, 7.95, 0.2)]);
+    const vendBody = merge([tr(new THREE.BoxGeometry(1.0, 1.83, 0.75), 0, 0.15 + 0.915, 0), tr(new THREE.BoxGeometry(1.0, 0.08, 0.12), 0, 0.15 + 0.42, 0.42)]);
+    const vendFace = new THREE.PlaneGeometry(0.84, 1.08); vendFace.translate(0, 0.15 + 1.2, 0.377);
+    return { pole, transformer, vendBody, vendFace, lampPole, lampHead, signalPole, signalBulb, trunk, canopy, palmTrunk, palmTop, pine, bench, bin, hydrant, container, umbrella, billboardFrame, billboardPanel, pool };
   }, []);
 }
 
@@ -229,17 +241,53 @@ function makePropMats() {
     pine: new THREE.MeshStandardMaterial({ color: '#2a4d32', roughness: 1, flatShading: true }), wood: new THREE.MeshStandardMaterial({ color: '#7a5236', roughness: 0.8 }),
     bin: new THREE.MeshStandardMaterial({ color: '#2f4f3a', roughness: 0.6 }), red: new THREE.MeshStandardMaterial({ color: '#c2271d', roughness: 0.5 }),
     cont: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55, metalness: 0.4 }), cloth: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 }),
+    concrete: new THREE.MeshStandardMaterial({ color: '#a19f99', roughness: 0.9 }), trans: new THREE.MeshStandardMaterial({ color: '#7d8188', roughness: 0.5, metalness: 0.5 }),
+    wire: new THREE.LineBasicMaterial({ color: '#16171a' }),
+    vend: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, metalness: 0.2 }), vendFace: new THREE.MeshBasicMaterial({ map: vendTexture(), toneMapped: false }),
   };
   for (const m of [pm.leaf, pm.palm, pm.pine]) addWind(m);
   return pm;
 }
 const propMats = () => (PM ||= makePropMats());
+/** Drink display of a vending machine: three shelves of cans and bottles, price buttons, the coin slot. */
+function vendTexture() {
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 164; const c = cv.getContext('2d')!;
+  c.fillStyle = '#eef3f7'; c.fillRect(0, 0, 128, 164);
+  const cols = ['#d8262e', '#1f5fc4', '#f2c230', '#2d9a4a', '#f07a1e', '#ffffff', '#7a3ec8', '#13a6b8'];
+  for (let row = 0; row < 3; row++) for (let k = 0; k < 6; k++) {
+    const x = 8 + k * 19, y = 10 + row * 40, col = cols[(row * 5 + k * 3) % cols.length];
+    c.fillStyle = col; c.fillRect(x, y, 13, 26); c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(x + 2, y + 3, 3, 18);
+    c.fillStyle = '#2a2a30'; c.fillRect(x, y + 29, 13, 5); c.fillStyle = '#ff4040'; c.fillRect(x + 4, y + 30, 5, 3);
+  }
+  c.fillStyle = '#20242a'; c.fillRect(0, 128, 128, 36); c.fillStyle = '#7fe3ff'; c.fillRect(10, 136, 40, 10); c.fillStyle = '#c9ccd3'; c.fillRect(92, 134, 10, 22);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+/** Sagging cables between utility poles: two power lines at the cross-arm ends and a lower telephone line. */
+function wireGeometry(spans: { x0: number; z0: number; x1: number; z1: number }[]) {
+  const pts: number[] = [];
+  for (const w of spans) {
+    const dx = w.x1 - w.x0, dz = w.z1 - w.z0, L = Math.hypot(dx, dz) || 1, px = -dz / L, pz = dx / L, sag = Math.min(1.1, L * 0.022);
+    for (const [o, y] of [[-0.75, 9.32], [0.75, 9.32], [0.12, 7.2]]) {
+      const ax = w.x0 + px * o, az = w.z0 + pz * o, bx = w.x1 + px * o, bz = w.z1 + pz * o;
+      for (let k = 0; k < 6; k++) { const t0 = k / 6, t1 = (k + 1) / 6; pts.push(ax + (bx - ax) * t0, y - sag * 4 * t0 * (1 - t0), az + (bz - az) * t0, ax + (bx - ax) * t1, y - sag * 4 * t1 * (1 - t1), az + (bz - az) * t1); }
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.computeBoundingSphere(); return g;
+}
+function Wires({ spans }: { spans: { x0: number; z0: number; x1: number; z1: number }[] }) {
+  const geo = useMemo(() => wireGeometry(spans), [spans]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <lineSegments geometry={geo} material={propMats().wire} />;
+}
 function PropsChunk({ k, B, mats, pg, adMats }: { k: string; B: Record<string, Map<string, any[]>>; mats: Mats; pg: ReturnType<typeof usePropGeos>; adMats: THREE.Material[] }) {
-  const pm = propMats();
+  const pm = propMats(), small = useRef<THREE.Group>(null);
+  const [kx, kz] = k.split(',').map(Number), ccx = (kx + 0.5) * CH, ccz = (kz + 0.5) * CH;
+  useFrame(({ camera }) => { if (small.current) small.current.visible = Math.hypot(camera.position.x - ccx, camera.position.z - ccz) < 380; });
 
   const L = (n: string) => B[n].get(k) || [];
   const lamps = L('lamps'), trees = L('trees'), palms = L('palms'), pines = L('pines');
-  const leafCols = useMemo(() => trees.map((_, i) => [0.2 + ((i * 37) % 10) / 60, 0.42 + ((i * 13) % 10) / 50, 0.2]), [trees]);
+  const leafCols = useMemo(() => trees.map((t: any, i) => t.c || [0.2 + ((i * 37) % 10) / 60, 0.42 + ((i * 13) % 10) / 50, 0.2]), [trees]);
+  const poles = L('poles'), trans = useMemo(() => poles.filter((p: any) => p.tr), [poles]), vends = L('vends'), vendCols = useMemo(() => vends.map((v: any) => v.c), [vends]);
   const conts = L('containers'), umbr = L('umbrellas'), bills = L('billboards');
   const umbrCols = useMemo(() => umbr.map((c: any) => c.c), [umbr]), contCols = useMemo(() => conts.map((c: any) => c.c), [conts]), billsBy = useMemo(() => [0, 1, 2, 3].map((n) => bills.filter((b: any) => b.c === n)), [bills]);
   return (
@@ -253,13 +301,20 @@ function PropsChunk({ k, B, mats, pg, adMats }: { k: string; B: Record<string, M
       <Inst geo={pg.palmTop} mat={pm.palm} items={palms} shadow />
       <Inst geo={pg.trunk} mat={pm.trunk} items={pines} />
       <Inst geo={pg.pine} mat={pm.pine} items={pines} shadow />
-      <Inst geo={pg.bench} mat={pm.wood} items={L('benches')} />
-      <Inst geo={pg.bin} mat={pm.bin} items={L('bins')} />
-      <Inst geo={pg.hydrant} mat={pm.red} items={L('hydrants')} />
+      <group ref={small}>{/* small street furniture: only drawn in the chunks close to the camera */}
+        <Inst geo={pg.bench} mat={pm.wood} items={L('benches')} />
+        <Inst geo={pg.bin} mat={pm.bin} items={L('bins')} />
+        <Inst geo={pg.hydrant} mat={pm.red} items={L('hydrants')} />
+        <Inst geo={pg.transformer} mat={pm.trans} items={trans} />
+        {L('wires').length > 0 && <Wires spans={L('wires')} />}
+        <Inst geo={pg.vendBody} mat={pm.vend} items={vends} colors={vendCols} />
+        <Inst geo={pg.vendFace} mat={pm.vendFace} items={vends} />
+      </group>
       <Inst geo={pg.container} mat={pm.cont} items={conts} colors={contCols} shadow />
       <Inst geo={pg.umbrella} mat={pm.cloth} items={umbr} colors={umbrCols} />
       <Inst geo={pg.billboardFrame} mat={pm.pole} items={bills} />
       {[0, 1, 2, 3].map((n) => <Inst key={n} geo={pg.billboardPanel} mat={adMats[n]} items={billsBy[n]} />)}
+      <Inst geo={pg.pole} mat={pm.concrete} items={poles} shadow />
     </group>
   );
 }
@@ -366,6 +421,13 @@ function buildPaint(tx: number, tz: number): Built {
       if (inT(m, c)) { for (let t = a + 2; t < b2 - 3; t += 6) G.flat(t, c - 0.12, t + 3, c + 0.12, 0.02, Y); for (const o of [-ROAD / 2 + 0.5, ROAD / 2 - 0.6]) G.flat(a, c + o, b2, c + o + 0.1, 0.02, W); }
     }
   }
+  { // scramble crossing: diagonal zebra stripes across the busiest junction
+    const x = roadC(O + 4), z = roadC(O + 4), s2 = Math.SQRT1_2;
+    if (inT(x, z)) for (const [ux, uz, vx, vz, yy] of [[s2, s2, -s2, s2, 0.024], [s2, -s2, s2, s2, 0.026]]) for (let s = -8.4; s <= 8.4; s += 1.4) {
+      const cx = x + ux * s, cz = z + uz * s, a = 0.35, b = 1.5;
+      G.quad([cx - ux * a + vx * b, yy, cz - uz * a + vz * b], [cx + ux * a + vx * b, yy, cz + uz * a + vz * b], [cx + ux * a - vx * b, yy, cz + uz * a - vz * b], [cx - ux * a - vx * b, yy, cz - uz * a - vz * b], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], W);
+    }
+  }
   for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
     const x = roadC(i), z = roadC(j), h = ROAD / 2; if (!inT(x, z)) continue;
     for (let o = -h + 1; o < h - 0.5; o += 1.4) { G.flat(x + o, z - h - 4, x + o + 0.7, z - h - 1, 0.02, W); G.flat(x + o, z + h + 1, x + o + 0.7, z + h + 4, 0.02, W); G.flat(x - h - 4, z + o, x - h - 1, z + o + 0.7, 0.02, W); G.flat(x + h + 1, z + o, x + h + 4, z + o + 0.7, 0.02, W); }
@@ -379,7 +441,7 @@ function buildGround() {
     G.side.box(b.x0, 0, b.z0, b.x1, 0.15, b.z1, ONE, 2, 2, G.side, 2);
     const m = 5;
     if (b.zone === 'park') { G.grass.flat(b.x0 + 2, b.z0 + 2, b.x1 - 2, b.z1 - 2, 0.17, ONE, 6); }
-    else if (b.zone === 'residential') G.grass.flat(b.x0 + m, b.z0 + m, b.x1 - m, b.z1 - m, 0.16, ONE, 6);
+    else if (b.zone === 'residential') { G.concrete.flat(b.x0 + m, b.z0 + m, b.x1 - m, b.z1 - m, 0.16, [0.9, 0.89, 0.86], 8); const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2; G.grass.flat(cx - 10, cz - 10, cx + 10, cz + 10, 0.17, ONE, 6); }
     else if (b.zone === 'parking' || b.zone === 'gas') {
       G.asphalt2.flat(b.x0 + m, b.z0 + m, b.x1 - m, b.z1 - m, 0.16, ONE, 8);
       if (b.zone === 'parking') for (let x = b.x0 + 9; x < b.x1 - 20; x += 3.2) { G.paint.flat(x, b.z0 + 10, x + 0.15, b.z0 + 15.5, 0.18, W); G.paint.flat(x, b.z1 - 15.5, x + 0.15, b.z1 - 10, 0.18, W); }
@@ -476,7 +538,8 @@ export default function City({ shadows }: { shadows: boolean }) {
   const ground = useMemo(() => { const G = buildGround(); return Object.entries(G).filter(([, g]) => !g.empty).map(([k, g]) => ({ k, geo: g.build() })); }, []);
   const pg = usePropGeos();
   const cityPlane = useMemo(() => { const g = new THREE.PlaneGeometry(CITY, CITY, N, N); /* small triangles: one giant quad loses depth precision at street level and swallows the road paint */ g.rotateX(-Math.PI / 2); const uv = g.attributes.uv as THREE.BufferAttribute; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (CITY / 10), uv.getY(i) * (CITY / 10)); return g; }, []);
-  const B = useMemo(() => Object.fromEntries((['lamps', 'trees', 'palms', 'pines', 'benches', 'bins', 'hydrants', 'containers', 'umbrellas', 'billboards', 'signals'] as const).map((n) => [n, bucket(props[n] as any[])])), []);
+  const B = useMemo(() => Object.fromEntries((['lamps', 'trees', 'palms', 'pines', 'benches', 'bins', 'hydrants', 'containers', 'umbrellas', 'billboards', 'signals', 'poles', 'vends'] as const).map((n) => [n, bucket(props[n] as any[])] as [string, Map<string, any[]>]).concat([['wires', bucket(props.wires.map((w) => ({ ...w, x: w.x0, z: w.z0 })))]])) as Record<string, Map<string, any[]>>, []);
+  useFrame(() => { const h = game.hour, k = h > 18.4 || h < 6.4 ? 1.5 : h > 17.2 || h < 7.2 ? 1.15 : 0.92; propMats().vendFace.color.setScalar(k); });
   const adMats = useMemo(() => [['BUZZR', '#ff3f93'], ['QWIK 24', '#3dffb0'], ['BAY MOTORS', '#2be4ff'], ['THREADS', '#c07aff']].map(([t, c]) => new THREE.MeshBasicMaterial({ map: labelTexture(t, c, 512, 256), toneMapped: false })), []);
   const cells = useMemo(() => {
     const map = new Map<string, Cell>();

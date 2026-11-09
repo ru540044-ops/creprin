@@ -4,7 +4,8 @@ import { VDEFS, VKind, DEALER, isBoat } from './vehicles/defs';
 import { hasRoom } from './crime/gifts';
 import { peds, scare } from './ai/peds';
 import { law, armored, exportJob, newExport, resetRobberies } from './crime/crime';
-import { HALF, N, O, MIDTOWN, roadC, groundAt, floorAt, doors, GARAGE, AIRPORT, PORT, BEACH_X, POLICE_HQ, HOSPITAL, EXPORT_DOCK, CUSTOMS, HELIPADS, RAMPS, isWater } from './world/cityGen';
+import { REGION, inTokyo } from './world/region';
+import { HALF, N, O, MIDTOWN, roadC, RAIL, LANDMARK3D, groundAt, floorAt, doors, GARAGE, AIRPORT, PORT, BEACH_X, POLICE_HQ, HOSPITAL, EXPORT_DOCK, CUSTOMS, HELIPADS, RAMPS, isWater } from './world/cityGen';
 import { WEAPONS, MAG } from './combat/weapons';
 import { releaseDrive } from './input';
 import { sfx } from './audio';
@@ -84,14 +85,18 @@ export const WARPS: { name: string; at: () => { x: number; z: number } }[] = [
   { name: '空港', at: () => ({ x: AIRPORT.x0 + 320, z: -165 }) },
   { name: '港', at: () => ({ x: PORT.x0 + 80, z: PORT.z0 + 20 }) },
   { name: 'ビーチ', at: () => ({ x: BEACH_X + 30, z: 0 }) },
-  { name: 'ダウンタウン', at: () => ({ x: 0, z: -50 }) },
-  { name: 'アップタウン', at: () => ({ x: 857, z: -850 }) },
-  { name: 'ベイフロント', at: () => ({ x: 850, z: 50 }) },
-  { name: 'ミッドタウン', at: () => ({ x: roadC(MIDTOWN.ci + O) + 3.5, z: roadC(MIDTOWN.cj + O) + 30 }) },
-  { name: 'オールドタウン', at: () => ({ x: -HALF + 450, z: HALF - 450 }) },
-  { name: 'ノースヒルズ', at: () => ({ x: roadC(N / 2) + 3.5, z: -HALF + 300 }) },
+  { name: REGION.names.downtown, at: () => ({ x: 0, z: -50 }) },
+  { name: LANDMARK3D.label, at: () => ({ x: LANDMARK3D.x + 3.5, z: LANDMARK3D.z + 48 }) },
+  { name: REGION.rail.name + 'の駅', at: () => ({ x: RAIL.x + 9, z: RAIL.stations[1] }) },
+  ...(inTokyo() ? [
+    { name: REGION.ring!.uptown, at: () => ({ x: 857, z: -850 }) },
+    { name: REGION.ring!.east, at: () => ({ x: 850, z: 50 }) },
+    { name: REGION.outer!.midtown, at: () => ({ x: roadC(MIDTOWN.ci + O) + 3.5, z: roadC(MIDTOWN.cj + O) + 30 }) },
+    { name: REGION.outer!.oldtown, at: () => ({ x: -HALF + 450, z: HALF - 450 }) },
+    { name: REGION.outer!.northhills, at: () => ({ x: roadC(N / 2) + 3.5, z: -HALF + 300 }) },
+  ] : []),
   { name: 'BAY CUSTOMS', at: () => CUSTOMS.spawn },
-  ...(['danchi', 'house', 'tower', 'villa'] as const).map((id) => ({ name: { danchi: '団地', house: '一軒家', tower: 'タワマン', villa: '豪邸' }[id], at: () => { const d = doors.find((q) => q.id === 'h_' + id)!; return { x: d.x + Math.sin(d.ang) * 2.5, z: d.z + Math.cos(d.ang) * 2.5 }; } })),
+  ...(['danchi', 'house', 'tower', 'villa'] as const).filter((id) => doors.some((q) => q.id === 'h_' + id)).map((id) => ({ name: { danchi: '団地', house: '一軒家', tower: 'タワマン', villa: '豪邸' }[id], at: () => { const d = doors.find((q) => q.id === 'h_' + id)!; return { x: d.x + Math.sin(d.ang) * 2.5, z: d.z + Math.cos(d.ang) * 2.5 }; } })),
   { name: '屋上ヘリパッド', at: () => { const h = HELIPADS[HELIPADS.length - 1]; return { x: h.x + 9, z: h.z }; } },
   { name: 'ランウェイ・ジャンプ', at: () => { const r = RAMPS[RAMPS.length - 1]; return { x: r.x - Math.sin(r.yaw) * 120, z: r.z - Math.cos(r.yaw) * 120 }; } },
 ];

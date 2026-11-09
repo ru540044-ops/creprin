@@ -1,3 +1,4 @@
+import { REGION } from '../world/region';
 import StyleStudio from './StyleStudio';
 import { settings, QualityMode } from '../settings';
 import { banner, tutorial, tutorialStep, tutorialCount, skipTutorial } from '../progression';
@@ -116,7 +117,7 @@ function FullMap({ onClose }: { onClose: () => void }) {
   };
   return (
     <div className="overlay map">
-      <div className="mapHead"><b>ベイ全体マップ</b><span>ドラッグで移動・ピンチで拡大・タップで目的地</span></div>
+      <div className="mapHead"><b>{REGION.name}マップ</b><span>ドラッグで移動・ピンチで拡大・タップで目的地</span></div>
       <div className="mapBox">
         <canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); }} onWheel={(e) => { const l = local(e); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, l.x, l.y); }} style={{ touchAction: 'none' }} />
         <div className="mapZoom"><button type="button" aria-label="拡大" onClick={() => zoomAt(1.4)}>＋</button><button type="button" aria-label="縮小" onClick={() => zoomAt(1 / 1.4)}>−</button><button type="button" onClick={() => centerOnPlayer()}>現在地</button><button type="button" onClick={() => { view.current.z = view.current.fit; const img = mapImage(); view.current.cx = img.width / 2; view.current.cy = img.height / 2; clampV(); }}>全体</button></div>

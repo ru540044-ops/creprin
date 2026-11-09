@@ -1,9 +1,10 @@
+import { REGION } from '../world/region';
 import { useEffect, useState } from 'react';
 import { game, toast, save, progress, ownedCars } from '../state/store';
 import { VDEFS } from '../vehicles/defs';
 import { playerCar } from '../vehicles/sim';
 import { sfx } from '../audio';
-import { DAILY, dailyState, claimDaily, rewardLabel, net, unclaimed, claimNet, giftBoxes, nearestBox, CARD_CASH, CARD_KINDS, makeCashCard, makeVehicleCard, redeemCard } from '../crime/gifts';
+import { DAILY, dailyState, claimDaily, rewardLabel, net, unclaimed, claimNet, giftBoxes, nearestBox, CARD_CASH, CARD_KINDS, makeCashCard, makeVehicleCard, redeemCard, boxesFound } from '../crime/gifts';
 
 const money = (n: number) => '$' + n.toLocaleString('en-US');
 
@@ -16,7 +17,7 @@ function Two({ label, ask, onOk, disabled }: { label: string; ask: string; onOk:
 
 export default function GiftApp({ close, refresh }: { close: () => void; refresh: () => void }) {
   const [code, setCode] = useState(''), [made, setMade] = useState(''), [msg, setMsg] = useState(''), [veh, setVeh] = useState(-1);
-  const ds = dailyState(), list = net.list, boxes = giftBoxes(), found = progress.gift.boxes.length, me = playerCar();
+  const ds = dailyState(), list = net.list, boxes = giftBoxes(), found = boxesFound(), me = playerCar();
   const copy = async () => { try { await navigator.clipboard.writeText(made); toast('コードをコピーした', 1.4); } catch { toast('長押しで選択してコピーしてください', 1.8); } };
   return (
     <div className="appBody">
@@ -71,7 +72,7 @@ export default function GiftApp({ close, refresh }: { close: () => void; refresh
 
       <div className="jobCard gift">
         <b>📦 隠しギフトボックス</b>
-        <p>街のどこかに光るギフトボックスが {boxes.length} 個。歩くか車で触れると開く。10個・25個・40個でボーナス、全部集めるとApex F1。</p>
+        <p>{REGION.name}のどこかに光るギフトボックスが {boxes.length} 個（街ごとに別の箱）。歩くか車で触れると開く。10個・25個・40個でボーナス、全部集めるとApex F1。</p>
         <span className="pay">発見 {found}/{boxes.length}</span>
         <div className="jobBtns"><button type="button" disabled={found >= boxes.length || game.money < 500} onClick={() => {
           const o = game.where === 'out' ? game.player : game.outsidePos, b = nearestBox(o.x, o.z); if (!b) return;

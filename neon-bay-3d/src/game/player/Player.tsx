@@ -76,7 +76,7 @@ export default function Player() {
     if (sp > 9) { toast('スピードを落とすと降りられる', 1.4); return; }
     if ((me.def.kind === 'heli' || me.def.kind === 'jet') && me.air) { toast(me.def.kind === 'jet' ? '滑走路に着陸してから降りよう' : 'ヘリは着陸してから降りよう', 1.6); return; }
     const lx = Math.cos(me.yaw), lz = -Math.sin(me.yaw), fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), off = me.def.wid / 2 + 0.6;
-    const spots = [[lx * off, lz * off], [-lx * off, -lz * off], [-fx * (me.def.len / 2 + 0.8), -fz * (me.def.len / 2 + 0.8)], [fx * (me.def.len / 2 + 0.8), fz * (me.def.len / 2 + 0.8)]];
+    const spots = [[-lx * off, -lz * off], [lx * off, lz * off], /* driver's side (right) first */ [-fx * (me.def.len / 2 + 0.8), -fz * (me.def.len / 2 + 0.8)], [fx * (me.def.len / 2 + 0.8), fz * (me.def.len / 2 + 0.8)]];
     let ok: number[] | null = null;
     for (const [dx, dz] of spots) {
       const q = { x: me.x + dx, z: me.z + dz }, q0x = q.x, q0z = q.z;
@@ -288,7 +288,7 @@ export default function Player() {
     guns.pistol.visible = !me && game.arms.cur === 'pistol'; guns.smg.visible = !me && game.arms.cur === 'smg';
     if (grp.current) {
       const G = grp.current;
-      if (me && !rider(me.def.kind)) { // sit in the driver's seat (left side), sliding in from the door
+      if (me && !rider(me.def.kind)) { // sit in the driver's seat (right side), sliding in from the door
         const S = A.seatFor(me.def.kind), lx = Math.cos(me.yaw), lz = -Math.sin(me.yaw), fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
         const sx = me.x + lx * me.def.wid * S.side + fx * S.fwd, sz = me.z + lz * me.def.wid * S.side + fz * S.fwd;
         const k = st.enterCar === me ? A.smooth(0.25, 1, st.enterK) : 1, dx = st.enterFrom.x, dz = st.enterFrom.z;

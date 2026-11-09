@@ -3,6 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import City from './game/world/City';
 import CruiseShip from './game/world/CruiseShip';
+import Landmarks from './game/world/Landmarks';
+import Railway from './game/world/Railway';
 import Environment from './game/world/Environment';
 import Interiors from './game/world/Interiors';
 import Player from './game/player/Player';
@@ -53,7 +55,9 @@ import { doors, SPAWN, groundAt, buildings, TRIALS, LANDMARKS, EXPORT_DOCK, POLI
 import * as crime from './game/crime/crime';
 import { steer, newAI } from './game/ai/driver';
 import { INTERIORS } from './game/world/Interiors';
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+import { ArrivalScreen, TRAVEL_KEY } from './game/ui/TravelApp';
+import { REGION } from './game/world/region'; // after the game modules (import cycles resolve in the old order)
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -107,6 +111,8 @@ function Scene({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
       <Environment shadows={q.shadows} shadowSize={q.size} />
       <City shadows={q.shadows} />
       <CruiseShip />
+      <Landmarks />
+      <Railway />
       <Interiors where={where} />
       <Player />
       <Vehicles />
@@ -139,6 +145,7 @@ export default function App() {
   const quality: Quality = mode === 'auto' ? autoQ : mode;
   const prevQ = useRef(quality);
   const savedHour = useRef(game.hour);
+  const arriving = useMemo(() => { try { return hadSave && !!localStorage.getItem(TRAVEL_KEY); } catch { return false; } }, [hadSave]);
   useEffect(() => { bindKeyboard(); checkAdmin(); initNetGifts(); if (!started) game.hour = 17.9; }, []);
   useEffect(() => { game.quality = quality; save(); }, [quality]);
   if (prevQ.current !== quality) { prevQ.current = quality; remountAt.t = performance.now(); }
@@ -196,7 +203,8 @@ export default function App() {
           <Suspense fallback={null}><Scene quality={quality} onSlow={() => { if (quality === 'low') return; const nq: Quality = quality === 'high' ? 'medium' : 'low'; setAutoQ(nq); toast(`動作を軽くするため画質を「${nq === 'low' ? '低' : '中'}」にしました（設定で変更できます）`, 4); }} /></Suspense>
         </Canvas>
         {started && <HUD quality={quality} mode={mode} setMode={setMode} onPause={() => pause(true)} />}
-        {!started && <TitleScreen hadSave={hadSave} ready={ready} onStart={() => begin(false)} onNewGame={newGame} mode={mode} setMode={setMode} effective={quality} onFirstTouch={firstTouch} />}
+        {!started && arriving && <ArrivalScreen ready={ready} onGo={() => begin(false)} />}
+        {!started && !arriving && <TitleScreen hadSave={hadSave} ready={ready} onStart={() => begin(false)} onNewGame={newGame} mode={mode} setMode={setMode} effective={quality} onFirstTouch={firstTouch} />}
         {started && paused && <PauseMenu onResume={() => pause(false)} mode={mode} setMode={setMode} effective={quality} goal={goal} />}
         {frozen && !lost && <div className="overlay fatal"><div className="mpanel"><div className="mpanel-body"><p className="ptitle small">動作が止まりました</p><p>申し訳ありません。進行状況は保存されています。再読み込みすると続きから遊べます。</p><button type="button" className="mbtn primary" onClick={() => location.reload()}>再読み込み<span>↻</span></button></div></div></div>}
         {lost && <div className="overlay fatal"><div className="mpanel"><div className="mpanel-body"><p className="ptitle small">画面を復旧します</p><p>グラフィックが一時的に止まりました。進行状況は保存されています。</p><button type="button" className="mbtn primary" onClick={() => location.reload()}>再読み込み<span>↻</span></button></div></div></div>}

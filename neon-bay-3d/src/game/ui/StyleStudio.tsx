@@ -104,7 +104,7 @@ export default function StyleStudio({ onClose }: { onClose: () => void }) {
             {!ownedOf('watch').length && !ownedOf('bag').length && <p className="snote">腕時計とバッグは「ブティック」で買えます。</p>}
           </>}
           {tab === 'shop' && <>
-            <p className="snote">ネオンベイの高級ブランド。買ったものは「小物」タブからいつでも身につけられます。</p>
+            <p className="snote">オリジナルの高級ブランド。買ったものは「小物」タブからいつでも身につけられます。</p>
             {(['SOLARE', 'AXEL VOSS', 'MAISON LAVELLE'] as const).map((br) => (
               <div key={br} className="brand">
                 <h4>{br}<span>{{ SOLARE: 'スイスの名門ダイバーズ＆ドレスウォッチ', 'AXEL VOSS': '透けるムーブメントのハイパーウォッチ', 'MAISON LAVELLE': 'パリのモノグラム・メゾン' }[br]}</span></h4>

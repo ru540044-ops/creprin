@@ -1,3 +1,4 @@
+import { REGION } from '../world/region';
 import { game, toast, save, progress, ownedCars } from '../state/store';
 import { VDEFS, VKind, mediumOf } from '../vehicles/defs';
 import { playerCar, sellOwned } from '../vehicles/sim';
@@ -62,7 +63,7 @@ const free = (x: number, y: number, z: number) => (y > 1 || !isWater(x, z)) && !
 export function giftBoxes(): GiftBox[] {
   if (_boxes) return _boxes;
   const out: GiftBox[] = [];
-  const add = (x: number, z: number, hint: string, y?: number) => { const yy = y ?? groundAt(x, z); if (free(x, yy, z) && !out.some((b) => Math.hypot(b.x - x, b.z - z) < 25)) out.push({ id: out.length, x, y: yy, z, hint }); };
+  const add = (x: number, z: number, hint: string, y?: number) => { const yy = y ?? groundAt(x, z); if (free(x, yy, z) && !out.some((b) => Math.hypot(b.x - x, b.z - z) < 25)) out.push({ id: REGION.idx * 1000 + out.length, x, y: yy, z, hint }); };
   // landmarks first: pier end, beaches, airport, port, cruise ship sun deck, rooftop helipad
   add(PIER.x1 - 8, (PIER.z0 + PIER.z1) / 2, '桟橋の先端', PIER.y);
   add(BEACH_X + 22, -220, '南のビーチ'); add(BEACH_X + 22, 260, '北のビーチ');
@@ -76,7 +77,7 @@ export function giftBoxes(): GiftBox[] {
     if (out.length >= 60) break;
     const b = blocks[bi], cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     if (out.some((q) => Math.hypot(q.x - cx, q.z - cz) < 120)) continue;
-    const hint = b.zone === 'park' ? '公園の中' : b.zone === 'downtown' ? 'ダウンタウンの歩道' : b.zone === 'industrial' ? '工業地帯の歩道' : b.zone === 'residential' ? '住宅街の歩道' : '街角の歩道';
+    const hint = b.zone === 'park' ? '公園の中' : b.zone === 'downtown' ? REGION.names.downtown + 'の歩道' : b.zone === 'industrial' ? '工業地帯の歩道' : b.zone === 'residential' ? '住宅街の歩道' : '街角の歩道';
     const cand = b.zone === 'park' ? [[cx, cz], [cx + 12, cz - 9]] : [[b.x0 + 2.2, b.z0 + 2.2], [b.x1 - 2.2, b.z1 - 2.2], [b.x0 + 2.2, b.z1 - 2.2], [b.x1 - 2.2, b.z0 + 2.2]];
     const n0 = out.length; for (const [x, z] of cand) { add(x, z, hint); if (out.length > n0) break; }
   }
@@ -91,6 +92,8 @@ const boxReward = (id: number): Reward => {
 };
 const FINAL: Reward = { vehicle: 'formula', cash: 50000 };
 const MILESTONE: Record<number, Reward> = { 10: { cash: 25000 }, 25: { cash: 75000 }, 40: { cash: 150000 } };
+/** Boxes found in this city (ids are city index * 1000 + n). */
+export const boxesFound = () => progress.gift.boxes.filter((id) => Math.floor(id / 1000) === REGION.idx).length;
 export const boxesLeft = () => giftBoxes().filter((b) => !progress.gift.boxes.includes(b.id));
 export function nearestBox(x: number, z: number) { let best: GiftBox | null = null, bd = 1e9; for (const b of boxesLeft()) { const d = Math.hypot(b.x - x, b.z - z); if (d < bd) { bd = d; best = b; } } return best; }
 
@@ -104,7 +107,7 @@ export function updateGifts(dt: number) {
     if (progress.gift.boxes.includes(b.id)) continue;
     if (Math.abs(b.x - p.x) > R || Math.abs(b.z - p.z) > R || Math.abs(b.y - p.y) > 2.6 || Math.hypot(b.x - p.x, b.z - p.z) > R) continue;
     progress.gift.boxes.push(b.id);
-    const n = progress.gift.boxes.length, total = giftBoxes().length;
+    const n = boxesFound(), total = giftBoxes().length;
     let msg = `🎁 ギフトボックス ${n}/${total}：` + grant(boxReward(b.id));
     if (n === total) msg += '　★コンプリート：' + grant(FINAL);
     else if (MILESTONE[n]) msg += `　★${n}個達成ボーナス：` + grant(MILESTONE[n]);

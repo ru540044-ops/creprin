@@ -1,3 +1,4 @@
+import { REGION } from '../world/region';
 import { game, toast, save, progress } from '../state/store';
 import { vehicles, spawn, remove, playerCar, Veh } from '../vehicles/sim';
 import { doors, buildings, topFoot, GARAGE, EXPORT_DOCK, AIRPORT, PORT, groundAt, floorAt, roadC, N } from '../world/cityGen';
@@ -35,9 +36,9 @@ interface Mission { title: string; blurb: string; reward: number; start: () => {
 
 export const MISSIONS: Mission[] = [
   {
-    title: 'ネオンベイへようこそ', blurb: '足を手に入れて、レイのガレージへ。', reward: 2000,
+    title: REGION.name + 'へようこそ', blurb: '足を手に入れて、レイのガレージへ。', reward: 2000,
     start: () => { const d = door('home'); return { x: d.x + 3, z: d.z - 6 }; },
-    intro: [{ who: RAY, text: 'よう、NOVA。久しぶりだな。ネオンベイへようこそ。' }, { who: RAY, text: 'まずは足が要る。そこらの車を拝借して、俺のガレージまで来い。' }],
+    intro: [{ who: RAY, text: `よう、NOVA。久しぶりだな。${REGION.name}へようこそ。` }, { who: RAY, text: 'まずは足が要る。そこらの車を拝借して、俺のガレージまで来い。' }],
     outro: [{ who: RAY, text: 'いい運転だ。これは前金だ。また連絡する。' }],
     steps: [
       { goal: () => '車に乗れ（道ばたの車に近づいて「乗る」）', check: () => !!playerCar() && playerCar()!.def.kind !== 'heli' },
@@ -104,10 +105,10 @@ export const MISSIONS: Mission[] = [
   {
     title: 'ラストフライト', blurb: 'ヘリで空港の格納庫へ。最後の取引だ。', reward: 100000,
     start: () => ({ x: GARAGE.x, z: GARAGE.z + 3 }),
-    intro: [{ who: RAY, text: '最後の仕事だ。空港の格納庫で買い手が待ってる。' }, { who: RAY, text: 'ダウンタウンのビルの屋上にヘリを用意した。エレベーターで上がって、飛んでこい。' }],
-    outro: [{ who: RAY, text: '取引成立だ。NOVA、ネオンベイはもうお前の街だ。' }, { who: RAY, text: '…また面白い話があったら連絡する。じゃあな。' }],
+    intro: [{ who: RAY, text: '最後の仕事だ。空港の格納庫で買い手が待ってる。' }, { who: RAY, text: REGION.names.downtown + 'のビルの屋上にヘリを用意した。エレベーターで上がって、飛んでこい。' }],
+    outro: [{ who: RAY, text: `取引成立だ。NOVA、${REGION.name}の夜はもうお前のものだ。` }, { who: RAY, text: '…また面白い話があったら連絡する。じゃあな。' }],
     steps: [
-      { goal: () => 'ダウンタウンのビルに入って、エレベーターで屋上へ', enter: () => { const h = skyPad(); if (!vehicles.some((v) => v.def.kind === 'heli' && Math.hypot(v.x - h.x, v.z - h.z) < 8)) { const v = spawn('heli', h.x, h.z, Math.PI, '#e8141c'); v.touched = true; } },
+      { goal: () => REGION.names.downtown + 'のビルに入って、エレベーターで屋上へ', enter: () => { const h = skyPad(); if (!vehicles.some((v) => v.def.kind === 'heli' && Math.hypot(v.x - h.x, v.z - h.z) < 8)) { const v = spawn('heli', h.x, h.z, Math.PI, '#e8141c'); v.touched = true; } },
         marker: () => { const d = skyDoor(); return game.where === 'out' && P().y < 5 ? { x: d.x, y: d.y, z: d.z } : null; }, check: () => (game.where === 'out' && P().y > skyPad().y - 3) || (!!playerCar() && playerCar()!.def.kind === 'heli') },
       { goal: () => 'ヘリに乗れ', marker: () => { const h = skyPad(); return { x: h.x, y: h.y, z: h.z }; }, check: () => !!playerCar() && playerCar()!.def.kind === 'heli' },
       { goal: () => '空港の格納庫へ飛べ（着陸すれば完了）', marker: () => { const h = hangarPos(); return { x: h.x, y: 0, z: h.z - 70 }; },

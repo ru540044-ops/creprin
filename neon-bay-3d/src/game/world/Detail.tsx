@@ -14,8 +14,10 @@ import { mulberry } from './rng';
  *  - shop awnings and entrance doors.
  * The blinking red aircraft lights on tall towers are city-wide (they show the skyline from afar).
  */
-const H_WORDS: [string, string][] = [['RAMEN', '#ff4a4a'], ['BAR', '#ff3f93'], ['HOTEL', '#2be4ff'], ['カラオケ', '#ffd23a'], ['24H', '#3dffb0'], ['ゲーム', '#c07aff'], ['PIZZA', '#ff8a2a'], ['寿司', '#ff4a6a'], ['CLUB', '#b07aff'], ['SUSHI', '#3dffb0'], ['COFFEE', '#ffcf8a'], ['居酒屋', '#ff6a3a'], ['ARCADE', '#2be4ff'], ['BEER', '#ffd23a'], ['TACOS', '#ff8a2a'], ['焼肉', '#ff3a3a'], ['JAZZ', '#7ab8ff'], ['CAFE', '#ff9ad5'], ['MOTEL', '#ff3f93'], ['薬局', '#3dffb0'], ['BOOKS', '#ffffff'], ['GYM', '#9dff3a'], ['DANCE', '#ff3f93'], ['LIVE', '#2be4ff'], ['NOODLE', '#ffd23a'], ['HOSTEL', '#7ab8ff'], ['DONUTS', '#ff9ad5'], ['麺', '#ffcf8a'], ['NAILS', '#ff6ad5'], ['TATTOO', '#ff4a4a'], ['PAWN', '#ffd23a'], ['BAY FM', '#2be4ff']];
-const V_WORDS: [string, string][] = [['カラオケ', '#ffd23a'], ['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['ホテル', '#2be4ff'], ['薬局', '#3dffb0'], ['焼肉', '#ff3a3a'], ['寿司', '#ff4a6a'], ['喫茶', '#ffcf8a']];
+const H_WORDS: [string, string][] = [['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['カラオケ', '#ffd23a'], ['焼肉', '#ff3a3a'], ['24H', '#3dffb0'], ['ゲーム', '#c07aff'], ['寿司', '#ff4a6a'], ['牛丼', '#ff8a2a'], ['CAFE', '#ff9ad5'], ['うどん', '#ffcf8a'], ['薬局', '#3dffb0'], ['書店', '#ffffff'], ['焼鳥', '#ff6a3a'], ['BAR', '#ff3f93'], ['中華', '#ff3a3a'], ['不動産', '#7ab8ff'], ['歯科', '#9de8ff'], ['美容室', '#ff6ad5'], ['ホテル', '#2be4ff'], ['そば', '#ffd23a'], ['定食', '#ffcf8a'], ['質屋', '#ffd23a'], ['とんかつ', '#ff8a2a'], ['天ぷら', '#ffd23a'], ['餃子', '#ff4a4a'], ['弁当', '#9dff3a'], ['CLUB', '#b07aff'], ['麻雀', '#3dffb0'], ['銭湯', '#7ab8ff'], ['古着', '#c07aff'], ['ジム', '#9dff3a'], ['LIVE', '#2be4ff']];
+const V_WORDS: [string, string][] = [['カラオケ', '#ffd23a'], ['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['ホテル', '#2be4ff'], ['薬局', '#3dffb0'], ['焼肉', '#ff3a3a'], ['寿司', '#ff4a6a'], ['喫茶', '#ffcf8a'], ['麻雀', '#3dffb0'], ['焼鳥', '#ff6a3a'], ['質', '#ffd23a'], ['歯科', '#9de8ff'], ['中華', '#ff3a3a'], ['うなぎ', '#ffcf8a'], ['スナック', '#ff6ad5'], ['ビデオ', '#c07aff']];
+/** Tall blade signs that run up the side of mid-rise buildings in the shopping streets. */
+const T_WORDS: [string, string][] = [['カラオケ館', '#ffd23a'], ['ネットカフェ', '#2be4ff'], ['まんが喫茶', '#9dff3a'], ['焼肉食べ放題', '#ff3a3a'], ['ゲームセンター', '#c07aff'], ['居酒屋 鳥よし', '#ff6a3a'], ['中華料理 福', '#ff3a3a'], ['ビリヤード', '#3dffb0'], ['ホテル月光', '#2be4ff'], ['ラーメン大将', '#ff4a4a'], ['歯科クリニック', '#9de8ff'], ['英会話', '#ffffff'], ['すし 北海', '#ff4a6a'], ['ダーツバー', '#ff3f93'], ['整骨院', '#9dff3a'], ['学習塾', '#ffd23a']];
 
 function atlas(words: [string, string][], cols: number, rows: number, cw: number, ch: number, vertical: boolean) {
   const cv = document.createElement('canvas'); cv.width = cols * cw; cv.height = rows * ch; const c = cv.getContext('2d')!;
@@ -48,7 +50,7 @@ function makeShared() {
   return {
     box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(1, 1, 1, 10), plane: new THREE.PlaneGeometry(1, 1),
     roofMat: new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.1 }),
-    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), vMat: atlasMaterial(atlas(V_WORDS, 8, 1, 128, 512, true), 0.125, 1),
+    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), vMat: atlasMaterial(atlas(V_WORDS, 16, 1, 128, 512, true), 0.0625, 1), tMat: atlasMaterial(atlas(T_WORDS, 16, 1, 128, 896, true), 0.0625, 1),
     awnMat: new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }),
     doorMat: new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }),
     doorGlassMat: new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false }), doorLampMat: new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false }),
@@ -94,7 +96,7 @@ const noop = () => {};
 export function buildDetail(list: Building[], doorList: BDoor[]): THREE.InstancedMesh[] {
   const D = shared();
   const boxes: { m: THREE.Matrix4; c: THREE.Color }[] = [], cyls: { m: THREE.Matrix4; c: THREE.Color }[] = [];
-  const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [];
+  const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], ts: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [];
   const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
   const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
   for (const b of list) {
@@ -120,10 +122,15 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
         const x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.12, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.12;
         Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz)); P.set(x, y, z); S.set(sw, sw / 2, 1);
         const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
-        if (k.zone === 'commercial' && r() < 0.55) { // vertical blade sign sticking out from the wall
+        if ((k.zone === 'commercial' && r() < 0.85) || (k.zone === 'downtown' && r() < 0.35)) { // vertical blade sign sticking out from the wall
           const vx = f.cx + (f.nz !== 0 ? along + sw / 2 + 1.2 : 0) + f.nx * 0.9, vz = f.cz + (f.nx !== 0 ? along + sw / 2 + 1.2 : 0) + f.nz * 0.9;
           Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, y + 2.6, vz); S.set(1.3, 5.2, 1);
-          const vc = Math.floor(r() * V_WORDS.length); vs.push({ m: M.compose(P, Q, S).clone(), o: [vc * 0.125, 0] });
+          const vc = Math.floor(r() * V_WORDS.length); vs.push({ m: M.compose(P, Q, S).clone(), o: [vc * 0.0625, 0] });
+        }
+        if (k.zone === 'commercial' && b.type !== 'shop' && b.h > 16 && r() < 0.7) { // tall blade sign up the corner of a multi-tenant building
+          const th = Math.min(13, b.h - 7), edge = f.len / 2 - 1.2, vx = f.cx + (f.nz !== 0 ? (j % 2 ? -edge : edge) : 0) + f.nx * 1.1, vz = f.cz + (f.nx !== 0 ? (j % 2 ? -edge : edge) : 0) + f.nz * 1.1;
+          Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, b.y0 + 7 + th / 2, vz); S.set(th / 7, th, 1);
+          const tc = Math.floor(r() * T_WORDS.length); ts.push({ m: M.compose(P, Q, S).clone(), o: [tc * 0.0625, 0] });
         }
       }
     }
@@ -148,7 +155,7 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
     const im = mk(g, mat, list2, false); if (im) im.userData.ownGeo = true;
   };
   mk(D.box, D.roofMat, boxes); mk(D.cyl, D.roofMat, cyls);
-  withOff(hs, D.hMat); withOff(vs, D.vMat);
+  withOff(hs, D.hMat); withOff(vs, D.vMat); withOff(ts, D.tMat);
   const awn = mk(D.box, D.awnMat, aw); if (awn) awn.castShadow = true;
   mk(D.box, D.doorMat, frameM); mk(D.plane, D.doorGlassMat, glassM, false); mk(D.box, D.doorLampMat, lampM, false);
   return out;
@@ -167,7 +174,7 @@ export default function Detail() {
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
   useFrame(({ camera, clock }) => {
     const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2), sh = D.sh;
-    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k);
+    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k); sh.tMat.color.setScalar(k);
     sh.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); sh.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
     const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; sh.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
     let n = 0; const cx = camera.position.x, cz = camera.position.z;

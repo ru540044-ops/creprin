@@ -220,8 +220,14 @@ export function flinch(P: Pose, k: number, side: number) { P.sx -= 0.28 * k; P.s
 /** Holding the phone in front of the chest. */
 export function holdPhone(P: Pose) { P.ax[0] = -0.95; P.az[0] = -0.2; P.ae[0] = -1.55; P.ax[1] = -0.6; P.az[1] = -0.3; P.ae[1] = -1.2; P.nx = 0.45; return P; }
 
-/** Driver seat per vehicle type: side (fraction of width to the left), forward offset, height offset, recline. */
+/** Driver seat per vehicle type: side (fraction of width to the left; negative = right), forward offset, height offset, recline.
+ *  Road vehicles are right-hand drive (Japan); boats, aircraft and single-seaters keep their own layout. */
 export function seatFor(kind: string) {
+  const s = seatBase(kind);
+  if (kind !== 'heli' && kind !== 'jet' && kind !== 'formula' && kind !== 'speedboat' && kind !== 'yacht') s.side = -s.side;
+  return s;
+}
+function seatBase(kind: string) {
   switch (kind) {
     case 'super': return { side: 0.2, fwd: -0.3, y: -0.3, recline: 0.5 };
     case 'sport': return { side: 0.2, fwd: -0.25, y: -0.2, recline: 0.38 };

@@ -153,7 +153,7 @@ function VehicleView({ v }: { v: Veh }) {
     m.lights.head.emissiveIntensity = v.dead ? 0 : mine ? 0.6 + nightK * 2.2 : 0.15;
     m.lights.tail.emissiveIntensity = v.dead ? 0 : v.braking ? 3 : mine ? 0.6 + nightK * 0.9 : 0.25;
     if (m.lights.bar) { const on = !v.dead && !!v.ai && v.ai.mode === 'chase' && game.wanted > 0, ph = Math.floor(performance.now() / 160) % 2; m.lights.bar[0].emissiveIntensity = on ? (ph ? 5 : 0.3) : 0.15; m.lights.bar[1].emissiveIntensity = on ? (ph ? 0.3 : 5) : 0.15; }
-    if (m.door) m.door.rotation.y = -1.15 * v.door;
+    if (m.door) m.door.rotation.y = 1.15 * v.door; // right-hand door swings out to the right
     if (m.steering) m.steering.rotation.x = -v.steer * 4.5;
     if (m.burner) for (const b of m.burner) { const mm = b.material as THREE.MeshBasicMaterial; mm.opacity = v.dead ? 0 : v.nitroOn ? 0.95 : v.rotor * 0.35; b.scale.set(v.nitroOn ? 1.4 + Math.random() * 0.3 : 0.6 + v.rotor * 0.5, 1, 1); }
     if (m.gear) m.gear.visible = !v.air;

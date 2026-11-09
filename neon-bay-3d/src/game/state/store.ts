@@ -1,4 +1,5 @@
-import { SPAWN, pointBlocked, isWater } from '../world/cityGen';
+import { SPAWN, pointBlocked, isWater, STATION, AIRPORT_ARRIVAL } from '../world/cityGen';
+import { REGION, ARRIVE_KEY, REGION_KEY } from '../world/region';
 import type { VKind, Mods } from '../vehicles/defs';
 import { DEFAULT_LOOK, sanitizeLook, itemById, fashion, setCityStyle, CityStyle, CITY_STYLE_NAMES } from '../player/appearance';
 import { audio } from '../audio';
@@ -65,7 +66,7 @@ export function save() {
   if (wiped || !game.started) return; // nothing changes on the title screen (which shows its own time of day)
   try {
     const p = game.where === 'out' ? game.player : { ...game.player, x: game.outsidePos.x, z: game.outsidePos.z, yaw: game.outsidePos.yaw };
-    const data = JSON.stringify({ v: 2, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, stats: progress.stats, ach: progress.ach, look: progress.look, wardrobe: progress.wardrobe, cityStyle: fashion.style, homes: game.homes, arms: game.arms, radio: game.radio });
+    const data = JSON.stringify({ v: 2, rg: REGION.id, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, stats: progress.stats, ach: progress.ach, look: progress.look, wardrobe: progress.wardrobe, cityStyle: fashion.style, homes: game.homes, arms: game.arms, radio: game.radio });
     localStorage.setItem(KEY, data);
     // a second copy, refreshed once a minute, in case the main one is ever cut off mid-write
     const now = Date.now(); if (now - lastBak > 60000) { lastBak = now; localStorage.setItem(KEY + '.bak', data); }
@@ -95,6 +96,10 @@ export function load(): boolean {
       G.last = typeof g.last === 'string' ? g.last : ''; G.streak = typeof g.streak === 'number' ? g.streak : 0; G.boxes = g.bv === 3 ? (arr(g.boxes, 'number') as number[]) : [] /* box layout changed with the bigger city */; G.claimed = arr(g.claimed, 'string') as string[]; G.made = arr(g.made, 'string') as string[]; G.used = arr(g.used, 'string') as string[]; }
     if (Array.isArray(s.homes)) game.homes = s.homes.filter((h: unknown) => typeof h === 'string');
     if (typeof s.ccam === 'number') game.cam.carMode = s.ccam;
+    // a save from another city: start where the train / plane arrives
+    const here = (s.rg || 'tokyo') === REGION.id;
+    let arrive = ''; try { arrive = localStorage.getItem(ARRIVE_KEY) || ''; localStorage.removeItem(ARRIVE_KEY); } catch { /* ignore */ }
+    if (!here) { const a = arrive === 'train' && STATION ? STATION.spawn : arrive === 'plane' ? AIRPORT_ARRIVAL : { x: SPAWN.x, z: SPAWN.z, yaw: Math.PI }; game.player.x = a.x; game.player.z = a.z; game.player.yaw = a.yaw; game.cam.yaw = a.yaw + Math.PI; s.p = null; s.wp = null; }
     if (s.p) { game.player.x = s.p.x; game.player.z = s.p.z; game.player.yaw = s.p.yaw; game.cam.yaw = s.p.yaw + Math.PI;
       // the city grew around the old one: a saved spot that is now inside a building or the sea goes back to the safehouse
       if (!Number.isFinite(s.p.x) || pointBlocked(s.p.x, 0.9, s.p.z) || pointBlocked(s.p.x, 1.6, s.p.z) || isWater(s.p.x, s.p.z)) { game.player.x = SPAWN.x; game.player.z = SPAWN.z; } }
@@ -102,4 +107,4 @@ export function load(): boolean {
     return true;
   } catch { return false; }
 }
-export function clearSave() { wiped = true; try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.bak'); } catch { /* ignore */ } }
+export function clearSave() { wiped = true; try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.bak'); localStorage.removeItem(REGION_KEY); localStorage.removeItem(ARRIVE_KEY); } catch { /* ignore */ } }

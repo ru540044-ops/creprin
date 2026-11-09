@@ -8,6 +8,8 @@ import { PROF } from '../vehicles/models';
 import { vehicles, deliverNear, sellOwned, repairAll, ownedSpot } from '../vehicles/sim';
 import { mediumOf } from '../vehicles/defs';
 import GiftApp from './GiftApp';
+import TravelApp from './TravelApp';
+import { REGION, inTokyo } from '../world/region';
 import { hasRoom, capOf, usedOf, homeName, dailyState, unclaimed } from '../crime/gifts';
 import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT } from '../world/cityGen';
 import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
@@ -19,7 +21,7 @@ import { PROPERTIES } from '../world/homes';
 import { admin } from '../admin';
 import { audio, sfx } from '../audio';
 
-type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin' | 'realty' | 'gift';
+type App = 'home' | 'motors' | 'garage' | 'settings' | 'jobs' | 'admin' | 'realty' | 'gift' | 'travel';
 
 /** Side view drawn from the same profile the 3D model is extruded from. */
 export function CarSVG({ kind, color }: { kind: VKind; color: string }) {
@@ -164,7 +166,7 @@ function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
           <p>次：<b>「{nextMission()!.title}」</b>　{nextMission()!.blurb}<br />地図の黄色い <b>R</b> マークへ行って「開始」。</p>
           <span className="pay">報酬 ${nextMission()!.reward.toLocaleString('en-US')}</span>
           <div className="jobBtns"><button type="button" disabled={storyMission.id >= 0} onClick={() => { const s = nextMission()!.start(); go(s.x, s.z, 'ミッションの場所を目的地に設定'); }}>{storyMission.id >= 0 ? 'ミッション中' : 'R マークへ案内'}</button></div>
-        </>) : <p>全ミッションクリア！ ネオンベイはあなたの街だ。</p>}
+        </>) : <p>全ミッションクリア！ この国の夜はあなたのものだ。</p>}
       </div>
       <div className="jobCard">
         <b>ストリートレース</b>
@@ -195,11 +197,11 @@ function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
 }
 
 function Realty({ close }: { close: () => void }) {
-  const go = (id: string, name: string) => { const d = doors.find((q) => q.id === 'h_' + id); if (!d) return; game.waypoint = { x: d.x, z: d.z }; save(); toast(name + 'を目的地に設定'); close(); };
+  const go = (id: string, name: string) => { const d = doors.find((q) => q.id === 'h_' + id); if (!d) { toast('物件は東京にあります（旅行アプリで東京へ）', 2.4); return; } game.waypoint = { x: d.x, z: d.z }; save(); toast(name + 'を目的地に設定'); close(); };
   const icon: Record<string, string> = { danchi: '🏢', house: '🏡', tower: '🌃', villa: '🏝' };
   return (
     <div className="appBody">
-      <p className="appNote">家にはいつでも入って内見できる。買うとベッドで寝られる（時間を進めて体力回復＆セーブ）。</p>
+      <p className="appNote">家にはいつでも入って内見できる。買うとベッドで寝られる（時間を進めて体力回復＆セーブ）。{!inTokyo() && <><br /><b>物件はすべて東京にあります。いまは{REGION.name}にいます（旅行アプリで東京へ）。</b></>}</p>
       {PROPERTIES.map((P) => { const own = game.homes.includes(P.id); return (
         <div className="jobCard" key={P.id}>
           <b>{icon[P.id]} {P.kind}　{own && <span className="pay">所有中</span>}</b>
@@ -233,7 +235,7 @@ export default function Phone({ onClose, openMap, quality, mode, setMode }: { on
     game.money -= d.price; ownedCars.push({ kind: k, color: c }); const s = ownedSpot(ownedCars.length - 1); game.waypoint = { x: s.x, z: s.z };
     sfx('buy'); toast(d.name + 'を購入！' + homeName(k) + 'に納車しました（目的地に設定）', 3.2); save(); refresh();
   };
-  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者', realty: '不動産', gift: 'ギフト' }[app];
+  const title = { home: '', motors: 'Bay Motors', garage: 'ガレージ', settings: '設定', jobs: '仕事', admin: '管理者', realty: '不動産', gift: 'ギフト', travel: '日本旅行' }[app];
   return (
     <div className="overlay phoneWrap" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="phone" role="dialog" aria-label="スマートフォン">
@@ -246,6 +248,7 @@ export default function Phone({ onClose, openMap, quality, mode, setMode }: { on
             <button type="button" className="appIc" onClick={() => open('jobs')}><i style={{ background: 'linear-gradient(135deg,#ffd23a,#ff6a00)' }}>💰</i>仕事</button>
             <button type="button" className="appIc" onClick={() => open('gift')}><i style={{ background: 'linear-gradient(135deg,#ff3f6e,#ffcf4a)' }}>🎁</i>ギフト{(dailyState().can ? 1 : 0) + unclaimed().length > 0 && <em className="badge">{(dailyState().can ? 1 : 0) + unclaimed().length}</em>}</button>
             <button type="button" className="appIc" onClick={() => { sfx('ui'); if (playerCar()) { toast('車を降りてから使えます', 1.6); return; } onClose(); game.openStyle = true; }}><i style={{ background: 'linear-gradient(135deg,#c9a25a,#5a3a22)' }}>👗</i>スタイル</button>
+            <button type="button" className="appIc" onClick={() => open('travel')}><i style={{ background: 'linear-gradient(135deg,#ff4a4a,#ffffff)' }}>🗾</i>旅行</button>
             <button type="button" className="appIc" onClick={() => open('realty')}><i style={{ background: 'linear-gradient(135deg,#3dffb0,#2b6bff)' }}>🏠</i>不動産</button>
             {admin.is && <button type="button" className="appIc" onClick={() => open('admin')}><i style={{ background: 'linear-gradient(135deg,#ff2a40,#7a00ff)' }}>🛡</i>管理者</button>}
             <button type="button" className="appIc" onClick={() => open('settings')}><i style={{ background: 'linear-gradient(135deg,#8a8aa8,#3c3c55)' }}>⚙</i>設定</button>
@@ -258,6 +261,7 @@ export default function Phone({ onClose, openMap, quality, mode, setMode }: { on
             {app === 'admin' && <AdminApp close={onClose} />}
             {app === 'realty' && <Realty close={onClose} />}
             {app === 'gift' && <GiftApp close={onClose} refresh={refresh} />}
+            {app === 'travel' && <TravelApp close={onClose} />}
             {app === 'jobs' && <Jobs close={onClose} refresh={refresh} />}
             {app === 'settings' && <Settings quality={quality} mode={mode} setMode={setMode} />}
           </>
