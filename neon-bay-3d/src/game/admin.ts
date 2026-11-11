@@ -22,7 +22,10 @@ export const admin = {
   is: false, checked: false,
   god: false, noWanted: false, infAmmo: false, carGod: false, carBoost: false, fastRun: false, superJump: false,
   freezeTime: false, timeScale: 1, density: 1, debug: false,
+  /** speed multipliers for the vehicle the admin drives: cars / bikes / trucks, and the bullet train (1 = normal, up to 5) */
+  carSpeed: 1, trainSpeed: 1,
 };
+const mulOK = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.min(5, Math.max(1, Math.round(n * 2) / 2)) : 1; };
 
 const KEY = 'neonbay3d.admin.v1';
 export async function checkAdmin() {
@@ -32,10 +35,10 @@ export async function checkAdmin() {
     admin.is = !!u && (await u.isOwner());
   } catch { admin.is = false; }
   admin.checked = true;
-  if (admin.is) { try { Object.assign(admin, JSON.parse(localStorage.getItem(KEY) || '{}'), { is: true, checked: true }); } catch { /* ignore */ } }
+  if (admin.is) { try { Object.assign(admin, JSON.parse(localStorage.getItem(KEY) || '{}'), { is: true, checked: true }); } catch { /* ignore */ } admin.carSpeed = mulOK(admin.carSpeed); admin.trainSpeed = mulOK(admin.trainSpeed); }
   else resetPowers();
 }
-function resetPowers() { Object.assign(admin, { god: false, noWanted: false, infAmmo: false, carGod: false, carBoost: false, fastRun: false, superJump: false, freezeTime: false, timeScale: 1, density: 1, debug: false }); }
+function resetPowers() { Object.assign(admin, { god: false, noWanted: false, infAmmo: false, carGod: false, carBoost: false, fastRun: false, superJump: false, freezeTime: false, timeScale: 1, density: 1, debug: false, carSpeed: 1, trainSpeed: 1 }); }
 export function saveAdmin() { if (!admin.is) return; try { const { is, checked, ...rest } = admin; void is; void checked; localStorage.setItem(KEY, JSON.stringify(rest)); } catch { /* ignore */ } }
 /** Scaled frame time for the simulation (slow motion / fast forward). */
 export const timeFx = { slow: 1 }; // stunt-jump slow motion
@@ -46,6 +49,9 @@ function guard(): boolean { if (!admin.is) { toast('管理者のみ使用でき�
 export type Toggle = 'god' | 'noWanted' | 'infAmmo' | 'carGod' | 'carBoost' | 'fastRun' | 'superJump' | 'freezeTime' | 'debug';
 export function toggle(k: Toggle) { if (!guard()) return; admin[k] = !admin[k]; if (k === 'noWanted' && admin.noWanted) clearWanted(); saveAdmin(); }
 export function setScale(s: number) { if (!guard()) return; admin.timeScale = s; saveAdmin(); }
+/** Speed multiplier (x1 to x5, in halves) for the car / the bullet train the admin drives. */
+export function setCarSpeed(k: number) { if (!guard()) return; admin.carSpeed = mulOK(k); saveAdmin(); }
+export function setTrainSpeed(k: number) { if (!guard()) return; admin.trainSpeed = mulOK(k); saveAdmin(); }
 export function setDensity(d: number) { if (!guard()) return; admin.density = d; saveAdmin(); if (d === 0) clearArea(true); }
 
 export function addMoney(n: number) { if (!guard()) return; game.money = Math.max(0, game.money + n); save(); toast((n >= 0 ? '+$' : '-$') + Math.abs(n).toLocaleString('en-US'), 1.4); }

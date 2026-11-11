@@ -80,12 +80,14 @@ export function drive(v: Veh, c: Drive | null, dt: number) {
   let fv = v.vx * fx + v.vz * fz, lv = v.vx * fz - v.vz * fx; // forward, lateral(right)
   const sp = Math.abs(fv), health = v.dead ? 0 : 0.35 + 0.65 * clamp(v.hp / d.hp, 0, 1);
   const thr = c && !v.dead ? c.thr : 0, br = c ? c.brake : 0, hb = !!(c && c.hb), st = c ? -c.steer : 0; // input: right = +1
+  // admin speed multiplier for the car you drive: top speed and power scale with km, brakes and tyre grip with km^1.5 (so it still stops and turns)
+  const km = admin.is && v.id === game.inCar ? admin.carSpeed : 1, kg = km > 1 ? Math.pow(km, 1.5) : 1;
   // steering, softer at speed
-  const maxSt = d.steer / (1 + sp / 22);
+  const maxSt = d.steer / (1 + sp / (22 * km));
   v.steer += (st * maxSt - v.steer) * Math.min(1, dt * 8);
   let r = (fv * Math.tan(v.steer)) / d.wheelbase; // positive steer = left = yaw increases
   const wet = 1 - game.weather.wet * 0.2, grip = d.grip * wet;
-  const latMax = grip * 9.81 * (1 + Math.min(0.4, sp / 160));
+  const latMax = grip * 9.81 * (1 + Math.min(0.4, sp / 160)) * kg;
   if (hb && sp > 6) v.drift = true;
   if (v.drift) r = r * 1.3 + st * 1.1 * Math.min(1, sp / 15) * Math.sign(fv || 1);
   else if (Math.abs(fv * r) > latMax) r = (Math.sign(r) * latMax) / Math.max(1, sp);
@@ -98,24 +100,24 @@ export function drive(v: Veh, c: Drive | null, dt: number) {
   if (nitroWant) { v.nitro = Math.max(0, v.nitro - dt / 3); if (!v.nitroOn) sfx('crash', 0.2); } else v.nitro = Math.min(1, v.nitro + dt / 12);
   v.nitroOn = nitroWant;
   const eng = 1 + v.mods.engine * 0.15, nos = nitroWant ? 1 : 0;
-  const top = d.top * health * (1 + boost * 0.45) * (1 + v.mods.engine * 0.06) * (1 + nos * 0.28);
+  const top = d.top * km * health * (1 + boost * 0.45) * (1 + v.mods.engine * 0.06) * (1 + nos * 0.28);
   v.braking = false; v.reversing = false;
-  if (thr > 0) { if (fv < -0.5) { fv += 9 * thr * dt; v.braking = true; } else { const f = clamp(fv / top, 0, 1); fv += d.accel * (1 + boost * 0.8) * eng * (1 + nos * 1.3) * Math.max(thr, nos) * Math.max(0, 1.25 - 0.95 * Math.pow(f, 1.7)) * health * dt; } }
-  if (br > 0) { if (fv > 1) { fv -= d.brake * d.grip * br * dt; v.braking = true; } else { fv -= d.accel * 0.45 * br * dt; v.reversing = true; } }
-  if (hb) fv -= Math.sign(fv) * Math.min(Math.abs(fv), 5 * dt);
+  if (thr > 0) { if (fv < -0.5) { fv += 9 * thr * dt; v.braking = true; } else { const f = clamp(fv / top, 0, 1); fv += d.accel * km * (1 + boost * 0.8) * eng * (1 + nos * 1.3) * Math.max(thr, nos) * Math.max(0, 1.25 - 0.95 * Math.pow(f, 1.7)) * health * dt; } }
+  if (br > 0) { if (fv > 1) { fv -= d.brake * d.grip * kg * br * dt; v.braking = true; } else { fv -= d.accel * 0.45 * br * dt; v.reversing = true; } }
+  if (hb) fv -= Math.sign(fv) * Math.min(Math.abs(fv), 5 * kg * dt);
   // slope (hills)
   const hF = groundAt(v.x + nx * 1.5, v.z + nz * 1.5), hB = groundAt(v.x - nx * 1.5, v.z - nz * 1.5);
   fv -= ((hF - hB) / 3) * 9.81 * dt;
-  fv -= Math.sign(fv) * Math.min(Math.abs(fv), (0.35 + 0.0008 * fv * fv * (60 / d.top)) * (thr === 0 && br === 0 ? 2.2 : 1) * dt * 2);
+  fv -= Math.sign(fv) * Math.min(Math.abs(fv), (0.35 + 0.0008 * fv * fv * (60 / (d.top * km))) * (thr === 0 && br === 0 ? 2.2 : 1) * dt * 2);
   fv = clamp(fv, -12, top);
   // lateral tyre grip
-  const lg = grip * (v.drift ? 5 : 34) * (hb ? 0.4 : 1);
+  const lg = grip * (v.drift ? 5 : 34) * (hb ? 0.4 : 1) * kg;
   v.slip = Math.abs(lv);
   lv -= Math.sign(lv) * Math.min(Math.abs(lv), lg * dt);
   if (v.drift && !hb && (Math.abs(lv) < 1.2 || sp < 3)) v.drift = false;
-  if (!v.drift && Math.abs(lv) > 4.5 && sp > 9 && thr > 0) v.drift = true;
+  if (!v.drift && Math.abs(lv) > 4.5 * km && sp > 9 && thr > 0) v.drift = true;
   // gears / rpm (6 speed)
-  const gs = d.top / 6; let g = v.gear;
+  const gs = (d.top * km) / 6; let g = v.gear;
   if (fv > (g + 1) * gs && g < 5) { g++; } else if (fv < (g - 0.3) * gs && g > 0) g--;
   v.gear = g; v.rpm = clamp((Math.max(0, fv) - g * gs) / gs, 0, 1) * 0.8 + 0.2 * Math.abs(thr);
   v.vx = nx * fv + nz * lv; v.vz = nz * fv - nx * lv;
@@ -258,29 +260,39 @@ export const SHIN_HEAD = 16, SHIN_TAIL = 195.2, SHIN_FLIP = 179.2;
 /** Track limits for the lead car's centre, facing south (dir 1) or north (dir -1). */
 export const shinLimits = (dir: number) => (dir > 0 ? [SHIN.z0 + SHIN_TAIL + 2, SHIN.z1 - SHIN_HEAD - 2] : [SHIN.z0 + SHIN_HEAD + 2, SHIN.z1 - SHIN_TAIL - 2]);
 const ATC_STEPS = [300, 275, 230, 170, 120, 70, 45, 30];
+/** Admin speed multiplier for the train you drive (1 for everyone else). */
+const trainMul = (v: Veh) => (admin.is && v.id === game.inCar ? admin.trainSpeed : 1);
+/** Cab-signal steps for a multiplier: the normal steps scaled up, with the normal low steps kept for the approach to the buffers. */
+const stepCache = new Map<number, number[]>();
+function atcSteps(km: number) {
+  if (km === 1) return ATC_STEPS;
+  let s = stepCache.get(km); if (!s) { s = [...new Set([...ATC_STEPS.map((q) => Math.round(q * km)), ...ATC_STEPS])].sort((a, b) => b - a); stepCache.set(km, s); }
+  return s;
+}
 /** Set each frame by the driving logic: the line goes on beyond the tunnel (a trip to the next city), so no braking curve to the north end. */
 export const shinRun = { open: false };
 /** Cab-signal speed (km/h) for the train: a braking curve to the buffers at the end of the line, shown in the usual ATC steps. */
 export function atcKmh(v: Veh) {
   const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, [lo, hi] = shinLimits(dir), d = dir > 0 ? hi - v.z : v.z - lo + (shinRun.open ? 4000 : 0);
   if (d < 2) return 0;
-  const curve = Math.sqrt(2 * 2.2 * Math.max(0, d - 4)) * 3.6; // service braking at 2.2 m/s2 stops before the buffers
-  for (const s of ATC_STEPS) if (s <= curve) return s;
+  const km = trainMul(v), curve = Math.sqrt(2 * 2.2 * km * Math.max(0, d - 4)) * 3.6; // service braking at 2.2 m/s2 (times the multiplier) stops before the buffers
+  for (const s of atcSteps(km)) if (s <= curve) return s;
   return 30;
 }
 /** Bullet train on its viaduct: power and brake along the track, ATC limits, buffers at both ends. */
 function rail(v: Veh, c: Drive | null, dt: number) {
   const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, thr = c ? c.thr : 0, br = c ? c.brake : 0;
   let sp = v.vz * dir;
-  if (thr > 0.05 && sp >= -0.2) sp += v.def.accel * thr * (1.4 - 0.9 * Math.max(0, sp) / v.def.top) * dt;
-  if (br > 0.05) sp = Math.max(0, sp - v.def.brake * br * dt); // a train does not back up on the brake: overshoot and you are judged on it
+  const km = trainMul(v), top = v.def.top * km; // admin speed multiplier: power, brakes and the ATC limits all scale
+  if (thr > 0.05 && sp >= -0.2) sp += v.def.accel * km * thr * (1.4 - 0.9 * Math.max(0, sp) / top) * dt;
+  if (br > 0.05) sp = Math.max(0, sp - v.def.brake * km * br * dt); // a train does not back up on the brake: overshoot and you are judged on it
   sp *= 1 - 0.0025 * dt;
   const lim = atcKmh(v) / 3.6;
-  if (sp > lim + 0.5) sp = Math.max(lim, sp - 4.5 * dt); // ATC brake
+  if (sp > lim + 0.5) sp = Math.max(lim, sp - 4.5 * km * dt); // ATC brake
   const [lo, hi] = shinLimits(dir);
   let z = v.z + dir * sp * dt; if (z < lo) { z = lo; sp = 0; } if (z > hi) { z = hi; sp = 0; }
   v.z = z; v.x = SHIN.x + (v.x >= SHIN.x ? SHIN.track : -SHIN.track); v.y = SHIN.y + 0.05; v.vx = 0; v.vz = dir * sp; v.yr = 0; v.pitch = 0; v.roll = 0; v.air = false; v.vy = 0;
-  v.steer = 0; v.braking = br > 0.05; v.reversing = sp < -0.1; v.rpm = Math.min(1, Math.abs(sp) / v.def.top); v.gear = sp < -0.1 ? -1 : 1; v.slip = 0; v.spd = Math.abs(sp);
+  v.steer = 0; v.braking = br > 0.05; v.reversing = sp < -0.1; v.rpm = Math.min(1, Math.abs(sp) / top); v.gear = sp < -0.1 ? -1 : 1; v.slip = 0; v.spd = Math.abs(sp);
 }
 export function collisions(dt: number): number {
   let playerHit = 0;

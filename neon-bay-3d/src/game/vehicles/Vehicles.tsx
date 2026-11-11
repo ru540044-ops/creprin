@@ -19,7 +19,7 @@ import { radioTick } from '../radio';
 import { tickWeapons } from '../combat/weapons';
 import { flash } from '../combat/fx';
 import { sfx } from '../audio';
-import { tdt } from '../admin';
+import { tdt, admin } from '../admin';
 import { race } from '../crime/race';
 
 export const models = new Map<number, CarModel>();
@@ -179,7 +179,9 @@ export default function Vehicles() {
     updateCrime(dt); // wanted level, police + cash-truck AI decide their controls here
     updateTraffic(dt);
     // physics: player car is driven, others coast and settle
-    const sub = 2, h = dt / sub;
+    // normally two steps a frame; a sped-up admin car gets enough steps to move at most ~1.5 m in each
+    const fast = !!me && admin.is && admin.carSpeed > 1 && me.def.kind !== 'shinkansen';
+    const sub = fast ? Math.min(12, Math.max(2, Math.ceil((Math.hypot(me!.vx, me!.vz) * dt) / 1.5))) : 2, h = dt / sub;
     for (let s = 0; s < sub; s++) {
       for (const v of vehicles) {
         if (v === me) drive(v, game.started && !law.over && !game.carAnim && !(race.id && race.count > 0) ? driveInput(v.def.kind) : null, h);

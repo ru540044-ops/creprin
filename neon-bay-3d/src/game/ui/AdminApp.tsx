@@ -68,9 +68,20 @@ export default function AdminApp({ close }: { close: () => void }) {
         {T('carGod', '車無敵', '自分の車が壊れない')}
         {T('carBoost', '車ブースト', '加速 ×1.8・最高速 ×1.45')}
       </div>
+      <label className="adSlider"><span>車のスピード {a.carSpeed === 1 ? '通常' : '×' + a.carSpeed}</span>
+        <input type="range" min={1} max={5} step={0.5} value={a.carSpeed} aria-label="車のスピード倍率" onChange={(e) => { AD.setCarSpeed(+e.target.value); refresh(); }} /></label>
+      <div className="adRow">{[1, 2, 3, 4, 5].map((s) => <button type="button" key={s} className={a.carSpeed === s ? 'sel' : ''} onClick={run(() => AD.setCarSpeed(s))}>{s === 1 ? '通常' : `×${s}`}</button>)}</div>
+      <p className="appNote">自分が運転する車・バイク・トラックの最高速と加速が倍になり、ブレーキとグリップも強くなります（船・ヘリ・戦闘機は対象外）。高速でぶつかると一撃で大破するので「車無敵」と一緒にどうぞ。</p>
+
       <p className="appNote">タップで目の前に出現（歩きならそのまま乗る）</p>
       <div className="adRow">{AD.ADMIN_KINDS.map((k) => <button type="button" key={k} onClick={run(() => AD.spawnVehicle(k, true), true)}>{VDEFS[k].name}</button>)}</div>
       <div className="adRow"><button type="button" onClick={run(AD.fillGarage)}>全車種をガレージへ</button></div>
+
+      <h4 className="adH">新幹線</h4>
+      <label className="adSlider"><span>新幹線のスピード {a.trainSpeed === 1 ? '通常（最高300km/h）' : `×${a.trainSpeed}（最高${Math.round(300 * a.trainSpeed)}km/h）`}</span>
+        <input type="range" min={1} max={5} step={0.5} value={a.trainSpeed} aria-label="新幹線のスピード倍率" onChange={(e) => { AD.setTrainSpeed(+e.target.value); refresh(); }} /></label>
+      <div className="adRow">{[1, 2, 3, 4, 5].map((s) => <button type="button" key={s} className={a.trainSpeed === s ? 'sel' : ''} onClick={run(() => AD.setTrainSpeed(s))}>{s === 1 ? '通常' : `×${s}`}</button>)}</div>
+      <p className="appNote">自分が運転する新幹線の加速・ブレーキ・ATCの制限速度が倍になります（終点の手前ではATCが自動で減速させます）。</p>
 
       <h4 className="adH">ワープ</h4>
       <div className="adRow">

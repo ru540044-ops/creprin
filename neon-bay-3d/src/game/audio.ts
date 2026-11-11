@@ -111,7 +111,7 @@ function clack(at: number, vol: number) {
  *  roar and pressure thump of the tunnel. */
 export function trainSound(on: boolean, kmh: number, thr: number, brake: number, tunnel: number, dt: number) {
   if (!C || (!on && !TR)) return; const R = trainNodes(); if (!R) return;
-  const t = C.currentTime, m = audio.muted ? 0 : 1, v = Math.max(0, kmh), s = Math.min(1, v / 300), work = on ? Math.min(1, Math.max(thr, brake * 0.8)) : 0;
+  const t = C.currentTime, m = audio.muted ? 0 : 1, v = Math.min(360, Math.max(0, kmh)), s = Math.min(1, v / 300), work = on ? Math.min(1, Math.max(thr, brake * 0.8)) : 0;
   const motor = 55 + v * 5.4, carrier = v < 22 ? 1050 + v * 6 : v < 75 ? 620 + (v - 22) * 14 : motor * 2;
   R.inv.frequency.setTargetAtTime(motor, t, 0.05); R.inv2.frequency.setTargetAtTime(carrier, t, 0.05); R.invF.frequency.setTargetAtTime(Math.min(4200, 600 + v * 10), t, 0.1);
   R.invG.gain.setTargetAtTime(on && v > 0.3 ? m * work * (0.03 + 0.03 * Math.min(1, v / 80)) * (1 - 0.45 * s) : 0, t, 0.12);
