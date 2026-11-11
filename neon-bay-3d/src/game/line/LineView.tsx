@@ -134,7 +134,8 @@ export default function LineView() {
           if (ci % 2 === 0) hill(P.hill, sd * (90 + r(sd + 95) * 120), -8, zc, 70 + r(sd + 96) * 90, 40 + r(sd + 97) * 70, 120, [0.18, 0.3, 0.16]);
         }
         // hills on the horizon everywhere outside the cities
-        if (zn !== 'city' && ci % 3 === 0) hill(P.hill, sd * (700 + r(sd + 99) * 900), -20, zc, 300 + r(sd + 100) * 300, 80 + r(sd + 101) * 160, 260, [0.24, 0.33, 0.24]);
+        const peakSide = g.peaks.some((q) => q.snow && Math.sign(q.off) === sd && Math.abs(q.s - q0) < 70000); // keep the view of a snow peak open
+        if (zn !== 'city' && ci % 3 === 0 && !peakSide) hill(P.hill, sd * (700 + r(sd + 99) * 900), -20, zc, 300 + r(sd + 100) * 300, 50 + r(sd + 101) * 90, 260, [0.24, 0.33, 0.24]);
       }
       // castles by the line (white keep on a stone base)
       for (const cs of g.castles) if (cs.s >= q0 && cs.s < q0 + C) { const x = cs.side * 180, zz = z(L.off[li] + cs.s);
@@ -168,7 +169,7 @@ export default function LineView() {
     const legI = legAt(L.s), g = L.legs[legI];
     peaks.current.forEach((pk, i) => { const q = g.peaks[i]; pk.cone.visible = pk.cap.visible = false; if (!q) return;
       const dz = L.off[legI] + q.s - L.s, d = Math.hypot(q.off, dz); if (d > 150000 || L.tunnel > 0.5) return;
-      const Rr = 2350, k = Rr / d; pk.cone.visible = true; pk.cone.position.set(q.off * k, -2, -dz * k); pk.cone.scale.set(q.r * k, q.h * k, q.r * k);
+      const Rr = 2350, k = Rr / d; pk.cone.visible = true; pk.cone.position.set(q.off * k, -2, -dz * k); pk.cone.scale.set(q.r * 0.55 * k, q.h * 1.5 * k, q.r * 0.55 * k); // a little steeper than life, as the eye remembers it
       if (q.snow) { pk.cap.visible = true; pk.cap.position.copy(pk.cone.position); pk.cap.scale.copy(pk.cone.scale); } });
     // which train is drawn, and where the camera is
     const shin = g.train === 'shin', T = shin ? trains.shin : trains.local; trains.shin.visible = shin && L.view !== 0; trains.local.visible = !shin && L.view !== 0;
