@@ -41,9 +41,12 @@ console.log('in tunnel',JSON.stringify(await E(()=>({tun:window.__nb3d.game.tunn
 // exiting inside the tunnel is refused
 await E(()=>{const v=window.__nb3d.playerCar();v.vz=0;});await W(600);
 console.log('exit in tunnel',JSON.stringify(await E(()=>{window.__nb3d.input.action=true;return 0})),JSON.stringify(await (async()=>{await W(1500);return E(()=>({inCar:window.__nb3d.game.inCar,toast:window.__nb3d.game.toast,near:window.__nb3d.game.near&&window.__nb3d.game.near.id}))})()));
-// on through the trigger point: the trip to Osaka
-const nav=p.waitForNavigation({timeout:120000});
+// on through the trigger point: onto the line to Osaka (515 km, see line.cjs), fast-forwarded to the end, then Osaka loads
 await E(([T])=>{const v=window.__nb3d.playerCar();v.z=T.portal-225;v.vz=-50;},[T]);
+for(let k=0;k<60&&!(await E(()=>window.__nb3d.lineMod.line.on));k++)await W(500);
+console.log('on the line',JSON.stringify(await E(()=>{const L=window.__nb3d.lineMod.line;return {on:L.on,mode:L.mode,to:L.to,km:(L.L/1000).toFixed(1)}})));
+const nav=p.waitForNavigation({timeout:600000});
+await E(()=>{const M=window.__nb3d.lineMod;M.line.auto=true;M.fastForward(true);for(let k=0;k<9000&&!M.line.done;k++)M.stepLine(0,0,0.05);});
 await nav;console.log('reloaded (trip started)');
 await p.waitForSelector('.arrive .mbtn.primary:not([disabled])',{timeout:600000});console.log('arrival screen',(await p.textContent('.arrive')).slice(0,80));
 await p.click('.arrive .mbtn.primary');await W(3000);
