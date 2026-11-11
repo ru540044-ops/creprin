@@ -6,6 +6,9 @@ const {chromium}=require('playwright');
 const b=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
 const p=await (await b.newContext({viewport:{width:844,height:390},hasTouch:true})).newPage();const errs=[];p.on('pageerror',e=>{errs.push('PAGEERR '+e.message);console.log('PAGEERR',e.message,(e.stack||'').slice(0,400))});p.on('console',m=>{if(m.type()==='error')errs.push('CONSOLE '+m.text().slice(0,200))});
 await p.addInitScript(()=>{try{if(!localStorage.getItem('nb3d.testinit')){localStorage.clear();localStorage.setItem('nb3d.testinit','1');localStorage.setItem('nb3d.debug','1');localStorage.setItem('neonbay3d.settings.v1',JSON.stringify({quality:'low',tutorialDone:true}));localStorage.setItem('neonbay3d.region','tokyo');}}catch(e){}});
+// log anything that clears storage, and page unloads (the arrival is a reload)
+await p.addInitScript(()=>{const L=Storage.prototype,c=L.clear,r=L.removeItem;L.clear=function(){console.log('LSCLEAR',new Error().stack.slice(0,300));return c.call(this)};L.removeItem=function(k){if(k!=='neonbay3d.arrive')console.log('LSREMOVE',k);return r.call(this,k)};addEventListener('beforeunload',()=>console.log('UNLOAD'))});
+p.on('console',m=>{const t=m.text();if(/LSCLEAR|LSREMOVE|UNLOAD/.test(t))console.log(t.slice(0,300))});
 await p.goto('file://'+html);await p.waitForSelector('.ttl .mbtn.primary:not([disabled])',{timeout:600000});await p.click('.ttl .mbtn.primary');await p.waitForTimeout(2500);
 const E=(f,a)=>p.evaluate(f,a),W=(ms)=>p.waitForTimeout(ms);
 const clear=(hr)=>E((hr)=>{const G=window.__nb3d.game;G.hour=hr;G.weather.kind='clear';G.weather.cloud=0;G.weather.rain=0;G.weather.wet=0;G.weather.next=9999;},hr);
@@ -34,7 +37,7 @@ await E(()=>{window.__nb3d.lineMod.line.view=0});
 // fast-forward buttons
 await p.locator('.lineBtns button',{hasText:'次の駅'}).tap();await W(1200);console.log('ff next',JSON.stringify(await E(()=>({km:(window.__nb3d.lineMod.line.s/1000).toFixed(1),toast:window.__nb3d.game.toast}))));
 const h1=await E(()=>window.__nb3d.game.hour);await p.locator('.lineBtns button',{hasText:'終点'}).tap();await W(1200);console.log('ff end',JSON.stringify(await E((h1)=>({km:(window.__nb3d.lineMod.line.s/1000).toFixed(1),dh:+(((window.__nb3d.game.hour-h1)+24)%24).toFixed(2),toast:window.__nb3d.game.toast}),h1)));
-await E(()=>{const M=window.__nb3d.lineMod;for(let k=0;k<6000&&!M.line.done;k++)M.stepLine(0,0,0.05);});
+console.log('run in',await E(()=>{const M=window.__nb3d.lineMod;let k=0;for(;k<6000&&!M.line.done;k++)M.stepLine(0,0,0.05);return JSON.stringify({k,done:M.line.done,s:Math.round(M.line.s),region:localStorage.getItem('neonbay3d.region'),save:!!localStorage.getItem('neonbay3d.save.v1')})}));
 await p.waitForSelector('.arriveCard',{timeout:600000});console.log('arrived',await p.locator('.arriveCard h2').innerText(),await E(()=>localStorage.getItem('neonbay3d.region')));
 await p.waitForSelector('.arriveCard .mbtn.primary:not([disabled])',{timeout:600000});await p.click('.arriveCard .mbtn.primary');await W(3000);
 console.log('osaka',JSON.stringify(await E(()=>{const N=window.__nb3d,G=N.game,S=N.cityMod.STATION;return {region:N.REGION.id,atStation:Math.round(Math.hypot(G.player.x-S.spawn.x,G.player.z-S.spawn.z)),money:G.money}})));
