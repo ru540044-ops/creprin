@@ -14,8 +14,9 @@ await clear(10);await E(()=>{window.__nb3d.game.money=5000});
 await p.tap('.phoneChip');await p.locator('.appIc',{hasText:'旅行'}).tap();await W(800);
 await p.locator('.travelPick button',{hasText:'大阪'}).tap();await W(400);
 console.log('app',(await p.locator('.jobCard').innerText()).replace(/\n/g,' | ').slice(0,400));
-const rb=p.locator('.jobCard .jobBtns button',{hasText:'車窓'});await rb.tap();await W(300);await rb.tap();await W(3000);
-console.log('ride',JSON.stringify(await E(()=>{const L=window.__nb3d.lineMod.line,G=window.__nb3d.game;return {on:L.on,mode:L.mode,km:(L.L/1000).toFixed(1),stops:L.stops.length,first:L.stops.slice(0,4).map(s=>s.name+'@'+(s.s/1000).toFixed(1)),kyoto:(L.stops.find(s=>s.name==='京都').s/1000).toFixed(1),money:G.money,hud:!!document.querySelector('.lineHud')}})));
+const rb=p.locator('.jobCard .jobBtns button',{hasText:'車窓'});await rb.tap();await W(800);console.log('armed',await rb.innerText());await p.locator('.jobCard .jobBtns button',{hasText:'もう一度'}).first().tap();
+for(let k=0;k<40&&!(await E(()=>window.__nb3d.lineMod.line.on));k++)await W(500);
+console.log('ride',JSON.stringify(await E(()=>{const L=window.__nb3d.lineMod.line,G=window.__nb3d.game;return {on:L.on,mode:L.mode,km:(L.L/1000).toFixed(1),stops:L.stops.length,first:L.stops.slice(0,4).map(s=>s.name+'@'+(s.s/1000).toFixed(1)),kyoto:L.on?(L.stops.find(s=>s.name==='京都').s/1000).toFixed(1):null,money:G.money,hud:!!document.querySelector('.lineHud')}})));
 await W(4000);await p.screenshot({path:'jp/line_tokyo.png',timeout:180000});
 // 10 minutes of running time, stepped: speed up to the line speed, the clock runs at real time
 console.log('10 min',JSON.stringify(await E(()=>{const M=window.__nb3d.lineMod,L=M.line,G=window.__nb3d.game,h0=G.hour;let vmax=0;for(let k=0;k<12000;k++){M.stepLine(0,0,0.05);vmax=Math.max(vmax,L.v);}return {km:(L.s/1000).toFixed(1),kmh:Math.round(L.v*3.6),vmax:Math.round(vmax*3.6),dh:+(G.hour-h0).toFixed(3)}})));
