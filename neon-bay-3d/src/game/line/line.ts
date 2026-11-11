@@ -78,7 +78,8 @@ export function stepLine(thr: number, brake: number, dt: number) {
 /** Jump ahead: to just before the next station, or to just before the terminus. The clock moves on by the time the run takes at line speed. */
 export function fastForward(toEnd: boolean) {
   const L = line; if (!L.on || L.done) return;
-  const st = L.stops[nextStop()], target = toEnd ? L.L - END_GAP - 4000 : Math.min(L.L - END_GAP - 4000, st.s - 2500);
+  let ni = nextStop(); if (!toEnd && L.stops[ni].s - 2500 - L.s < 5000 && ni + 1 < L.stops.length) ni++; // the next station is just ahead: on to the one after
+  const st = L.stops[ni], target = toEnd ? L.L - END_GAP - 4000 : Math.min(L.L - END_GAP - 4000, st.s - 2500);
   if (target <= L.s + 100) { toast('もうすぐ着きます', 1.4); return; }
   let hours = 0; for (let s = L.s; s < target; s += 1000) hours += Math.min(1000, target - s) / Math.max(15, limitAt(s) * 0.92) / 3600;
   game.hour = (game.hour + hours) % 24; L.s = target; L.v = Math.min(Math.max(L.v, L.legs[legAt(target)].vmax / 3.6 * 0.8), limitAt(target)); game.fadeT = 1; L.ffT = 1.2; sfx('ui');

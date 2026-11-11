@@ -178,7 +178,7 @@ export default function LineView() {
     camera.up.set(0, 1, 0);
     if (L.view === 0) { camera.position.set(ANCHOR.x + sway, 3.5, ANCHOR.z - (shin ? 6 : 0.5)); camera.lookAt(ANCHOR.x, 2.6, ANCHOR.z - 200); }
     else if (L.view === 1 || L.view === 2) { const sd = L.view === 1 ? 1 : -1; camera.position.set(ANCHOR.x + sd * 1.2, 2.9 + sway, ANCHOR.z + 40); camera.lookAt(ANCHOR.x + sd * 100, 2.2, ANCHOR.z - 40); }
-    else { const t = performance.now() / 9000; camera.position.set(ANCHOR.x - 26 + Math.sin(t) * 6, 16, ANCHOR.z - 40); camera.lookAt(ANCHOR.x, 2, ANCHOR.z + 60); }
+    else { const t = performance.now() / 9000; camera.position.set(ANCHOR.x - 5 + Math.sin(t) * 2, 19, ANCHOR.z - 75); camera.lookAt(ANCHOR.x, 2, ANCHOR.z + 45); } // above the line, ahead of the nose, looking back along the train
     game.player.x = ANCHOR.x; game.player.z = ANCHOR.z + 20; game.player.y = 1;
   });
 
