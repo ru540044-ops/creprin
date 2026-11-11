@@ -7,6 +7,8 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { game, toast, save, Quality } from '../state/store';
 import Phone from './Phone';
 import GunShop from './GunShop';
+import ShopPanel from './ShopPanel';
+import { ITEMS, ITEM_IDS, useItem, buffs } from '../crime/shops';
 import Customs from './Customs';
 import { taxi, startTaxi, stopTaxi } from '../crime/stunts';
 import { race } from '../crime/race';
@@ -213,6 +215,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
             <div className="av">N</div>
             <div className="whoT"><b>NOVA</b><span>{inside ? INTERIORS[game.where]?.name : game.district}</span></div>
             <div className="bars"><i className="hp" style={{ width: game.health + '%' }} />{game.arms.armor > 0 && <i className="ar" style={{ width: game.arms.armor + '%' }} />}<i className="st" style={{ width: game.stamina + '%' }} /></div>
+            {(buffs.full > 0 || buffs.energy > 0 || buffs.tipsy > 0) && <div className="buffs">{buffs.full > 0 && <span>満腹 {Math.ceil(buffs.full)}秒</span>}{buffs.energy > 0 && <span>⚡ {Math.ceil(buffs.energy)}秒</span>}{buffs.tipsy > 0 && <span>ほろ酔い</span>}</div>}
           </div>
           {js ? (
             <div className={'card mis' + (game.wanted > 0 ? ' hot' : '')}><span className="lab">ミッション</span><b>{js.title}</b><span>{js.text}</span>{js.prog !== undefined && <i className="prog"><b style={{ width: Math.min(100, js.prog * 100) + '%' }} /></i>}</div>
@@ -232,6 +235,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
             <button type="button" className="chip phoneChip" onClick={() => setPhone(true)} aria-label="スマホを開く">📱 スマホ</button>
             {driving && me && me.def.kind === 'taxi' && <button type="button" className="chip phoneChip" onClick={() => { if (taxi.on) stopTaxi(); else startTaxi(); }}>🚕 {taxi.on ? '業務終了' : '客を探す'}</button>}
             {driving && <button type="button" className="chip phoneChip" onClick={() => { input.radio = true; }}>📻 {game.radio ? STATIONS[game.radio - 1].name : 'ラジオ'}</button>}
+            {!driving && ITEM_IDS.filter((k) => game.items[k] > 0).map((k) => <button type="button" key={k} className="chip itemChip" aria-label={`${ITEMS[k].name}を使う（${ITEMS[k].use}）`} onClick={() => useItem(k)}>{ITEMS[k].icon} {game.items[k]}</button>)}
           </div>
         </div>
       </div>
@@ -301,6 +305,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
       {!driving && (input.aim || input.aimHold) && game.arms.cur !== 'fist' && game.where === 'out' && <div className={'xhair' + (combat.lock ? ' lock' : '')} />}
       {game.ui === 'arms' && <GunShop onClose={() => { game.ui = ''; }} />}
       {game.ui === 'customs' && <Customs onClose={() => { game.ui = ''; }} />}
+      {game.ui.startsWith('shop:') && <ShopPanel kind={game.ui.slice(5)} onClose={() => { game.ui = ''; }} />}
       {map && <FullMap onClose={() => setMap(false)} />}
       {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} mode={mode} setMode={setMode} />}
     </>

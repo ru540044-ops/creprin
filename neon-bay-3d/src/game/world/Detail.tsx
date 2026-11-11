@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { buildings, Building, BlockInfo, topFoot, blockOfB, CANAL_BLOCKS, N } from './cityGen';
+import { SHOP_TYPES, shopCell } from './bldgInteriors';
 import type { BDoor } from './bldgInteriors';
+import { KONBINI_BRANDS } from './shopFurn';
 import { game } from '../state/store';
 import { getTextures } from './textures';
 import { mulberry } from './rng';
@@ -35,6 +37,26 @@ function atlas(words: [string, string][], cols: number, rows: number, cw: number
   });
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
 }
+/** Storefront signs: one cell per shop name (row = shop type, column = name), each type in its own livery. All names are made up. */
+const FASCIA = { cw: 512, ch: 112, w: 5.2, h: 1.14 };
+function fasciaAtlas() {
+  const rows = SHOP_TYPES.length, cv = document.createElement('canvas'); cv.width = 4 * FASCIA.cw; cv.height = rows * FASCIA.ch; const c = cv.getContext('2d')!;
+  const FONT = '"Hiragino Sans","Noto Sans JP",system-ui,sans-serif';
+  SHOP_TYPES.forEach((T, row) => T.names.forEach((name, col) => {
+    const x = col * FASCIA.cw, y = row * FASCIA.ch, W = FASCIA.cw, H = FASCIA.ch;
+    const text = (t: string, col2: string, cx: number, size: number, font = `900 ${size}px ${FONT}`) => { c.font = font; c.fillStyle = col2; c.textAlign = 'center'; c.textBaseline = 'middle'; let s2 = size; while (c.measureText(t).width > W - 150 && s2 > 20) { s2 -= 3; c.font = font.replace(/\d+px/, s2 + 'px'); } c.fillText(t, cx, y + H / 2 + 3); };
+    if (T.key === 'konbini') { const B = KONBINI_BRANDS[col]; c.fillStyle = B[1]; c.fillRect(x, y, W, H); c.fillStyle = B[2]; c.fillRect(x, y + H - 16, W, 16); c.fillRect(x, y, W, 6); text(name, B[2] === '#ffffff' ? '#ffffff' : B[2], x + W / 2 - 34, 62); c.fillStyle = B[2]; c.beginPath(); c.arc(x + W - 58, y + H / 2 - 4, 34, 0, 7); c.fill(); c.font = `900 26px ${FONT}`; c.fillStyle = B[1]; c.fillText('24h', x + W - 58, y + H / 2 - 2); }
+    else if (T.key === 'ramen') { c.fillStyle = '#16110f'; c.fillRect(x, y, W, H); c.fillStyle = '#b3261e'; c.fillRect(x, y, 96, H); c.font = `900 60px ${FONT}`; c.fillStyle = '#fff6e6'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('麺', x + 48, y + H / 2 + 4); text(name, '#fff6e6', x + W / 2 + 48, 58, `900 58px "Hiragino Mincho ProN","Noto Serif JP",serif`); }
+    else if (T.key === 'cafe') { c.fillStyle = '#3d2a1c'; c.fillRect(x, y, W, H); c.strokeStyle = '#e9d5b0'; c.lineWidth = 3; c.strokeRect(x + 8, y + 8, W - 16, H - 16); text(name, '#f1e3c8', x + W / 2, 54, `700 54px Georgia,${FONT}`); }
+    else if (T.key === 'boutique') { c.fillStyle = '#f6f4f1'; c.fillRect(x, y, W, H); text(name, '#151515', x + W / 2, 50, `300 50px Georgia,${FONT}`); c.fillStyle = '#151515'; c.fillRect(x + 60, y + H - 20, W - 120, 2); }
+    else if (T.key === 'electronics') { c.fillStyle = '#d7191c'; c.fillRect(x, y, W, H); c.fillStyle = '#ffe14a'; c.fillRect(x, y + H - 22, W, 22); text(name, '#ffe14a', x + W / 2, 62); }
+    else if (T.key === 'bar') { c.fillStyle = '#140f1e'; c.fillRect(x, y, W, H); c.shadowColor = '#c08aff'; c.shadowBlur = 16; text(name, '#e2ccff', x + W / 2, 54, `700 54px Georgia,${FONT}`); c.shadowBlur = 0; }
+    else if (T.key === 'books') { c.fillStyle = '#1f5a3a'; c.fillRect(x, y, W, H); text(name, '#f4f1e6', x + W / 2, 56, `900 56px "Hiragino Mincho ProN","Noto Serif JP",serif`); }
+    else if (T.key === 'pharmacy') { c.fillStyle = '#ffffff'; c.fillRect(x, y, W, H); c.fillStyle = '#18a558'; c.fillRect(x, y + H - 18, W, 18); c.fillRect(x + 36, y + 22, 20, 60); c.fillRect(x + 16, y + 42, 60, 20); text(name, '#18a558', x + W / 2 + 40, 58); }
+    else { c.fillStyle = '#111111'; c.fillRect(x, y, W, H); c.fillStyle = '#ffd23a'; c.fillRect(x, y, 14, H); c.fillRect(x + W - 14, y, 14, H); text(name, '#ffd23a', x + W / 2, 58); }
+  }));
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+}
 /** Basic material whose instances each show one cell of the atlas (per-instance UV offset). */
 function atlasMaterial(tex: THREE.Texture, sx: number, sy: number) {
   const m = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, side: THREE.DoubleSide });
@@ -52,7 +74,7 @@ function makeShared() {
   return {
     box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(1, 1, 1, 10), plane: new THREE.PlaneGeometry(1, 1),
     roofMat: new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.1 }),
-    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), cMat: atlasMaterial(atlas(C_WORDS, 4, 4, 512, 128, false), 0.25, 0.25), vMat: atlasMaterial(atlas(V_WORDS, 16, 1, 128, 512, true), 0.0625, 1), tMat: atlasMaterial(atlas(T_WORDS, 16, 1, 128, 896, true), 0.0625, 1),
+    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), fMat: atlasMaterial(fasciaAtlas(), 0.25, 1 / SHOP_TYPES.length), cMat: atlasMaterial(atlas(C_WORDS, 4, 4, 512, 128, false), 0.25, 0.25), vMat: atlasMaterial(atlas(V_WORDS, 16, 1, 128, 512, true), 0.0625, 1), tMat: atlasMaterial(atlas(T_WORDS, 16, 1, 128, 896, true), 0.0625, 1),
     awnMat: new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }),
     doorMat: new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }),
     doorGlassMat: new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false }), doorLampMat: new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false }),
@@ -103,6 +125,14 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
   const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], ts: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [], cs: { m: THREE.Matrix4; o: [number, number] }[] = [];
   const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
   const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
+  // every shop gets the sign of the business inside, over its door
+  const fs: { m: THREE.Matrix4; o: [number, number] }[] = [], doorOf = new Map<Building, BDoor>();
+  for (const dd of doorList) {
+    doorOf.set(buildings[dd.b], dd); if (dd.kind !== 'shop') continue;
+    const [col, row] = shopCell(dd), nx = Math.sin(dd.ang), nz = Math.cos(dd.ang);
+    Q.setFromAxisAngle(UP, dd.ang); P.set(dd.fx + nx * 0.34, dd.y + 4.0, dd.fz + nz * 0.34); S.set(FASCIA.w, FASCIA.h, 1);
+    fs.push({ m: M.compose(P, Q, S).clone(), o: [col * 0.25, 1 - (row + 1) / SHOP_TYPES.length] });
+  }
   for (const b of list) {
     if (b.gable || b.type === 'hangar' || b.shape === 'spiral') continue;
     if (!b.up) roofPlan(b, box, cyl); // a podium's roof is mostly tower
@@ -138,6 +168,7 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
           const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
         }
       }
+      { const dd = doorOf.get(b); if (dd && dd.kind === 'shop' && Math.abs(Math.sin(dd.ang) - f.nx) < 0.1 && Math.abs(Math.cos(dd.ang) - f.nz) < 0.1) continue; } // the shop's own sign is on this face
       if (f.len < 8 || r() < 0.25) continue;
       const n = f.len > 30 ? 2 : 1;
       for (let j = 0; j < n; j++) {
@@ -178,7 +209,7 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
     const im = mk(g, mat, list2, false); if (im) im.userData.ownGeo = true;
   };
   mk(D.box, D.roofMat, boxes); mk(D.cyl, D.roofMat, cyls);
-  withOff(hs, D.hMat); withOff(vs, D.vMat); withOff(ts, D.tMat); withOff(cs, D.cMat);
+  withOff(hs, D.hMat); withOff(vs, D.vMat); withOff(ts, D.tMat); withOff(cs, D.cMat); withOff(fs, D.fMat);
   const awn = mk(D.box, D.awnMat, aw); if (awn) awn.castShadow = true;
   mk(D.box, D.doorMat, frameM); mk(D.plane, D.doorGlassMat, glassM, false); mk(D.box, D.doorLampMat, lampM, false);
   return out;
@@ -197,7 +228,7 @@ export default function Detail() {
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
   useFrame(({ camera, clock }) => {
     const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2), sh = D.sh;
-    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k); sh.tMat.color.setScalar(k); sh.cMat.color.setScalar(night ? 1.5 : dusk ? 1.05 : 0.8);
+    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k); sh.tMat.color.setScalar(k); sh.cMat.color.setScalar(night ? 1.5 : dusk ? 1.05 : 0.8); sh.fMat.color.setScalar(night ? 1.6 : dusk ? 1.15 : 0.92);
     sh.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); sh.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
     const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; sh.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
     let n = 0; const cx = camera.position.x, cz = camera.position.z;

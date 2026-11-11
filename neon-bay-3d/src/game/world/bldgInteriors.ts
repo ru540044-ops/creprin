@@ -2,6 +2,7 @@ import { REGION } from './region';
 import type { InteriorDef, Furn, View } from './Interiors';
 import { buildings, blocks, doors, Building, BlockInfo, topFoot, blockOfB } from './cityGen';
 import { mulberry } from './rng';
+import { KONBINI, KONBINI_BRANDS, konbiniFurn, konbiniLights, RAMEN, ramenFurn } from './shopFurn';
 
 /**
  * Every building without a hand-made interior gets a street door and a procedurally furnished interior,
@@ -25,7 +26,14 @@ const SHOPS = [
   { key: 'books', names: ['BAY BOOKS', '本の森', 'PAGE TURN', '古本屋'] },
   { key: 'pharmacy', names: ['BAY 薬局', 'GREEN CROSS', 'ドラッグ ベイ', 'CARE+'] },
   { key: 'gym', names: ['IRON BAY GYM', 'FIT 24', 'PULSE GYM', '筋トレ道場'] },
+  // convenience stores are everywhere: two slots of the ten
+  { key: 'konbini', names: KONBINI_BRANDS.map((q) => q[0]) },
+  { key: 'konbini', names: KONBINI_BRANDS.map((q) => q[0]) },
 ];
+/** Shop type of a generated shop door, and the cell of its sign in the storefront atlas (row = type, column = name). */
+export const SHOP_TYPES = SHOPS;
+export const shopKey = (d: BDoor) => SHOPS[d.sub % SHOPS.length].key;
+export const shopCell = (d: BDoor): [number, number] => [(d.sub >> 3) % 4, d.sub % SHOPS.length];
 const LOBBY = ['NEON BAY TOWER', 'BAY TRADE CENTER', 'HARBOR ONE', 'SKYLINE PLAZA', 'MERIDIAN', 'AURORA BLDG', 'CENTRAL BANK', 'PACIFIC LIFE', 'ZENITH TOWER', 'OCEANIC HQ'];
 const OFFICE = ['BAY OFFICE', 'KAIRO DESIGN', 'PIXEL WORKS', 'MARINA LAW', 'ORBIT SOFT', 'LUMEN INC', 'NORTH STAR', 'TIDE MEDIA'];
 const APT = ['潮風', 'パーム', 'コーラル', 'ハーバー', 'サンセット', 'ベイサイド', 'マリン', 'ネオン'];
@@ -151,23 +159,25 @@ function shop(d: BDoor, r: () => number, base: (w: number, dd: number, h: number
   const tables = (c: string, ch: string) => { for (const [x, z] of [[-4.6, -0.2], [-4.6, 2.4], [4.6, -0.2], [4.6, 2.4]]) F.push(f(x - 0.5, z - 0.5, x + 0.5, z + 0.5, 0.75, c), f(x - 1.05, z - 0.22, x - 0.65, z + 0.22, 0.9, ch), f(x + 0.65, z - 0.22, x + 1.05, z + 0.22, 0.9, ch)); };
   const staff = (shirt: string) => [npc(0, -3.9, 0, shirt, r)];
   const lights = (c: string, i = 10) => [L(-3.5, 3.3, -1, c, i, 10), L(3.5, 3.3, -1, c, i, 10), L(0, 3.3, 3, c, i * 0.8, 9)];
+  const order = (id: string, label = 'カウンターで注文する', z = -1.8, r = 1.7) => [{ x: 0, z, r, id, label, btn: '注文' }];
   switch (key) {
+    case 'konbini': {
+      const B = KONBINI_BRANDS[(d.sub >> 3) % 4];
+      return base(KONBINI.w, KONBINI.d, KONBINI.h, '#f2f3f5', '#e6eaee', 'tiles', konbiniFurn(B[1], B[2]), { lights: konbiniLights(), ownLights: true, rob: true, npcs: [npc(-5, 4.55, 0, pickR(['#5a6f8f', '#7a3a3a', '#3a5a4a', '#d8cfbf'], r), r)] });
+    }
     case 'cafe':
       counter('#5a4030'); F.push(f(-2.4, -3.3, -1.4, -2.8, 0.5, '#c9ccd2', { y0: 1.05, metal: 0.8, rough: 0.2 }), f(0.5, -3.35, 2.6, -2.65, 0.4, '#ffe3b0', { y0: 1.05, glow: true }), f(-6.6, -4.6, -5.8, -3.8, 1.6, PLANT)); tables('#e8e0d0', '#5a4030');
-      return base(W, D, H, '#efe4d4', '#b08a5e', 'wood', F, { lights: lights('#ffd9a8'), ownLights: true, npcs: staff('#5a4030') });
-    case 'ramen':
-      F.push(f(-5, -2.4, 5, -1.6, 1.0, '#8a6a4a'));
-      for (let x = -4; x <= 4; x += 1.6) F.push(f(x - 0.22, -1.25, x + 0.22, -0.8, 0.7, '#3a2a20'));
-      for (const x of [-3.2, -2.2, -1.2]) F.push(f(x - 0.4, -4.4, x + 0.4, -3.6, 1.2, '#9aa0a8', { metal: 0.8, rough: 0.3 }));
-      for (const x of [-4.5, -1.5, 1.5, 4.5]) F.push(f(x - 0.25, -2.25, x + 0.25, -1.75, 0.5, '#ff3a2a', { y0: 2.5, glow: true, walk: true }));
-      F.push(f(-6.6, 2, -5.2, 3.4, 0.75, '#6a4a30'), f(5.2, 2, 6.6, 3.4, 0.75, '#6a4a30'));
-      return base(W, D, H, '#3a2a22', '#6a6460', 'concrete', F, { lights: lights('#ffcf9a', 9), ownLights: true, npcs: [npc(0, -3.6, 0, '#f4f4f4', r)] });
+      return base(W, D, H, '#efe4d4', '#b08a5e', 'wood', F, { lights: lights('#ffd9a8'), ownLights: true, npcs: staff('#5a4030'), acts: order('shop:cafe') });
+    case 'ramen': {
+      const R = ramenFurn();
+      return base(RAMEN.w, RAMEN.d, RAMEN.h, '#3a2a22', '#5a5450', 'concrete', R.F, { lights: lights('#ffcf9a', 9), ownLights: true, npcs: [npc(0, -3.5, 0, '#f4f4f4', r)], acts: R.acts });
+    }
     case 'boutique': {
       const cl = ['#e84a5f', '#2a9d8f', '#264653', '#f4a261', '#e9c46a', '#6c5ce7', '#dfe6e9', '#2d3436', '#fd79a8'];
       for (const s of [-1, 1]) { F.push(f(s * 6.2 - 0.06, -3.5, s * 6.2 + 0.06, 2.6, 0.06, '#c0c4cc', { y0: 1.6, metal: 0.9, rough: 0.2, walk: true })); for (let z = -3.3; z < 2.4; z += 0.55) F.push(f(s * 6.2 - 0.3, z, s * 6.2 + 0.3, z + 0.38, 0.9, pickR(cl, r), { y0: 0.7 })); }
       for (const x of [-2.5, 0, 2.5]) F.push(f(x - 0.2, -4.2, x + 0.2, -3.8, 1.75, '#f2efe8'));
       F.push(f(-1.2, -0.8, 1.2, 0.8, 0.8, '#e8e2d6'), f(2.2, -2.6, 4.6, -1.8, 1.0, '#1a1a1e'), f(-6.95, -4.6, -6.9, -3.0, 2.0, '#c8d4e0', { metal: 1, rough: 0.03, y0: 0.1, walk: true }));
-      return base(W, D, H, '#f4f1f6', '#ece9e4', 'marble', F, { lights: lights('#ffffff', 11), ownLights: true, npcs: [npc(3.4, -2.9, Math.PI, '#141414', r)] });
+      return base(W, D, H, '#f4f1f6', '#ece9e4', 'marble', F, { lights: lights('#ffffff', 11), ownLights: true, npcs: [npc(3.4, -2.9, Math.PI, '#141414', r)], acts: [{ x: -5.9, z: -3.8, r: 1.3, id: 'style', label: '鏡の前で着替える（スタイル変更）', btn: '着替え' }] });
     }
     case 'electronics': {
       const sc = ['#2b6bff', '#ff3f93', '#3dffb0', '#ffd23a', '#2be4ff', '#b07aff'];
@@ -180,7 +190,7 @@ function shop(d: BDoor, r: () => number, base: (w: number, dd: number, h: number
       F.push(f(-4.5, -2.6, 4.5, -1.8, 1.1, '#2a1a14', { rough: 0.2 }), f(-4.5, -1.82, 4.5, -1.76, 0.06, acc, { y0: 1.02, glow: true, walk: true }), f(-4, -4.97, 4, -4.7, 0.06, '#ffb35a', { y0: 1.3, glow: true, walk: true }), f(-4, -4.97, 4, -4.7, 0.06, '#ffb35a', { y0: 1.85, glow: true, walk: true }));
       for (let x = -3.6; x <= 3.6; x += 1.8) F.push(f(x - 0.22, -1.35, x + 0.22, -0.9, 0.75, '#141414'));
       F.push(f(-6.95, 1, -5.6, 3.6, 1.0, '#5a1a2a'), f(-5.5, 1.6, -4.3, 3.0, 0.75, '#2a1a14'), f(5.6, 1, 6.95, 3.6, 1.0, '#5a1a2a'), f(4.3, 1.6, 5.5, 3.0, 0.75, '#2a1a14'), f(-6.97, -2, -6.93, 0, 0.6, acc, { y0: 2.2, glow: true, walk: true }));
-      return base(W, D, H, '#1c1820', '#3a3034', 'wood', F, { lights: lights('#c08aff', 6), ownLights: true, npcs: [npc(0, -3.6, 0, '#141414', r)] });
+      return base(W, D, H, '#1c1820', '#3a3034', 'wood', F, { lights: lights('#c08aff', 6), ownLights: true, npcs: [npc(0, -3.6, 0, '#141414', r)], acts: order('shop:bar', 'バーカウンターで注文する', -0.35, 2.3) });
     case 'books': {
       const sp = ['#8a3a3a', '#3a5a8a', '#4a6a3a', '#8a6a3a', '#5a3a6a'];
       for (const [x0, z0, x1, z1] of [[-6.95, -4.9, -6.4, 3], [6.4, -4.9, 6.95, 3], [-6, -4.95, 6, -4.45]]) F.push(f(x0, z0, x1, z1, 2.2, '#7a5236'));
@@ -192,7 +202,7 @@ function shop(d: BDoor, r: () => number, base: (w: number, dd: number, h: number
       for (const x of [-4.5, -1.5, 1.5, 4.5]) if (Math.abs(x) > 1) F.push(f(x - 0.4, -2.6, x + 0.4, 1.6, 1.7, '#f4f4f4'));
       F.push(f(-6.97, -1, -6.93, 1, 0.5, '#3dffb0', { y0: 2.2, glow: true, walk: true }), f(-6.97, -0.25, -6.93, 0.25, 2.0, '#3dffb0', { y0: 1.45, glow: true, walk: true }));
       counter('#e8eef0');
-      return base(W, D, H, '#f6f8f8', '#e8ecee', 'tiles', F, { lights: lights('#f4fbff', 13), ownLights: true, npcs: staff('#ffffff') });
+      return base(W, D, H, '#f6f8f8', '#e8ecee', 'tiles', F, { lights: lights('#f4fbff', 13), ownLights: true, npcs: staff('#ffffff'), acts: order('shop:pharmacy', 'レジで買い物する') });
     case 'gym': default:
       for (const x of [-4.5, -2.5, -0.5, 1.5]) F.push(f(x - 0.4, -4.4, x + 0.4, -2.6, 1.2, '#1a1a1e'), f(x - 0.3, -2.75, x + 0.3, -2.7, 0.3, '#2be4ff', { y0: 1.2, glow: true }));
       F.push(f(6, -1, 6.9, 3, 0.9, '#3a3a3e'), f(6.95, -4, 6.98, 4, 2.4, '#c8d4e0', { metal: 1, rough: 0.03, y0: 0.2, walk: true }), f(-6.5, -1, -3.5, 3, 0.04, '#3a5a8a', { walk: true }), f(2.2, 0, 3.6, 0.5, 0.5, '#2a2a2e'), f(2.2, 2, 3.6, 2.5, 0.5, '#2a2a2e'));

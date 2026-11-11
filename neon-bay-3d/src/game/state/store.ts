@@ -26,6 +26,7 @@ export const game = {
   mapOpen: false, paused: false, styling: false, openStyle: false,
   yachtId: 0, // the yacht whose cabin you are in
   homes: [] as string[], // properties the player owns
+  items: { onigiri: 0, energy: 0, medkit: 0 }, // things in your pocket (see crime/shops.ts)
   fadeT: 0, // black fade (sleeping)
   tunnel: 0, // 0..1 while the camera is inside the Shinkansen tunnel (lights and fog go dark)
   carAnim: 0, // 1 while getting into a car (driving is blocked)
@@ -67,7 +68,7 @@ export function save() {
   if (wiped || !game.started) return; // nothing changes on the title screen (which shows its own time of day)
   try {
     const p = game.where === 'out' ? game.player : { ...game.player, x: game.outsidePos.x, z: game.outsidePos.z, yaw: game.outsidePos.yaw };
-    const data = JSON.stringify({ v: 2, rg: REGION.id, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, stats: progress.stats, ach: progress.ach, look: progress.look, wardrobe: progress.wardrobe, cityStyle: fashion.style, homes: game.homes, arms: game.arms, radio: game.radio });
+    const data = JSON.stringify({ v: 2, rg: REGION.id, money: game.money, hour: game.hour, p: { x: p.x, z: p.z, yaw: p.yaw }, q: game.quality, wp: game.waypoint, cam: game.cam.mode, ccam: game.cam.carMode, owned: ownedCars, mute: audio.muted, tb: progress.trialBest, st: progress.stunts, story: progress.story, gift: progress.gift, stats: progress.stats, ach: progress.ach, look: progress.look, wardrobe: progress.wardrobe, cityStyle: fashion.style, homes: game.homes, arms: game.arms, radio: game.radio, items: game.items });
     localStorage.setItem(KEY, data);
     // a second copy, refreshed once a minute, in case the main one is ever cut off mid-write
     const now = Date.now(); if (now - lastBak > 60000) { lastBak = now; localStorage.setItem(KEY + '.bak', data); }
@@ -84,6 +85,7 @@ export function load(): boolean {
     if (Array.isArray(s.owned)) { ownedCars.length = 0; for (const o of s.owned) if (o && typeof o.kind === 'string') ownedCars.push({ kind: o.kind, color: String(o.color), mods: o.mods && typeof o.mods === 'object' ? o.mods : undefined }); }
     if (s.arms && s.arms.owned) { Object.assign(game.arms.owned, s.arms.owned); Object.assign(game.arms.ammo, s.arms.ammo || {}); Object.assign(game.arms.mag, s.arms.mag || {}); game.arms.armor = s.arms.armor || 0; game.arms.cur = s.arms.cur || 'fist'; }
     if (typeof s.radio === 'number') game.radio = s.radio;
+    if (s.items && typeof s.items === 'object') for (const k of ['onigiri', 'energy', 'medkit'] as const) { const n = Number(s.items[k]); if (Number.isFinite(n)) game.items[k] = Math.max(0, Math.min(9, Math.floor(n))); }
     if (s.tb && typeof s.tb === 'object') Object.assign(progress.trialBest, s.tb);
     if (s.st && typeof s.st === 'object') Object.assign(progress.stunts, s.st);
     if (typeof s.story === 'number') progress.story = s.story;

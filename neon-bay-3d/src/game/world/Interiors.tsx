@@ -7,11 +7,14 @@ import * as THREE from 'three';
 import { getTextures, labelTexture } from './textures';
 import { HOME_DEFS } from './homes';
 import { SHIP_DEFS } from './shipInteriors';
+import { KONBINI, konbiniFurn, konbiniLights } from './shopFurn';
 
 /** Interiors live underground (y = FLOOR) so they never overlap the city. */
 export const FLOOR = -50;
 export interface Box2 { x0: number; z0: number; x1: number; z1: number; h: number }
-export type Furn = Box2 & { c: string; glow?: boolean; y0?: number; rough?: number; metal?: number; walk?: boolean };
+export type Furn = Box2 & { c: string; glow?: boolean; y0?: number; rough?: number; metal?: number; walk?: boolean; /** painted goods on the long faces */ tex?: FurnTex; /** paint only the faces across this axis */ texFaces?: 'x' | 'z' };
+/** Something to do at a spot in the room (a counter, a machine, a seat): shows a prompt within r metres. */
+export interface Act { x: number; z: number; r?: number; id: string; label: string; btn: string }
 export interface View { wall: 'n' | 'e' | 'w'; a0: number; a1: number; y0: number; y1: number; style: 'danchi' | 'suburb' | 'city-high' | 'sea' }
 export interface InteriorDef {
   id: string; name: string; ox: number; oz: number; w: number; d: number; h: number; wall: string; floor: string; furniture: Furn[]; exit: { x: number; z: number }; spawn: { x: number; z: number; yaw: number };
@@ -19,24 +22,24 @@ export interface InteriorDef {
   home?: boolean; flicker?: boolean; bed?: { x: number; z: number }; buy?: { x: number; z: number };
   npcs?: { x: number; z: number; yaw: number; look: Look }[]; roofSpot?: { x: number; z: number }; roof?: { x: number; z: number; y: number }; noSign?: boolean; ownLights?: boolean;
   roofLabel?: string; links?: { x: number; z: number; to: string; label: string }[];
+  acts?: Act[]; /** a convenience store: the till can be held up (clerk, counter and bag at the fixed spots) */ rob?: boolean;
 }
 
 const mk = (id: string, name: string, ox: number, w: number, d: number, wall: string, floor: string, f: InteriorDef['furniture']): InteriorDef => ({
   id, name, ox, oz: 0, w, d, h: 4.2, wall, floor, furniture: f,
   exit: { x: 0, z: d / 2 - 1.2 }, spawn: { x: 0, z: d / 2 - 2.6, yaw: Math.PI },
 });
-const store = (ox: number, name: string, accent: string) => mk(name === 'FUEL & SNACKS' ? 'gas' : 'store', name, ox, 16, 12, '#e9e6df', '#cfd4d8', [
-  { x0: -7.5, z0: -5.6, x1: 7.5, z1: -4.6, h: 2, c: '#8a96a8', glow: false },
-  { x0: -7.5, z0: -5.7, x1: 7.5, z1: -5.5, h: 2, c: accent, glow: true },
-  { x0: -5, z0: -1.5, x1: -0.5, z1: -0.7, h: 1.6, c: '#c0c6cf' }, { x0: 0.5, z0: -1.5, x1: 5, z1: -0.7, h: 1.6, c: '#c0c6cf' },
-  { x0: -5, z0: 1.5, x1: -0.5, z1: 2.3, h: 1.6, c: '#c0c6cf' }, { x0: 3, z0: 3, x1: 7, z1: 4, h: 1.05, c: '#6a4a36' },
-]);
+const CUSTOMER = { skin: '#e0ac69', shirt: '#5a6f8f', pants: '#2a2c33', shoe: '#2a2a2e', hair: '#1a1012' };
+const store = (ox: number, name: string, accent: string, second: string): InteriorDef => ({
+  ...mk(name === 'FUEL & SNACKS' ? 'gas' : 'store', name, ox, KONBINI.w, KONBINI.d, '#f2f3f5', '#e6eaee', konbiniFurn(accent, second)),
+  lights: konbiniLights(), ownLights: true, rob: true, npcs: [{ x: -5, z: 4.55, yaw: 0, look: CUSTOMER }], // someone reading at the magazine rack
+});
 
 export const INTERIORS: Record<string, InteriorDef> = {
   ...Object.fromEntries(HOME_DEFS.map((d) => [d.id, d])),
   ...Object.fromEntries(SHIP_DEFS.map((d) => [d.id, d])),
-  store: store(-3000, 'QWIK 24', '#3dffb0'),
-  gas: store(-3060, 'FUEL & SNACKS', '#ffc03a'),
+  store: store(-3000, 'QWIK 24', '#3dffb0', '#12324a'),
+  gas: store(-3060, 'FUEL & SNACKS', '#ffc03a', '#c1121f'),
   diner: mk('diner', 'BAY DINER', -3120, 18, 12, '#f3e0d6', '#e0c8b8', [
     { x0: -8.5, z0: -5.4, x1: 8.5, z1: -4.2, h: 1.1, c: '#c2273a' }, { x0: -8.5, z0: -5.8, x1: 8.5, z1: -5.6, h: 3, c: '#ff6a9a', glow: true },
     ...[-6, -2, 2, 6].map((x) => ({ x0: x - 1, z0: -0.5, x1: x + 1, z1: 0.9, h: 0.78, c: '#ece7df' })),
@@ -61,6 +64,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
 };
 
 INTERIORS.home.bed = { x: 3.8, z: -2.9 }; // the starter safehouse bed
+INTERIORS.diner.acts = [{ x: 0, z: -3.3, r: 2.4, id: 'shop:diner', label: 'カウンターで注文する', btn: '注文' }];
 
 /** Shop clerk behind the till: idle sway, hands up while being robbed, cowering afterwards. */
 function Clerk({ x = CLERK.x, z = CLERK.z, yaw = Math.PI, shop = true, look }: { x?: number; z?: number; yaw?: number; shop?: boolean; look?: Look }) {
@@ -101,6 +105,109 @@ function floorTexture(kind: string) {
   if (kind === 'tatami') return canvasTex('tatami', 256, 512, (c) => { c.fillStyle = '#c8b97a'; c.fillRect(0, 0, 256, 512); for (let y = 0; y < 512; y += 3) { c.fillStyle = `rgba(110,95,40,${0.08 + rnd() * 0.08})`; c.fillRect(0, y, 256, 1); } c.fillStyle = '#3a3f2a'; c.fillRect(0, 0, 256, 10); c.fillRect(0, 502, 256, 10); });
   return null;
 }
+/* ---------- shop fittings: painted product shelves, coolers, racks (cached canvases) ---------- */
+export type FurnTex = 'goods' | 'drinks' | 'chilled' | 'mags' | 'cigs' | 'ticket' | 'noren' | 'menu';
+/** Metres of shelf one repeat of the texture covers, and whether it is drawn unlit (a lit case / screen). */
+const FURN_TEX: Record<FurnTex, { unit: number; lit: boolean }> = { goods: { unit: 2.4, lit: false }, drinks: { unit: 2, lit: true }, chilled: { unit: 2.4, lit: true }, mags: { unit: 2.4, lit: false }, cigs: { unit: 1.4, lit: false }, ticket: { unit: 1, lit: true }, noren: { unit: 1, lit: false }, menu: { unit: 5, lit: false } };
+const VIVID = ['#e63946', '#f4a261', '#2a9d8f', '#e9c46a', '#457b9d', '#8ecae6', '#ffb703', '#d62828', '#6a994e', '#f28482', '#9b5de5', '#00bbf9', '#ff6392', '#3a86ff', '#fb8500', '#b5e48c'];
+function furnTexture(kind: FurnTex) {
+  const pick = <T,>(a: T[]) => a[Math.floor(rnd() * a.length)];
+  const rr = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => { if (typeof c.roundRect !== 'function') { c.fillRect(x, y, w, h); return; } c.beginPath(); c.roundRect(x, y, w, h, r); c.fill(); };
+  if (kind === 'goods') return canvasTex('f-goods', 512, 256, (c) => {
+    c.fillStyle = '#e4e7eb'; c.fillRect(0, 0, 512, 256);
+    for (let s = 0; s < 4; s++) {
+      const y = s * 64; let x = 4;
+      while (x < 500) { // runs of the same product (facings)
+        const w = 14 + Math.floor(rnd() * 20), h = 30 + Math.floor(rnd() * 18), col = pick(VIVID), n = 2 + Math.floor(rnd() * 3), bag = rnd() < 0.35;
+        for (let k = 0; k < n && x + w < 508; k++) { c.fillStyle = col; if (bag) rr(c, x, y + 54 - h, w, h, 4); else c.fillRect(x, y + 54 - h, w, h); c.fillStyle = 'rgba(255,255,255,.75)'; c.fillRect(x + 2, y + 54 - h * 0.62, w - 4, h * 0.22); c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x + 4, y + 54 - h * 0.56, w - 8, 2); x += w + 2; }
+        x += 3;
+      }
+      c.fillStyle = '#f7f8fa'; c.fillRect(0, y + 54, 512, 10); c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(0, y + 63, 512, 1);
+      for (let px = 6; px < 500; px += 30 + Math.floor(rnd() * 14)) { c.fillStyle = rnd() < 0.25 ? '#ffe14a' : '#ffffff'; c.fillRect(px, y + 55, 18, 7); c.fillStyle = '#c1121f'; c.fillRect(px + 2, y + 57, 9, 3); }
+    }
+  });
+  if (kind === 'drinks') return canvasTex('f-drinks', 512, 256, (c) => {
+    c.fillStyle = '#10151c'; c.fillRect(0, 0, 512, 256);
+    const kinds: [string, string, number][] = [['#3f8f4a', '#e8f5d0', 36], ['#5a1f14', '#e63946', 36], ['#bfe3ff', '#ffffff', 36], ['#f4a020', '#fff3c4', 34], ['#1b1b1f', '#c9a24a', 24], ['#7a4a2a', '#f1e3c8', 24], ['#e9e3d0', '#3a86ff', 34], ['#c1121f', '#ffffff', 24]];
+    for (let d = 0; d < 2; d++) {
+      const x0 = d * 256 + 8, w = 240;
+      const g = c.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, '#f4fbff'); g.addColorStop(1, '#cfe6f5'); c.fillStyle = g; c.fillRect(x0, 8, w, 240);
+      for (let s = 0; s < 5; s++) {
+        const y = 12 + s * 47; let x = x0 + 6;
+        while (x < x0 + w - 16) { const k = pick(kinds), n = 2 + Math.floor(rnd() * 3); for (let q = 0; q < n && x < x0 + w - 16; q++) { c.fillStyle = k[0]; rr(c, x, y + 40 - k[2], 13, k[2], 3); c.fillStyle = k[1]; c.fillRect(x + 1, y + 40 - k[2] * 0.6, 11, k[2] * 0.3); if (k[2] > 30) { c.fillStyle = '#f4f4f4'; c.fillRect(x + 4, y + 40 - k[2] - 3, 5, 4); } x += 15; } x += 2; }
+        c.fillStyle = '#9aa7b4'; c.fillRect(x0, y + 40, w, 4);
+      }
+      c.strokeStyle = '#4a535c'; c.lineWidth = 8; c.strokeRect(x0 - 4, 4, w + 8, 248); c.fillStyle = '#c9d2da'; c.fillRect(x0 + w - 12, 96, 5, 64);
+      c.fillStyle = 'rgba(255,255,255,.16)'; c.beginPath(); c.moveTo(x0 + 30, 8); c.lineTo(x0 + 90, 8); c.lineTo(x0 + 40, 248); c.lineTo(x0, 248); c.closePath(); c.fill(); // glass sheen
+    }
+  });
+  if (kind === 'chilled') return canvasTex('f-chilled', 512, 256, (c) => {
+    c.fillStyle = '#f4f7f9'; c.fillRect(0, 0, 512, 256); c.fillStyle = '#ffffff'; c.fillRect(0, 0, 512, 10);
+    for (let s = 0; s < 4; s++) {
+      const y = 12 + s * 61; let x = 6;
+      while (x < 490) {
+        const t = s === 0 ? 0 : s === 1 ? 1 : s === 2 ? 2 : 3;
+        if (t === 0) { c.fillStyle = '#1c1f1c'; c.beginPath(); c.moveTo(x, y + 44); c.lineTo(x + 13, y + 16); c.lineTo(x + 26, y + 44); c.closePath(); c.fill(); c.fillStyle = '#f6f6f2'; c.beginPath(); c.moveTo(x + 6, y + 31); c.lineTo(x + 13, y + 16); c.lineTo(x + 20, y + 31); c.closePath(); c.fill(); c.fillStyle = pick(['#e63946', '#2a9d8f', '#f4a261', '#457b9d']); c.fillRect(x + 8, y + 35, 10, 6); x += 30; }
+        else if (t === 1) { c.fillStyle = '#fbfbf6'; c.beginPath(); c.moveTo(x, y + 44); c.lineTo(x + 30, y + 44); c.lineTo(x + 30, y + 14); c.closePath(); c.fill(); c.fillStyle = pick(['#6a994e', '#e9c46a', '#f28482']); c.fillRect(x + 8, y + 36, 20, 4); c.fillStyle = '#8a5a3a'; c.fillRect(x + 4, y + 41, 26, 2); x += 36; }
+        else if (t === 2) { c.fillStyle = '#1e1e22'; rr(c, x, y + 14, 46, 30, 4); c.fillStyle = '#fafaf5'; c.fillRect(x + 4, y + 18, 20, 22); c.fillStyle = pick(VIVID); c.fillRect(x + 27, y + 18, 15, 10); c.fillStyle = pick(VIVID); c.fillRect(x + 27, y + 30, 15, 10); c.fillStyle = '#c1121f'; c.beginPath(); c.arc(x + 14, y + 29, 3, 0, 7); c.fill(); x += 52; }
+        else { c.fillStyle = pick(['#fff1c9', '#ffd6e0', '#e8d5b5', '#d8f3dc']); rr(c, x, y + 22, 22, 22, 5); c.fillStyle = 'rgba(255,255,255,.9)'; c.fillRect(x, y + 20, 22, 4); x += 28; }
+      }
+      c.fillStyle = '#d8dee4'; c.fillRect(0, y + 45, 512, 3); c.fillStyle = '#e63946'; c.fillRect(0, y + 48, 512, 5); c.fillStyle = '#ffffff'; for (let px = 8; px < 500; px += 40) c.fillRect(px, y + 49, 16, 3);
+    }
+  });
+  if (kind === 'mags') return canvasTex('f-mags', 512, 256, (c) => {
+    c.fillStyle = '#2c3038'; c.fillRect(0, 0, 512, 256);
+    for (let row = 0; row < 2; row++) for (let x = 6; x < 500; x += 46) {
+      const y = 8 + row * 124, a = pick(VIVID), b = pick(VIVID);
+      const g = c.createLinearGradient(x, y, x + 40, y + 108); g.addColorStop(0, a); g.addColorStop(1, b); c.fillStyle = g; c.fillRect(x, y, 40, 108);
+      c.fillStyle = rnd() < 0.5 ? '#ffffff' : '#111111'; c.fillRect(x + 3, y + 5, 34, 13);
+      c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.arc(x + 20, y + 52, 13, 0, 7); c.fill(); c.fillStyle = 'rgba(0,0,0,.4)'; for (let k = 0; k < 3; k++) c.fillRect(x + 4, y + 78 + k * 8, 20 + rnd() * 12, 3);
+      c.fillStyle = '#ffe14a'; c.fillRect(x + 26, y + 92, 12, 12);
+    }
+    c.fillStyle = '#4a5058'; c.fillRect(0, 118, 512, 6); c.fillRect(0, 242, 512, 14);
+  });
+  if (kind === 'cigs') return canvasTex('f-cigs', 256, 128, (c) => {
+    c.fillStyle = '#30343c'; c.fillRect(0, 0, 256, 128);
+    const cols = ['#f4f4f4', '#c1121f', '#1d3557', '#2a9d8f', '#c9a24a', '#111111', '#e9e3d0', '#457b9d'];
+    for (let y = 4; y < 120; y += 24) for (let x = 4; x < 250; x += 17) { c.fillStyle = pick(cols); c.fillRect(x, y, 14, 18); c.fillStyle = 'rgba(255,255,255,.7)'; c.fillRect(x + 2, y + 3, 10, 4); c.fillStyle = '#ffe14a'; c.fillRect(x + 3, y + 19, 8, 3); }
+  });
+  if (kind === 'ticket') return canvasTex('f-ticket', 256, 448, (c) => {
+    c.fillStyle = '#b3261e'; c.fillRect(0, 0, 256, 448); c.fillStyle = '#fff6e6'; c.fillRect(14, 12, 228, 58);
+    c.fillStyle = '#b3261e'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '900 34px "Hiragino Sans","Noto Sans JP",sans-serif'; c.fillText('食券', 128, 42);
+    c.font = '700 13px "Hiragino Sans","Noto Sans JP",sans-serif';
+    const names = ['とんこつ', '特製', '餃子', '替玉', '味玉', 'ねぎ', 'ライス', 'ビール', 'チャーシュー', 'のり', 'キムチ', '大盛'];
+    for (let r2 = 0; r2 < 4; r2++) for (let q = 0; q < 3; q++) { const x = 18 + q * 76, y = 84 + r2 * 56, hot = r2 === 0; c.fillStyle = hot ? '#ffe14a' : '#ffffff'; rr(c, x, y, 68, 46, 6); c.fillStyle = hot ? '#b3261e' : '#222'; c.fillText(names[r2 * 3 + q], x + 34, y + 18); c.fillStyle = '#c1121f'; c.fillRect(x + 20, y + 32, 28, 5); }
+    c.fillStyle = '#16181c'; rr(c, 26, 318, 90, 26, 4); rr(c, 140, 318, 90, 14, 3); c.fillStyle = '#3dff7a'; c.fillRect(34, 326, 40, 10);
+    c.fillStyle = '#16181c'; rr(c, 60, 372, 136, 40, 6); c.fillStyle = '#2a2d33'; c.fillRect(70, 384, 116, 18);
+  }, false);
+  if (kind === 'noren') return canvasTex('f-noren', 128, 64, (c) => {
+    c.fillStyle = '#a3241c'; c.fillRect(0, 0, 128, 64); c.fillStyle = 'rgba(0,0,0,.35)'; for (const x of [32, 64, 96]) c.fillRect(x - 1, 14, 2, 50);
+    c.fillStyle = '#fff6e6'; c.beginPath(); c.arc(64, 30, 13, 0, 7); c.fill(); c.fillStyle = '#a3241c'; c.font = '900 16px "Hiragino Sans","Noto Sans JP",sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('麺', 64, 31);
+  });
+  return canvasTex('f-menu', 512, 76, (c) => {
+    c.fillStyle = '#5a3d28'; c.fillRect(0, 0, 512, 76);
+    const items = ['とんこつラーメン', '特製ラーメン', '餃子セット', '替玉', '味付玉子', 'チャーシュー', '青ねぎ', 'ライス', '生ビール', 'キムチ', 'のり', '大盛'];
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    items.forEach((t, k) => { const x = 8 + k * 42; c.fillStyle = k < 2 ? '#fff0c2' : '#f6efe0'; c.fillRect(x, 5, 36, 66); c.fillStyle = k < 2 ? '#b3261e' : '#1c1c1c'; const fs = Math.min(13, 58 / t.length); c.font = `700 ${fs}px "Hiragino Sans","Noto Sans JP",sans-serif`; [...t].forEach((ch, q) => c.fillText(ch, x + 18, 9 + fs * (q + 0.6))); });
+  });
+}
+/** A shelf / case / machine with painted goods on its long faces (plain on top). */
+function TexturedFurn({ f }: { f: Furn }) {
+  const mats = useMemo(() => {
+    const K = FURN_TEX[f.tex!], base = furnTexture(f.tex!), lx = f.x1 - f.x0, lz = f.z1 - f.z0;
+    const plain = new THREE.MeshStandardMaterial({ color: f.c, roughness: 0.6 });
+    const face = (len: number, on: boolean) => {
+      if (!on || len < 0.5) return plain;
+      const t = base.clone(); t.wrapS = THREE.RepeatWrapping; t.repeat.set(Math.max(0.2, len / K.unit), 1); t.needsUpdate = true;
+      return K.lit ? new THREE.MeshBasicMaterial({ map: t, toneMapped: false }) : new THREE.MeshStandardMaterial({ map: t, roughness: 0.55 });
+    };
+    const long = lx >= lz ? 'z' : 'x', mx = face(lz, f.texFaces ? f.texFaces === 'x' : long === 'x' || lz > 1.2), mz = face(lx, f.texFaces ? f.texFaces === 'z' : long === 'z' || lx > 1.2);
+    return [mx, mx, plain, plain, mz, mz]; // +x -x +y -y +z -z
+  }, [f]);
+  useEffect(() => () => { for (const m of new Set(mats)) { const mp = (m as THREE.MeshStandardMaterial).map; if (mp) mp.dispose(); m.dispose(); } }, [mats]);
+  return <mesh position={[(f.x0 + f.x1) / 2, (f.y0 || 0) + f.h / 2, (f.z0 + f.z1) / 2]} material={mats} receiveShadow><boxGeometry args={[f.x1 - f.x0, f.h, f.z1 - f.z0]} /></mesh>;
+}
+
 /** Painted window views, day and night variants. */
 function viewTexture(style: View['style'], night: boolean) {
   return canvasTex('view-' + style + (night ? '-n' : '-d'), 1024, 384, (c) => {
@@ -161,7 +268,7 @@ function Room({ def }: { def: InteriorDef }) {
       {[[0, -d / 2, 0], [0, d / 2, Math.PI], [-w / 2, 0, Math.PI / 2], [w / 2, 0, -Math.PI / 2]].map(([x, z, r], i) => (
         <mesh key={i} position={[x, h / 2, z]} rotation-y={r} receiveShadow><planeGeometry args={[i < 2 ? w : d, h]} /><meshStandardMaterial color={def.wall} roughness={0.85} /></mesh>
       ))}
-      {def.furniture.map((f, i) => (
+      {def.furniture.map((f, i) => f.tex ? <TexturedFurn key={def.name + i} f={f} /> : (
         <mesh key={i} position={[(f.x0 + f.x1) / 2, (f.y0 || 0) + f.h / 2, (f.z0 + f.z1) / 2]} castShadow={!f.walk && !f.glow} receiveShadow>
           <boxGeometry args={[f.x1 - f.x0, f.h, f.z1 - f.z0]} />
           {f.glow ? <meshBasicMaterial color={f.c} toneMapped={false} /> : <meshStandardMaterial color={f.c} roughness={f.rough ?? 0.6} metalness={f.metal ?? 0} />}
@@ -174,7 +281,8 @@ function Room({ def }: { def: InteriorDef }) {
       {def.links?.map((l, i) => <mesh key={'lk' + i} rotation-x={-Math.PI / 2} position={[l.x, 0.02, l.z]}><ringGeometry args={[0.55, 0.75, 32]} /><meshBasicMaterial color="#2be4ff" toneMapped={false} /></mesh>)}
       {def.roofSpot && <mesh rotation-x={-Math.PI / 2} position={[def.roofSpot.x, 0.02, def.roofSpot.z]}><ringGeometry args={[0.55, 0.75, 32]} /><meshBasicMaterial color="#ffd23a" toneMapped={false} /></mesh>}
       {!def.home && !def.ownLights && [-w / 4, w / 4].map((x) => <mesh key={x} position={[x, h - 0.05, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[2.4, 0.5]} /><meshBasicMaterial color="#ffffff" toneMapped={false} /></mesh>)}
-      {(def.id === 'store' || def.id === 'gas') && <Clerk />}
+      {def.rob && <Clerk />}
+      {def.acts?.filter((a) => a.id !== 'ramen:eat').map((a, i) => <mesh key={'ac' + i} rotation-x={-Math.PI / 2} position={[a.x, 0.02, a.z]}><ringGeometry args={[0.5, 0.68, 32]} /><meshBasicMaterial color="#ffd23a" toneMapped={false} /></mesh>)}
       {def.id === 'arms' && <Clerk x={0} z={-3.6} yaw={0} shop={false} />}
       {!def.home && !def.ownLights && <pointLight position={[0, h - 0.4, 0]} intensity={26} distance={22} decay={1.6} color="#fff1dc" />}
       <hemisphereLight args={[def.home ? '#fff4e6' : '#ffffff', '#6a5a4a', def.home ? 0.22 : 0.2]} />

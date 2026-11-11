@@ -301,3 +301,13 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .arriveCard h2{margin:0;font-size:clamp(44px,10vw,72px);font-weight:900;letter-spacing:.08em;display:grid;line-height:1.05;text-shadow:0 4px 24px rgba(0,0,0,.7)}.arriveCard h2 small{font-size:15px;letter-spacing:.5em;color:#2be4ff}
 .arriveCard .arIntro{margin:0 0 6px;font-weight:700;line-height:1.6}.arriveCard .mbtn{width:100%}
 .traininfo{display:grid;grid-template-columns:auto 1fr auto;gap:6px;font-size:11px;font-weight:800;margin:2px 0;white-space:nowrap}.traininfo .atc{color:#3dff7a}.traininfo .atc.on{color:#ff4b4b;animation:blink .5s steps(2) infinite}@keyframes blink{50%{opacity:.3}}
+
+/* shops you can use: food counters, pocket items, effect timers */
+.shop.food{background:linear-gradient(180deg,#16222a,#0c1216);box-shadow:0 0 0 2px #3dffb0,0 20px 50px rgba(0,0,0,.6)}
+.shop.food .shopHead b{color:#3dffb0;font-size:19px;letter-spacing:.04em;font-style:normal}
+.shop.food .shopRow button{background:#1c8f6a}.shop.food .shopRow button:disabled{background:rgba(255,255,255,.12)}
+.shop.food.ramen{background:linear-gradient(180deg,#2a1512,#140a08);box-shadow:0 0 0 2px #e0482f,0 20px 50px rgba(0,0,0,.6)}.shop.food.ramen .shopHead b{color:#ffb38a}.shop.food.ramen .shopRow button{background:#b3261e}
+.shop.food.bar{box-shadow:0 0 0 2px #b07aff,0 20px 50px rgba(0,0,0,.6)}.shop.food.bar .shopHead b{color:#c9a8ff}.shop.food.bar .shopRow button{background:#6b3fc4}
+.shopSub{margin:0;font-size:12px;color:var(--dim)}.shopMsg{margin:0;font-size:13px;font-weight:800;color:var(--amber)}
+.itemChip{color:#fff;font-size:12px;min-width:52px}
+.buffs{display:flex;gap:6px;flex-wrap:wrap;font-size:10px;font-weight:800;color:var(--amber)}.buffs span{background:rgba(0,0,0,.35);border-radius:999px;padding:2px 7px}

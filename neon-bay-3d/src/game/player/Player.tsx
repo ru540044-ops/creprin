@@ -18,6 +18,7 @@ import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
 import { nearBDoor, bdoorById, genInterior } from '../world/bldgInteriors';
 import { roofTrip } from '../crime/crime';
+import { freeSprint } from '../crime/shops';
 import { models } from '../vehicles/Vehicles';
 import { vehicleToWorld } from '../vehicles/models';
 import { vehicleGuns } from '../combat/weapons';
@@ -143,7 +144,7 @@ export default function Player() {
       const acc = p.grounded ? 14 : 3;
       st.vx = lerp(st.vx, dx * sp, Math.min(1, acc * dt)); st.vz = lerp(st.vz, dz * sp, Math.min(1, acc * dt));
       p.sprinting = wantSprint && Math.hypot(st.vx, st.vz) > RUN;
-      game.stamina = clamp(game.stamina + (p.sprinting ? -18 : 12) * dt, 0, 100);
+      game.stamina = clamp(game.stamina + (p.sprinting ? (freeSprint() ? 0 : -18) : 12) * dt, 0, 100);
       const ox = p.x, oz = p.z;
       p.x += st.vx * dt; p.z += st.vz * dt;
       // vertical

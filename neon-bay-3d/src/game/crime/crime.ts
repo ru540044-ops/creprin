@@ -16,6 +16,7 @@ import { updateStunts, updateTaxi, taxi, stunt } from './stunts';
 import { RACES, race, raceDef, startRace, updateRace, position, fmtT, PRIZES } from './race';
 import { storyNear, storyStatus, updateStory, startMission } from './story';
 import { updateGifts } from './gifts';
+import { eatMeal, meal } from './shops';
 
 /* =====================================================================
    Wanted level + police
@@ -142,13 +143,13 @@ const robbedAt: Record<string, number> = {};
 export function resetRobberies() { for (const k of Object.keys(robbedAt)) delete robbedAt[k]; }
 export const ROB_COOLDOWN = 480;
 export const robCooldown = (door: string) => (robbedAt[door] === undefined ? 0 : Math.max(0, robbedAt[door] + ROB_COOLDOWN - game.clock));
-export const robbable = () => game.where === 'store' || game.where === 'gas';
+export const robbable = () => !!INTERIORS[game.where]?.rob;
 export const recentlyRobbed = (door: string) => robCooldown(door) > 0;
 const local = () => { const I = INTERIORS[game.where]; return I ? { x: game.player.x - I.ox, z: game.player.z - I.oz } : { x: 1e9, z: 1e9 }; };
 
 function updateRob(dt: number) {
   if (!rob.phase) return;
-  if (game.where !== 'store' && game.where !== 'gas' || game.lastDoor !== rob.door) {
+  if (!robbable() || game.lastDoor !== rob.door) {
     toast(rob.phase === 'bag' ? 'お金を置いて店を出てしまった' : '強盗失敗：店を出た', 2.4); rob.phase = ''; return;
   }
   if (rob.phase === 'fill') {
@@ -249,10 +250,13 @@ export function jobNear(): Near | null {
     if (rob.phase === 'bag' && rob.door === game.lastDoor && Math.hypot(l.x - BAG.x, l.z - BAG.z) < 2.4) return { kind: 'job', id: 'bag', label: 'お金を拾う（$' + rob.cash.toLocaleString('en-US') + '）', btn: '拾う' };
     if (!rob.phase && Math.hypot(l.x - ROB_SPOT.x, l.z - ROB_SPOT.z) < 1.9) {
       const cd = robCooldown(game.lastDoor);
-      return cd > 0 ? { kind: 'job', id: 'robcd', label: `レジは空っぽ（あと${Math.ceil(cd / 60)}分）`, btn: '強盗' } : { kind: 'job', id: 'rob', label: 'レジを強盗する', btn: '強盗' };
+      // with a gun in your hand the till is a hold-up; otherwise you are a customer
+      if (game.arms.cur !== 'fist') return cd > 0 ? { kind: 'job', id: 'robcd', label: `レジは空っぽ（あと${Math.ceil(cd / 60)}分）`, btn: '強盗' } : { kind: 'job', id: 'rob', label: 'レジを強盗する', btn: '強盗' };
+      return cd > 0 ? { kind: 'job', id: 'shopclosed', label: '店員が怯えていて買い物できない（強盗の直後）', btn: '買う' } : { kind: 'job', id: 'shop:konbini', label: 'レジで買い物する（銃を構えると強盗）', btn: '買う' };
     }
     return null;
   }
+  { const I = INTERIORS[game.where]; if (I && I.acts && !me) { const l = local(); for (const a of I.acts) if (Math.hypot(l.x - a.x, l.z - a.z) < (a.r ?? 1.5)) return { kind: 'job', id: a.id, label: a.id === 'ramen:eat' ? (meal.ticket ? `席に座って「${meal.ticket.name}」を食べる` : '先に入口の券売機で食券を買おう') : a.label, btn: a.btn }; } }
   { const I = INTERIORS[game.where]; if (I && I.home && !me) {
     const l = local(), owned = game.where === 'home' || game.homes.includes(game.where), P = PROPERTIES.find((q) => q.id === game.where);
     if (owned && I.bed && Math.hypot(l.x - I.bed.x, l.z - I.bed.z) < 2.4) return { kind: 'job', id: 'sleep', label: '寝る（時間を進めて体力回復・セーブ）', btn: '寝る' };
@@ -296,6 +300,9 @@ export function jobAction(id: string) {
     me.vx = me.vz = 0; game.yachtId = me.id; game.inCar = 0; releaseDrive(); game.where = 'yacht';
     game.outsidePos = { x: me.x + Math.cos(me.yaw) * 4, z: me.z - Math.sin(me.yaw) * 4, yaw: me.yaw };
     p.x = C.ox + C.spawn.x; p.z = C.oz + C.spawn.z; p.y = -50; p.vy = 0; game.fadeT = 0.6; sfx('door'); toast(C.name + '（出口で操舵席に戻る）', 2);
+  } else if (id.startsWith('shop:')) { game.ui = id; sfx('ui');
+  } else if (id === 'ramen:eat') { eatMeal();
+  } else if (id === 'shopclosed') { toast('強盗の直後で店員が怯えている。時間をおこう', 2);
   } else if (id.startsWith('jp:')) { japanAction(id);
   } else if (id === 'style') { game.openStyle = true;
   } else if (id === 'story') { startMission();
