@@ -7,6 +7,7 @@ import { game } from '../state/store';
 import { nightMats, wetMats } from './City';
 import { smooth } from './rng';
 import { inTunnel, TUN } from './cityGen';
+import { line } from '../line/line';
 
 /** Sun, sky, fog and day/night cycle. One in-game day = game.dayLen real seconds. */
 /** Lighting balance, tweakable from the debug hook. */
@@ -55,11 +56,13 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
   const moonDir = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((_, dt) => {
-    if (game.started && !(admin.is && admin.freezeTime)) game.hour = (game.hour + (tdt(dt) * 24) / game.dayLen) % 24;
+    if (game.started && !line.on && !(admin.is && admin.freezeTime)) game.hour = (game.hour + (tdt(dt) * 24) / game.dayLen) % 24;
     const h = game.hour, ang = ((h - 6) / 12) * Math.PI; // 6h sunrise, 18h sunset
     const elev = Math.sin(ang), az = Math.cos(ang);
     sunPos.set(az * 0.75, elev, 0.45).normalize();
     const day = smooth(-0.08, 0.25, elev), dusk = 1 - Math.abs(smooth(-0.15, 0.45, elev) * 2 - 1), night = 1 - smooth(-0.18, 0.05, elev);
+    if (sky.current) sky.current.position.set(camera.position.x, 0, camera.position.z); // the sky and stars travel with you (the ride between cities is drawn far from the city)
+    if (stars.current) (stars.current as THREE.Object3D).position.set(camera.position.x, 0, camera.position.z);
     if (sky.current) { const u = sky.current.material.uniforms; u.sunPosition.value.copy(sunPos).multiplyScalar(4000); u.rayleigh.value = 1.2 + dusk * 1.5 + game.weather.cloud * 2.5; u.turbidity.value = 5 + dusk * 4 + game.weather.cloud * 14; }
     // key light: sun by day, cool moon at night
     const p = game.player, L = sun.current;
@@ -68,7 +71,7 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
     const W = game.weather, cl = W.cloud;
     const indoor = game.where !== 'out';
     // in the Shinkansen tunnel: no daylight, a dark haze down the bore
-    { const c = camera.position, want = game.where === 'out' && inTunnel(c.x, c.z) && c.y < TUN.y + 10 ? 1 : 0; game.tunnel += (want - game.tunnel) * Math.min(1, dt * 3); }
+    { const c = camera.position, want = line.on ? line.tunnel : game.where === 'out' && inTunnel(c.x, c.z) && c.y < TUN.y + 10 ? 1 : 0; game.tunnel += (want - game.tunnel) * Math.min(1, dt * 3); }
     const tun = game.tunnel;
     L.intensity = ((day * look.sun + night * 0.25) * (1 - 0.7 * cl) + W.flash * 3) * (indoor ? 0.1 : 1) * (1 - 0.92 * tun);
     L.color.copy(cols.day).lerp(cols.dusk, dusk * 0.8).lerp(cols.night, night);

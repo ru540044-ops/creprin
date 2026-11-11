@@ -303,7 +303,7 @@ export function jobAction(id: string) {
   } else if (id.startsWith('shop:')) { game.ui = id; sfx('ui');
   } else if (id === 'ramen:eat') { eatMeal();
   } else if (id === 'shopclosed') { toast('強盗の直後で店員が怯えている。時間をおこう', 2);
-  } else if (id.startsWith('jp:')) { japanAction(id);
+  } else if (id.startsWith('jp:') || id.startsWith('nara:')) { japanAction(id);
   } else if (id === 'style') { game.openStyle = true;
   } else if (id === 'story') { startMission();
   } else if (id === 'roofup') {

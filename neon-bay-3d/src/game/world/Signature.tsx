@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { SIG, buildings, roadC, O, ROAD, RAIL, ROTARY } from './cityGen';
+import { SIG, buildings, roadC, O, ROAD, RAIL, ROTARY, NARA_LANTERNS } from './cityGen';
 import { REGION } from './region';
 import { labelTexture } from './textures';
 import { game } from '../state/store';
@@ -63,6 +63,23 @@ export default function Signature() {
       S.push(cyl(0.35, 0.15, 9, px, 35, pz, GOLD, 8));
       for (const s of [-1, 1]) for (let n = 0; n < 4; n++) L.push(new THREE.SphereGeometry(0.4, 8, 6).scale(1, 1.35, 1).translate(cx + s * 4.5, 3, T.z1 - 16 - n * 9));
     }
+    // Nara: the five-storey pagoda (tiers of dark timber and white plaster under deep roofs, a bronze spire with nine rings) and the hall beside it
+    if (SIG.pagoda) {
+      const { x: px, z: pz, hx, hz } = SIG.pagoda, TIM: Col = [0.34, 0.22, 0.14];
+      S.push(box(13, 1.2, 13, px, 0, pz, STONE));
+      for (let k = 0; k < 5; k++) { // each storey: timber posts and white panels, bracketed eaves, a deep tiled roof
+        const y = 1.2 + k * 7.4, a = 4.4 - k * 0.42;
+        S.push(box(a * 2, 5.0, a * 2, px, y, pz, [0.86, 0.83, 0.76]));
+        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]) S.push(box(0.5, 5.0, 0.5, px + sx * a, y, pz + sz * a, TIM));
+        S.push(box(a * 2 + 0.4, 0.6, a * 2 + 0.4, px, y + 4.4, pz, TIM), box(a * 2 + 2.4, 0.5, a * 2 + 2.4, px, y + 4.9, pz, [0.5, 0.2, 0.12]));
+        S.push(frus(a + 4.4, a + 0.6, 2.2, px, y + 5.2, pz, [0.17, 0.18, 0.2]));
+      }
+      S.push(cyl(0.5, 0.25, 13, px, 38.6, pz, [0.36, 0.3, 0.2], 8)); for (let n = 0; n < 9; n++) S.push(cyl(1.0 - n * 0.05, 1.0 - n * 0.05, 0.22, px, 40 + n * 0.95, pz, GOLD, 10));
+      hall(S, G, hx, hz, 22, 14, 7.5, [0.2, 0.21, 0.23], false);
+      for (let z = hz + 9; z < pz + 40; z += 2) S.push(box(3, 0.04, 1.6, hx, 0.17, z, [0.8, 0.77, 0.7]));
+    }
+    // Nara's park: stone lanterns along the paths
+    for (const l of NARA_LANTERNS) { S.push(box(0.9, 0.4, 0.9, l.x, 0.15, l.z, STONE), cyl(0.18, 0.18, 0.9, l.x, 0.55, l.z, STONE, 6), box(0.85, 0.2, 0.85, l.x, 1.45, l.z, STONE), box(0.6, 0.45, 0.6, l.x, 1.65, l.z, STONE), frus(0.7, 0.1, 0.35, l.x, 2.1, l.z, STONE)); G.push(box(0.62, 0.3, 0.62, l.x, 1.72, l.z, [1, 0.8, 0.5])); }
     // sky tower
     if (SIG.skytower) {
       const { x, z } = SIG.skytower, SIL: Col = [0.86, 0.88, 0.92];

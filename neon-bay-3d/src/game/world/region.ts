@@ -1,9 +1,9 @@
 /**
- * Japan: four regions, each generated as its own city (Tokyo, Osaka, Fukuoka, Naha). Travelling saves the game,
+ * Japan: five regions, each generated as its own city (Tokyo, Osaka, Fukuoka, Naha, Nara). Travelling saves the game,
  * stores the destination and reloads the page, so every system keeps working on one city at a time.
  */
-export type RegionId = 'tokyo' | 'osaka' | 'fukuoka' | 'naha';
-export type Landmark3D = 'tower' | 'castle' | 'seatower' | 'redcastle';
+export type RegionId = 'tokyo' | 'osaka' | 'fukuoka' | 'naha' | 'nara';
+export type Landmark3D = 'tower' | 'castle' | 'seatower' | 'redcastle' | 'daibutsu';
 export interface RegionDef {
   id: RegionId; idx: number; name: string; en: string; N: number;
   /** tower height multiplier for downtown blocks (Fukuoka and Naha keep low skylines) */
@@ -79,8 +79,17 @@ export const REGIONS: Record<RegionId, RegionDef> = {
     station: '', landmark: { kind: 'redcastle', label: '首里城', ci: 13, cj: 9 }, rail: { name: 'モノレール', cars: 2, color: '#2bb0c8' },
     roofs: [[0.78, 0.33, 0.22], [0.72, 0.3, 0.2], [0.85, 0.4, 0.26], [0.7, 0.36, 0.26]], walls: [[0.98, 0.97, 0.94], [0.95, 0.93, 0.86], [0.92, 0.95, 0.96], [0.97, 0.9, 0.82]], palmStreets: true,
   },
+  nara: {
+    // the temple and pagoda names are made up; the commuter line is a fictional private railway
+    id: 'nara', idx: 4, name: '奈良', en: 'NARA', N: 26, heightMul: 0.26, map: [0.566, 0.566],
+    intro: '古都。鹿が歩く広い公園、巨大な木造の大仏殿、五重塔、格子の町家が並ぶならまち。大阪から電車で約30km。',
+    names: { downtown: '奈良', commercial: ['三条通り', '東向'], residential: ['ならまち', '西大寺'], industrial: '大和郡山', park: '奈良公園', beach: '大池のほとり', port: '大池の舟着き場', airport: '大和飛行場', hills: '若草山', sea: '大池' },
+    ponds: [[14, 8]], arch: 'ひがしむき商店街', food: [['柿の葉ずし', 7], ['奈良漬けおにぎり', 4], ['くずもち', 4], ['三輪そうめん', 6]],
+    station: '奈良駅', landmark: { kind: 'daibutsu', label: '青丹寺 大仏殿', ci: 16, cj: 1 }, rail: { name: 'やまと線', cars: 4, color: '#c8282e' },
+    roofs: [[0.22, 0.23, 0.25], [0.26, 0.26, 0.28], [0.3, 0.29, 0.28], [0.2, 0.22, 0.24]], walls: [[0.93, 0.9, 0.84], [0.88, 0.84, 0.76], [0.95, 0.93, 0.88], [0.84, 0.8, 0.72]], palmStreets: false,
+  },
 };
-export const REGION_ORDER: RegionId[] = ['tokyo', 'osaka', 'fukuoka', 'naha'];
+export const REGION_ORDER: RegionId[] = ['tokyo', 'osaka', 'nara', 'fukuoka', 'naha'];
 export const REGION_KEY = 'neonbay3d.region';
 export const ARRIVE_KEY = 'neonbay3d.arrive';
 export const REGION: RegionDef = (() => {
@@ -90,10 +99,15 @@ export const REGION: RegionDef = (() => {
 export const inTokyo = () => REGION.id === 'tokyo';
 export function setRegion(id: RegionId) { try { localStorage.setItem(REGION_KEY, id); } catch { /* ignore */ } }
 export type TravelMode = 'train' | 'plane' | 'drive';
-/** Travel options between regions: mode, hours on the clock, fare. Naha (an island) is reached by plane only. */
+/** Travel options between regions: mode, hours on the clock, fare. Naha (an island) is reached by plane only;
+ *  Nara by the private commuter line from Osaka (a change at Kyoto from Tokyo, at Shin-Osaka from Fukuoka). */
 export function route(from: RegionId, to: RegionId) {
-  const order: RegionId[] = ['tokyo', 'osaka', 'fukuoka'];
   if (to === 'naha' || from === 'naha') return { mode: 'plane' as TravelMode, label: '飛行機', icon: '✈️', fare: 2500, hours: 3 };
+  const pair = (a: RegionId, b: RegionId) => (from === a && to === b) || (from === b && to === a);
+  if (pair('osaka', 'nara')) return { mode: 'train' as TravelMode, label: 'やまと線 特急', icon: '🚃', fare: 12, hours: 0.6 };
+  if (pair('tokyo', 'nara')) return { mode: 'train' as TravelMode, label: '新幹線＋やまと線', icon: '🚄', fare: 1300, hours: 3 };
+  if (pair('fukuoka', 'nara')) return { mode: 'train' as TravelMode, label: '新幹線＋やまと線', icon: '🚄', fare: 1300, hours: 3.2 };
+  const order: RegionId[] = ['tokyo', 'osaka', 'fukuoka'];
   const d = Math.abs(order.indexOf(from) - order.indexOf(to));
   return { mode: 'train' as TravelMode, label: '新幹線', icon: '🚄', fare: 800 * d + 400, hours: 2.5 * d };
 }

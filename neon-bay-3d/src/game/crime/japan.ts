@@ -1,5 +1,7 @@
 import { game, toast, save, progress } from '../state/store';
 import { playerCar } from '../vehicles/sim';
+import { STATION } from '../world/cityGen';
+import { blocker } from '../ui/TravelApp';
 import { props, SIG, RAIL, inCanal, CANAL_RECTS, PROM, groundAt, SHIN, isWater, LANDMARK3D, shinStand, shinCabDoor, shinUp, shinDown, ShinPlatform, TUN, inTunnel, HALF, ROTARY, AIRPORT_ARRIVAL, floorAt } from '../world/cityGen';
 import { spawn, remove, playerCar as pcar, Veh, shinLimits, SHIN_FLIP, atcKmh, shinRun } from '../vehicles/sim';
 import { releaseDrive, input } from '../input';
@@ -8,6 +10,8 @@ import { travelTo } from '../ui/travel';
 import { REGION } from '../world/region';
 import { sfx, chime } from '../audio';
 import type { Near } from './crime';
+import { deerNear, feedDeer, bowToDeer } from '../ai/deer';
+import { line, startLine, canRide } from '../line/line';
 
 /**
  * Things to do in the Japanese streets (on foot):
@@ -46,8 +50,10 @@ export function japanNear(): Near | null {
     if (Math.hypot(ROTARY.taxi.x - p.x, ROTARY.taxi.z - p.z) < 2.4) { const w = game.waypoint, d = w ? Math.hypot(w.x - p.x, w.z - p.z) : 0; return w && d > 60 ? { kind: 'job', id: 'jp:taxi', label: `タクシーで目的地へ（約${(d / 1000).toFixed(1)}km・$${taxiFare(d)}）`, btn: '乗る' } : { kind: 'job', id: 'jp:taxinone', label: 'タクシー乗り場（マップで目的地を決めると乗れる）', btn: '乗る' }; }
     if (Math.hypot(ROTARY.bus.x - p.x, ROTARY.bus.z - p.z) < 2.4) return { kind: 'job', id: 'jp:bus', label: `空港リムジンバスで${REGION.names.airport}へ（$12）`, btn: '乗る' };
   }
+  if (STATION && (REGION.id === 'osaka' || REGION.id === 'nara') && Math.hypot(STATION.x - 2 - p.x, STATION.z - p.z) < 3.4) { const to: RegionId = REGION.id === 'osaka' ? 'nara' : 'osaka', R = route(REGION.id, to); return { kind: 'job', id: 'jp:yamato', label: `${R.label}で${REGIONS[to].name}へ（$${R.fare}・32.8km・車窓を見ながら）`, btn: '乗る' }; }
   for (let i = 0; i < SIG.gates.length; i++) { const g = SIG.gates[i]; if (Math.hypot(g.x - p.x, g.z - p.z) < 2.6) { const to = SIG.gates[(i + 1) % SIG.gates.length]; return { kind: 'job', id: 'jp:train:' + i, label: `${RAIL.name}で${to.name}へ（$3）`, btn: '乗車' }; } }
-  for (let i = 0; i < SIG.yatai.length; i++) { const y = SIG.yatai[i], f = front(y, 2.2); if (Math.hypot(f.x - p.x, f.z - p.z) < 1.7) return { kind: 'job', id: 'jp:yatai:' + i, label: `屋台で${y.food}を食べる（$${y.price}・体力全回復）`, btn: '食べる' }; }
+  { const d = deerNear(2.8); if (d) return game.items.senbei > 0 ? { kind: 'job', id: 'nara:feed', label: `鹿にせんべいをあげる（残り${game.items.senbei}枚）`, btn: 'あげる' } : { kind: 'job', id: 'nara:bow', label: '鹿におじぎをする', btn: 'おじぎ' }; }
+  for (let i = 0; i < SIG.yatai.length; i++) { const y = SIG.yatai[i], f = front(y, 2.2); if (Math.hypot(f.x - p.x, f.z - p.z) < 1.7) return y.senbei ? { kind: 'job', id: 'nara:senbei:' + i, label: `鹿せんべいを買う（$${y.price}・5枚／持てるのは10枚まで）`, btn: '買う' } : { kind: 'job', id: 'jp:yatai:' + i, label: `屋台で${y.food}を食べる（$${y.price}・体力全回復）`, btn: '食べる' }; }
   for (let i = 0; i < SIG.shrines.length; i++) { const s = SIG.shrines[i], d = s.big ? 10.5 : 6; if (Math.hypot(s.x - p.x, s.z + d - p.z) < (s.big ? 3.4 : 2.4)) { const cd = (shrineCool[i] ?? -1e9) + 90 - game.clock; return cd > 0 ? { kind: 'job', id: 'jp:wait', label: `${s.name}：おみくじはまた後で（あと${Math.ceil(cd)}秒）`, btn: '参拝' } : { kind: 'job', id: 'jp:omikuji:' + i, label: `${s.name}でおみくじを引く（$1）`, btn: 'おみくじ' }; } }
   for (let i = 0; i < SIG.koban.length; i++) { const k = SIG.koban[i]; if (Math.hypot(k.x - p.x, k.z - 2.6 - p.z) < 2.2) return { kind: 'job', id: 'jp:koban', label: '交番で道を聞く（名所を目的地に設定）', btn: '聞く' }; }
   const v = nearVend(p.x, p.z); if (v) return { kind: 'job', id: 'jp:vend', label: '自販機で飲み物を買う（$2・体力+25）', btn: '買う' };
@@ -64,6 +70,16 @@ export function japanAction(id: string) {
   } else if (id === 'jp:vend') {
     if (!pay(2)) return; game.health = Math.min(100, game.health + 25); S.flags.vend = 1; sfx('buy', 0.5);
     toast(`🥤 ${VEND_DRINKS[Math.floor(Math.random() * VEND_DRINKS.length)]}を買った（体力+25）`, 2);
+  } else if (id === 'jp:yamato') {
+    const to: RegionId = REGION.id === 'osaka' ? 'nara' : 'osaka', why = blocker(); if (why) { toast(why, 2); return; }
+    if (!pay(route(REGION.id, to).fare)) return; sfx('buy'); save(); startLine(to, 'seat');
+  } else if (id === 'nara:feed') { feedDeer();
+  } else if (id === 'nara:bow') { bowToDeer();
+  } else if (id.startsWith('nara:senbei:')) {
+    const y = SIG.yatai[Number(id.slice(12))]; if (!y) return;
+    if (game.items.senbei >= 10) { toast('鹿せんべいはもう持てない（10枚まで）', 1.8); return; }
+    if (!pay(y.price)) return; game.items.senbei = Math.min(10, game.items.senbei + 5); sfx('buy', 0.6); save();
+    toast(`🍘 鹿せんべいを買った（${game.items.senbei}枚）。持っていると鹿が寄ってくる`, 2.6);
   } else if (id.startsWith('jp:yatai:')) {
     const y = SIG.yatai[Number(id.slice(9))]; if (!y || !pay(y.price)) return;
     game.health = 100; game.stamina = 100; S.flags.yatai = 1; sfx('buy'); toast(`🍜 ${y.food}を食べた。うまい！（体力全回復）`, 2.4);
@@ -114,6 +130,7 @@ const T = { moving: false, announced: '', approach: false, judged: true, dest: '
 const destOf = (): RegionId | undefined => (T.dest || SHIN.dests[0]) as RegionId | undefined;
 /** Per frame while driving: ATC display, announcements, the tunnel and the trip on, the stop-position judgement at the platform. */
 export function updateTrain() {
+  if (line.on) return; // the ride between the cities keeps its own display (LineView)
   const v = pcar(); trainInfo.on = !!v && v.def.kind === 'shinkansen'; if (!v || !trainInfo.on) { T.moving = false; shinRun.open = false; return; }
   const dir = trainDir(v), sp = Math.abs(v.vz), kmh = sp * 3.6, dest = destOf(), north = dir < 0;
   shinRun.open = north && !!dest && game.wanted === 0; // the line goes on beyond the tunnel: no braking curve to the end of the bore
@@ -136,7 +153,7 @@ export function updateTrain() {
   T.inTun = tun;
   if (north && dest && v.z < TRIP_Z && !T.left) {
     if (game.wanted > 0) { if (!T.warned) { T.warned = true; toast('手配中は他の街へ行けない（ATCが止める。トンネルの奥で折り返そう）', 3.2); } }
-    else { T.left = true; const R = route(REGION.id, dest); game.fadeT = 1.6; travelTo(dest, 'drive', 0, R.hours, `🚄 ${TUN.name}を抜けて${REGIONS[dest].name}へ（${R.hours}時間）`); return; }
+    else { T.left = true; if (canRide(REGION.id, dest)) { rideOn(dest, Math.abs(v.vz)); return; } const R = route(REGION.id, dest); game.fadeT = 1.6; travelTo(dest, 'drive', 0, R.hours, `🚄 ${TUN.name}を抜けて${REGIONS[dest].name}へ（${R.hours}時間）`); return; }
   }
   if (T.moving && sp < 0.15) {
     T.moving = false;
@@ -208,9 +225,14 @@ export function shinAction(id: string) {
   } else if (id === 'jp:shinGo' && v && v.def.kind === 'shinkansen') {
     const next = destOf(); if (!next) return;
     if (game.wanted > 0) { toast('手配中は他の街へ行けない', 1.8); return; }
-    const R = route(REGION.id, next); T.left = true; game.fadeT = 1.6;
+    T.left = true; if (canRide(REGION.id, next)) { rideOn(next, 0); return; }
+    const R = route(REGION.id, next); game.fadeT = 1.6;
     travelTo(next, 'drive', 0, R.hours, `🚄 新幹線を運転して${REGIONS[next].name}へ（${R.hours}時間）`);
   }
+}
+/** Out of the tunnel and onto the line to the next city (the real distance: see line/). A save meanwhile keeps you at the station. */
+function rideOn(dest: RegionId, v0: number) {
+  startLine(dest, 'drive', v0); line.hold.x = SHIN.gate.x; line.hold.z = SHIN.gate.z;
 }
 /** Arriving by driving the train: you come out of the tunnel north of the city at speed, heading for the terminus. */
 export function startArrivalDrive(from: RegionId | '') {

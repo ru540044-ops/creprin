@@ -311,3 +311,17 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .shopSub{margin:0;font-size:12px;color:var(--dim)}.shopMsg{margin:0;font-size:13px;font-weight:800;color:var(--amber)}
 .itemChip{color:#fff;font-size:12px;min-width:52px}
 .buffs{display:flex;gap:6px;flex-wrap:wrap;font-size:10px;font-weight:800;color:var(--amber)}.buffs span{background:rgba(0,0,0,.35);border-radius:999px;padding:2px 7px}
+
+/* ---- riding a line between the cities ---- */
+.lineHud { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 30; font-family: inherit; color: #fff; }
+.lineTop { position: absolute; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); background: rgba(8, 12, 22, .78); border: 1px solid rgba(255,255,255,.18); border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.lineTop b { font-size: 13px; color: #ffd23a; }
+.lineTop em { font-style: normal; font-weight: 800; color: #2be4ff; }
+.lineBar { position: relative; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; margin-top: 4px; }
+.lineBar i { position: absolute; left: 0; top: 0; bottom: 0; background: #2be4ff; border-radius: 3px; }
+.lineBar u { position: absolute; top: -2px; width: 2px; height: 10px; background: #fff; opacity: .7; }
+.lineSpd { position: absolute; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); background: rgba(8, 12, 22, .7); border-radius: 12px; padding: 8px 12px; text-align: right; display: flex; flex-direction: column; }
+.lineSpd b { font-size: 28px; line-height: 1; } .lineSpd small { font-size: 11px; opacity: .8; } .lineSpd span { font-size: 11px; color: #ffd23a; margin-top: 2px; }
+.lineBtns { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; width: min(640px, calc(100% - 32px)); pointer-events: auto; }
+.lineBtns button { background: rgba(8, 12, 22, .82); color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 18px; padding: 8px 12px; font: inherit; font-size: 12px; font-weight: 700; min-height: 36px; }
+.lineBtns button.on { border-color: #2be4ff; color: #2be4ff; }

@@ -19,6 +19,7 @@ const LOOKS: Record<string, Look> = {
   osaka: { base: 130, amp: 290, snow: 400, bay: -Math.PI / 2, col: [0.23, 0.3, 0.22] },
   fukuoka: { base: 110, amp: 270, snow: 420, bay: Math.PI, col: [0.23, 0.31, 0.23] },
   naha: { base: 60, amp: 170, snow: 9999, bay: -Math.PI / 2, col: [0.24, 0.36, 0.22] },
+  nara: { base: 110, amp: 200, snow: 9999, bay: -Math.PI / 2, col: [0.22, 0.32, 0.21] }, // soft green hills all round the old capital
 };
 const angDiff = (a: number, b: number) => { const d = Math.abs(a - b) % (Math.PI * 2); return d > Math.PI ? Math.PI * 2 - d : d; };
 

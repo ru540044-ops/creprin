@@ -8,6 +8,8 @@ import { mission } from '../crime/story';
 import { REGION, REGIONS, REGION_ORDER, RegionId, route } from '../world/region';
 import { STATION, AIRPORT, SHIN } from '../world/cityGen';
 import { sfx } from '../audio';
+import { startLine, line } from '../line/line';
+import { lineLegs } from '../line/routes';
 
 export { TRAVEL_KEY };
 
@@ -21,7 +23,8 @@ const ISLANDS = [
 ];
 
 /** Why the player cannot leave right now ('' = free to go). */
-function blocker(): string {
+export function blocker(): string {
+  if (line.on) return '移動中です';
   if (game.where !== 'out') return '建物の外に出てから出発できます';
   if (playerCar()) return '乗り物を降りてから出発できます（車はガレージに届きます）';
   if (game.wanted > 0) return '手配中は駅や空港に近づけない（手配を消してから）';
@@ -34,7 +37,8 @@ function blocker(): string {
 export default function TravelApp({ close }: { close: () => void }) {
   const others = REGION_ORDER.filter((id) => id !== REGION.id);
   const [sel, setSel] = useState<RegionId>(others[0]);
-  const [arm, setArm] = useState(false), [going, setGoing] = useState(false);
+  const [arm, setArm] = useState(false), [going, setGoing] = useState(false), [armRide, setArmRide] = useState(false);
+  useEffect(() => { if (!armRide) return; const t = setTimeout(() => setArmRide(false), 3000); return () => clearTimeout(t); }, [armRide]);
   useEffect(() => { if (!arm) return; const t = setTimeout(() => setArm(false), 3000); return () => clearTimeout(t); }, [arm]);
   const R = route(REGION.id, sel), D = REGIONS[sel], why = blocker(), poor = game.money < R.fare;
   const depart = () => {
@@ -42,6 +46,14 @@ export default function TravelApp({ close }: { close: () => void }) {
     if (!arm) { setArm(true); sfx('ui'); return; }
     setGoing(true); setArm(false);
     travelTo(sel, R.mode, R.fare, R.hours, `${R.icon} ${R.label}で${D.name}へ出発（${R.hours}時間）`);
+  };
+  // the train ride itself, at the real distance, with the views from the window (fast-forward whenever you like)
+  const legs = R.mode === 'train' ? lineLegs(REGION.id, sel) : null, km = legs ? legs.reduce((a, g) => a + g.len, 0) / 1000 : 0;
+  const ride = () => {
+    if (why || poor || going || !legs) return;
+    if (!armRide) { setArmRide(true); sfx('ui'); return; }
+    setGoing(true); setArmRide(false); game.money -= R.fare; sfx('buy'); save();
+    startLine(sel, 'seat'); close();
   };
   const ST = STATION;
   const P = (id: RegionId) => [REGIONS[id].map[0] * 100, REGIONS[id].map[1] * 100] as const;
@@ -55,7 +67,7 @@ export default function TravelApp({ close }: { close: () => void }) {
           {REGION_ORDER.map((id) => { const [x, y] = P(id), here = id === REGION.id, on = id === sel; return (
             <g key={id} onClick={() => { if (!here) { setSel(id); setArm(false); sfx('ui'); } }} style={{ cursor: here ? 'default' : 'pointer' }}>
               <circle cx={x} cy={y} r={here ? 2.6 : on ? 2.3 : 1.8} fill={here ? '#2be4ff' : on ? '#ffd23a' : '#ffffff'} stroke="#000" strokeWidth="0.4" />
-              <text x={x + (id === 'naha' ? 4 : 3)} y={y + 1.2} fontSize="4.2" fontWeight="800" fill="#fff" stroke="#000" strokeWidth="0.25" paintOrder="stroke">{REGIONS[id].name}{here ? '（現在地）' : ''}</text>
+              <text x={x + (id === 'naha' ? 4 : 3)} y={y + (id === 'osaka' ? 4.6 : id === 'nara' ? -1.6 : 1.2)} fontSize="4.2" fontWeight="800" fill="#fff" stroke="#000" strokeWidth="0.25" paintOrder="stroke">{REGIONS[id].name}{here ? '（現在地）' : ''}</text>
             </g>
           ); })}
         </svg>
@@ -67,7 +79,11 @@ export default function TravelApp({ close }: { close: () => void }) {
         <p>{REGION.name} → {D.name}：{R.label}・約{R.hours}時間（ゲーム内の時計が進みます）<br />到着：{R.mode === 'train' ? (D.station || D.names.airport) : D.names.airport}</p>
         <span className="pay">運賃 ${R.fare.toLocaleString('en-US')}</span>
         {why ? <p className="gmsg">{why}</p> : poor ? <p className="gmsg">お金が足りません</p> : null}
-        <div className="jobBtns"><button type="button" className={arm ? 'armed' : ''} disabled={!!why || poor || going} onClick={depart}>{going ? '移動中…' : arm ? `もう一度タップで出発（$${R.fare.toLocaleString('en-US')}）` : `${R.label}で出発`}</button></div>
+        {legs && <p>実際の線路の距離：{km.toFixed(1)}km（{legs.map((g) => g.name).join('→')}）</p>}
+        <div className="jobBtns">
+          {legs && <button type="button" className={armRide ? 'armed' : ''} disabled={!!why || poor || going} onClick={ride}>{armRide ? `もう一度タップで乗車（$${R.fare.toLocaleString('en-US')}）` : '🚆 車窓を見ながら乗る（早送りできます）'}</button>}
+          <button type="button" className={arm ? 'armed' : ''} disabled={!!why || poor || going} onClick={depart}>{going ? '移動中…' : arm ? `もう一度タップで出発（$${R.fare.toLocaleString('en-US')}）` : legs ? '⏭ すぐ到着（移動を省略）' : `${R.label}で出発`}</button>
+        </div>
       </div>
       <p className="appNote">{REGION.shinkansen && '駅の「新幹線のりば」から新幹線を自分で運転して行くこともできます（運賃なし）。'}お金・車・武器・服・実績は持っていけます。ストーリーと仕事はどの街でも続きができます。持ち家（不動産）は東京にあります。ギフトボックスは街ごとに別です。</p>
       <div className="jobBtns">

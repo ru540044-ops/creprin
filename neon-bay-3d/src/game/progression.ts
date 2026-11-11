@@ -47,6 +47,7 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'cruise', icon: '🛳️', title: '船旅', desc: '豪華客船に乗船する', test: (s) => !!s.flags.cruise },
   { id: 'stunt', icon: '🤸', title: 'スタントマン', desc: 'スタントジャンプを成功させる', test: () => Object.keys(progress.stunts).length >= 1 },
   { id: 'daily', icon: '☀️', title: '皆勤賞', desc: 'ログインボーナス7日目を受け取る', test: () => progress.gift.streak >= 7 },
+  { id: 'deer', icon: '🦌', title: '鹿とおじぎ', desc: '奈良公園で鹿にせんべいをあげる', test: (s) => !!s.flags.deer },
   { id: 'japan', icon: '🗾', title: '日本一周', desc: '東京・大阪・福岡・那覇をすべて訪れる', test: (s) => !!(s.flags.visit_tokyo && s.flags.visit_osaka && s.flags.visit_fukuoka && s.flags.visit_naha) },
   { id: 'daikichi', icon: '⛩️', title: '大吉', desc: 'おみくじで大吉を引く', test: (s) => !!s.flags.daikichi },
   { id: 'yatai', icon: '🍜', title: '屋台めぐり', desc: '屋台で食事をする', test: (s) => !!s.flags.yatai },

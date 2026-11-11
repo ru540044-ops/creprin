@@ -1,16 +1,18 @@
 import { game, toast, save, progress } from '../state/store';
 import { sfx } from '../audio';
+import { feedDeer } from '../ai/deer';
 
 /**
  * Shops you can actually use: the convenience store, the solo-booth ramen shop (meal ticket, then a seat),
  * the cafe, the bar, the pharmacy and the diner. Food heals; a few things can be carried and used later
  * (rice balls, energy drinks, first-aid kits). Every shop and product name here is made up.
  */
-export type ItemId = 'onigiri' | 'energy' | 'medkit';
+export type ItemId = 'onigiri' | 'energy' | 'medkit' | 'senbei';
 export const ITEMS: Record<ItemId, { name: string; icon: string; max: number; use: string }> = {
   onigiri: { name: 'おにぎり', icon: '🍙', max: 9, use: '体力+30' },
   energy: { name: 'エナジードリンク', icon: '⚡', max: 9, use: '60秒スタミナが減らない' },
   medkit: { name: '救急セット', icon: '🩹', max: 3, use: '体力全回復' },
+  senbei: { name: '鹿せんべい', icon: '🍘', max: 10, use: '近くの鹿にあげる' },
 };
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
 /** Temporary effects, in seconds left: energy = sprinting costs no stamina, full = slow healing after a proper meal, tipsy = the camera sways. */
@@ -112,6 +114,7 @@ export function eatMeal() {
 /** Use something from your pocket. */
 export function useItem(id: ItemId) {
   if (game.items[id] <= 0) return;
+  if (id === 'senbei') { feedDeer(); return; }
   if ((id === 'onigiri' || id === 'medkit') && game.health >= 100) { toast('体力は満タン', 1.2); return; }
   game.items[id]--; sfx('buy', 0.4);
   if (id === 'onigiri') { game.health = Math.min(100, game.health + 30); toast('🍙 おにぎりを食べた（体力+30）', 1.6); }

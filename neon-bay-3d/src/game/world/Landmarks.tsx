@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LANDMARK3D } from './cityGen';
+import { LANDMARK3D, DAIBUTSU } from './cityGen';
 import { game } from '../state/store';
 
 /**
@@ -108,6 +108,58 @@ function buildRedCastle() {
   return { lat: [], solid, glow, beacons: [] as THREE.Vector3[] };
 }
 
+/** Nara's great hall: a vast timber hall on a stone platform (open doorway, the seated bronze figure inside), a cloister with its middle gate, a bronze lantern. */
+function buildDaibutsu() {
+  const solid: THREE.BufferGeometry[] = [], glow: THREE.BufferGeometry[] = [];
+  const D = DAIBUTSU, W = D.hx1 - D.hx0, cz = (D.hz0 + D.hz1) / 2, dep = D.hz1 - D.hz0;
+  const WOOD: Col = [0.36, 0.22, 0.14], PLAS: Col = [0.9, 0.87, 0.8], TILE: Col = [0.15, 0.16, 0.18], GOLD: Col = [0.95, 0.74, 0.25], STONE: Col = [0.6, 0.58, 0.54], BRZ: Col = [0.2, 0.19, 0.14], DARK: Col = [0.09, 0.07, 0.06];
+  const sph = (rx: number, ry: number, rz: number, x: number, y: number, z: number, c: Col) => { const g = new THREE.SphereGeometry(1, 18, 12); g.scale(rx, ry, rz); g.translate(x, y, z); return paint(g, c); };
+  const cylY = (r0: number, r1: number, h: number, x: number, y: number, z: number, c: Col, seg = 12) => paint(at(new THREE.CylinderGeometry(r1, r0, h, seg), x, y + h / 2, z), c);
+  // platform and the stone floor inside
+  solid.push(box(W + 10, 0.45, dep + 12, 0, -0.3, cz + 2, STONE), box(W - 2.4, 0.1, dep - 2.4, 0, 0.15, cz, [0.42, 0.4, 0.37]));
+  // walls: plaster panels framed in dark timber; the front has a doorway under the lower roof
+  const H = D.wallH;
+  solid.push(box(W, H, 1.2, 0, 0, D.hz0 + 0.6, PLAS), box(1.2, H, dep, D.hx0 + 0.6, 0, cz, PLAS), box(1.2, H, dep, D.hx1 - 0.6, 0, cz, PLAS));
+  const fw = (W / 2 - D.door); for (const s of [-1, 1]) solid.push(box(fw, H, 1.2, s * (D.door + fw / 2), 0, D.hz1 - 0.6, PLAS));
+  solid.push(box(D.door * 2, H - D.doorH, 1.2, 0, D.doorH, D.hz1 - 0.6, PLAS));
+  for (let k = 0; k <= 8; k++) { const x = D.hx0 + (W * k) / 8; solid.push(cylY(0.62, 0.62, H, x, 0, D.hz1 + 0.1, WOOD, 10), cylY(0.62, 0.62, H, x, 0, D.hz0 - 0.1, WOOD, 10)); }
+  for (let k = 0; k <= 6; k++) { const z = D.hz0 + (dep * k) / 6; for (const s of [-1, 1]) solid.push(cylY(0.62, 0.62, H, s * (D.hx1 + 0.1), 0, z, WOOD, 10)); }
+  for (const y of [0.4, 10.6, 21, H - 1.2]) { solid.push(box(W + 1.6, 1.0, 0.5, 0, y, D.hz1 + 0.35, WOOD), box(W + 1.6, 1.0, 0.5, 0, y, D.hz0 - 0.35, WOOD)); for (const s of [-1, 1]) solid.push(box(0.5, 1.0, dep + 1.6, s * (D.hx1 + 0.35), y, cz, WOOD)); }
+  // lower roof (a skirt all round at mid height) and the great hipped roof with its ridge and golden ridge ends
+  solid.push(frustum(W / 2 + 4.2, W / 2 + 0.4, 3.2, 11.4, TILE, 1, (dep + 8.4) / (W + 8.4), true));
+  solid.push(frustum(W / 2 + 4.5, W / 2 - 7, 15, H, TILE, 1, (dep + 9) / (W + 9)));
+  solid.push(box(W / 2 + 4, 1.8, 2.4, 0, H + 15, cz, TILE));
+  for (const s of [-1, 1]) solid.push(box(1.4, 3.4, 2.6, s * (W / 4 + 1.6), H + 16.4, cz, GOLD));
+  // the arched gable over the front and its viewing window (lit at night)
+  solid.push(frustum(8, 1, 4.4, 15.6, TILE, 1, 0.55)); solid.at(-1)!.translate(0, 0, D.hz1 + 2.2);
+  glow.push(box(11, 3.4, 0.2, 0, 16.4, D.hz1 + 0.08, [1, 0.82, 0.5]));
+  // inside: the seated bronze figure on a lotus, a golden halo behind, lamps either side
+  const bz = D.bz;
+  solid.push(cylY(7.4, 6.6, 2.2, 0, 0.2, bz, BRZ, 20), cylY(7.8, 7.6, 1.0, 0, 2.2, bz, [0.62, 0.5, 0.26], 16));
+  solid.push(sph(6.6, 2.4, 4.6, 0, 4.6, bz + 1.6, BRZ), sph(4.4, 6.2, 3.2, 0, 9.6, bz, BRZ));
+  for (const s of [-1, 1]) solid.push(sph(1.9, 4.2, 1.9, s * 4.3, 8.8, bz + 0.6, BRZ));
+  solid.push(sph(0.9, 1.3, 0.9, 3.4, 10.4, bz + 3.4, BRZ), sph(1.1, 0.7, 1.0, -3.2, 6.0, bz + 4.0, BRZ));
+  solid.push(sph(2.5, 2.8, 2.5, 0, 16.4, bz + 0.3, BRZ), sph(1.5, 1.3, 1.5, 0, 18.7, bz + 0.1, [0.2, 0.16, 0.11]));
+  for (const s of [-1, 1]) solid.push(box(0.5, 2.4, 0.6, s * 2.55, 14.6, bz + 0.3, BRZ));
+  { const g = new THREE.CylinderGeometry(9.5, 9.5, 0.4, 32); g.rotateX(Math.PI / 2); g.translate(0, 13.4, bz - 3.6); solid.push(paint(g, GOLD)); }
+  for (const s of [-1, 1]) { solid.push(cylY(0.5, 0.5, 2.6, s * 9, 0.2, bz + 8, WOOD, 8)); glow.push(cylY(0.8, 0.8, 1.2, s * 9, 2.8, bz + 8, [1, 0.75, 0.4], 8)); }
+  // cloister round the forecourt and the hall, with the two-storey middle gate in front
+  const C = D.clo;
+  for (const [x0, z0, x1, z1] of [[-C, -C + 4, -C + 1.2, C], [C - 1.2, -C + 4, C, C], [-C, -C + 4, C, -C + 5.2], [-C, C - 1.2, -D.gate, C], [D.gate, C - 1.2, C, C]]) {
+    const w = x1 - x0, d = z1 - z0, x = (x0 + x1) / 2, z = (z0 + z1) / 2;
+    solid.push(box(w, 0.8, d, x, 0, z, [0.3, 0.2, 0.14]), box(w, 5.2, d, x, 0.8, z, PLAS), box(w + (w > d ? 0 : 3), 0.7, d + (w > d ? 3 : 0), x, 6, z, TILE));
+  }
+  for (const s of [-1, 1]) for (const dz of [-1.6, 1.6]) solid.push(cylY(0.5, 0.5, 9, s * D.gate, 0, C - 0.6 + dz, VERMI, 10));
+  solid.push(box(D.gate * 2 + 3, 1.2, 6, 0, 8.6, C - 0.6, VERMI), frustum(D.gate + 3.4, D.gate - 1, 2.6, 9.8, TILE, 1, 0.55)); solid.at(-1)!.translate(0, 0, C - 0.6);
+  solid.push(box(D.gate * 2 + 1, 2.6, 4.2, 0, 12.4, C - 0.6, VERMI), frustum(D.gate + 2.6, 1.4, 3.2, 15, TILE, 1, 0.5)); solid.at(-1)!.translate(0, 0, C - 0.6);
+  // stone path from the gate to the doorway, the octagonal bronze lantern on it
+  solid.push(box(7, 0.06, C - D.hz1, 0, 0.16, (C + D.hz1) / 2, [0.78, 0.75, 0.68]));
+  solid.push(cylY(1.1, 0.7, 1.4, 0, 0.2, D.lantZ, STONE, 8), cylY(0.35, 0.35, 1.4, 0, 1.6, D.lantZ, BRZ, 8), cylY(1.2, 1.2, 1.5, 0, 3.0, D.lantZ, BRZ, 8), cylY(1.7, 0.3, 1.0, 0, 4.5, D.lantZ, BRZ, 8));
+  glow.push(cylY(1.0, 1.0, 1.0, 0, 3.25, D.lantZ, [1, 0.7, 0.35], 8));
+  return { lat: [], solid, glow, beacons: [] as THREE.Vector3[] };
+}
+const VERMI: Col = [0.72, 0.2, 0.12];
+
 /** Slender triangular tower clad in mirror glass, with LED edges that change colour at night. */
 function buildSeaTower() {
   const solid: THREE.BufferGeometry[] = [], glow: THREE.BufferGeometry[] = [], glass: THREE.BufferGeometry[] = [];
@@ -123,7 +175,7 @@ export default function Landmarks() {
   const L = LANDMARK3D;
   const D = useMemo(() => {
     const b: { lat: THREE.BufferGeometry[]; solid: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[]; glass?: THREE.BufferGeometry[]; beacons: THREE.Vector3[] } =
-      L.kind === 'tower' ? buildTower() : L.kind === 'castle' ? buildCastle({ stone: [0.52, 0.5, 0.47], wall: [0.96, 0.96, 0.94], roof: [0.33, 0.56, 0.5], trim: [0.25, 0.25, 0.27] }) : L.kind === 'redcastle' ? buildRedCastle() : buildSeaTower();
+      L.kind === 'tower' ? buildTower() : L.kind === 'castle' ? buildCastle({ stone: [0.52, 0.5, 0.47], wall: [0.96, 0.96, 0.94], roof: [0.33, 0.56, 0.5], trim: [0.25, 0.25, 0.27] }) : L.kind === 'redcastle' ? buildRedCastle() : L.kind === 'daibutsu' ? buildDaibutsu() : buildSeaTower();
     const latMat = new THREE.MeshStandardMaterial({ map: latticeTexture(), alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.6, metalness: 0.2, emissive: new THREE.Color('#ff7a2a'), emissiveIntensity: 0 });
     const solidMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.05, emissive: new THREE.Color('#ffe2b0'), emissiveIntensity: 0 });
     const glowMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, color: '#ffffff' });

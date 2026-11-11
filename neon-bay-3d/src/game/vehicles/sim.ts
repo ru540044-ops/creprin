@@ -4,6 +4,7 @@ import { clamp } from '../world/rng';
 import { game, toast, ownedCars } from '../state/store';
 import { sfx } from '../audio';
 import { admin } from '../admin';
+import { line, stepLine } from '../line/line';
 
 export interface Veh {
   id: number; def: VDef; color: string; x: number; z: number; y: number; yaw: number; vx: number; vz: number; yr: number;
@@ -282,6 +283,9 @@ export function atcKmh(v: Veh) {
 /** Bullet train on its viaduct: power and brake along the track, ATC limits, buffers at both ends. */
 function rail(v: Veh, c: Drive | null, dt: number) {
   const dir = Math.cos(v.yaw) >= 0 ? 1 : -1, thr = c ? c.thr : 0, br = c ? c.brake : 0;
+  if (line.on && v.id === game.inCar) { // between the cities: the train runs on the line (see line/line.ts); here it only reports its speed
+    stepLine(thr, br, dt); const sp = line.v; v.vx = 0; v.vz = dir * sp; v.spd = sp; v.braking = br > 0.05 && !line.auto; v.reversing = false; v.rpm = Math.min(1, sp / 85); v.gear = 1; v.slip = 0; return;
+  }
   let sp = v.vz * dir;
   const km = trainMul(v), top = v.def.top * km; // admin speed multiplier: power, brakes and the ATC limits all scale
   if (thr > 0.05 && sp >= -0.2) sp += v.def.accel * km * thr * (1.4 - 0.9 * Math.max(0, sp) / top) * dt;

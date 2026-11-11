@@ -62,10 +62,16 @@ import { ArrivalScreen, TRAVEL_KEY } from './game/ui/TravelApp';
 import * as japanMod from './game/crime/japan';
 import * as shopsMod from './game/crime/shops';
 import CallMarks from './game/ai/CallMarks';
+import LineView from './game/line/LineView';
+import LineHUD from './game/line/LineHUD';
+import { line } from './game/line/line';
+import * as lineMod from './game/line/line';
+import DeerView from './game/ai/DeerView';
+import * as deerMod from './game/ai/deer';
 import * as scheduleMod from './game/ai/schedule';
 import type { RegionId } from './game/world/region';
 import { REGION } from './game/world/region'; // after the game modules (import cycles resolve in the old order)
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, deerMod, lineMod, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -113,12 +119,14 @@ function Ticker({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
 }
 
 function Scene({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
-  const [where, setWhere] = useState(game.where);
-  useFrame(() => { if (game.where !== where) setWhere(game.where); });
+  const [where, setWhere] = useState(game.where), [riding, setRiding] = useState(false);
+  useFrame(() => { if (game.where !== where) setWhere(game.where); if (line.on !== riding) setRiding(line.on); });
   const q = Q[quality];
   return (
     <>
       <Environment shadows={q.shadows} shadowSize={q.size} />
+      {riding && <LineView />}
+      <group visible={!riding}>
       <Mountains />
       <City shadows={q.shadows} />
       <CruiseShip />
@@ -133,15 +141,17 @@ function Scene({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
       <GiftView />
       <PedsView />
       <CallMarks />
+      <DeerView />
       <AmbientProps />
       <FXView />
       <Birds />
       <Weather />
       <LightFX />
       <Detail />
+      <Waypoint />
+      </group>
       <Clouds />
       <Effects quality={quality} />
-      <Waypoint />
       <Ticker quality={quality} onSlow={onSlow} />
     </>
   );
@@ -151,7 +161,8 @@ export default function App() {
   const hadSave = useMemo(() => { const h = load(); loadSettings(h); if (!h) game.hour = 17.9; return h; }, []);
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [lost, setLost] = useState(false);
+  const [lost, setLost] = useState(false), [riding, setRiding] = useState(false);
+  useEffect(() => { const id = setInterval(() => setRiding(line.on), 300); return () => clearInterval(id); }, []);
   const [frozen, setFrozen] = useState(false);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<QualityMode>(settings.quality);
@@ -177,13 +188,16 @@ export default function App() {
   }, []);
   // watchdog: if frames stop arriving while the game is visible and running (an exception killed the render loop), offer a reload
   useEffect(() => {
-    let last = -1, still = 0;
+    // the browser's own animation frames are counted too: if they keep coming while the game's frames do not, the render loop
+    // has died (20 s); if both stop, the whole page is stalled (a very slow GPU frame): only give up after much longer (90 s)
+    let last = -1, still = 0, raf = 0, lastRaf = -1, rafId = 0;
+    const tick = () => { raf++; rafId = requestAnimationFrame(tick); }; rafId = requestAnimationFrame(tick);
     const id = setInterval(() => {
-      if (document.hidden || game.paused || !boot.ready || performance.now() - remountAt.t < 30000) { still = 0; last = boot.frames; return; }
-      if (boot.frames === last) { still += 1; if (still >= 10) { save(); setFrozen(true); clearInterval(id); } } else still = 0;
-      last = boot.frames;
+      if (document.hidden || game.paused || !boot.ready || performance.now() - remountAt.t < 30000) { still = 0; last = boot.frames; lastRaf = raf; return; }
+      if (boot.frames === last) { still += raf !== lastRaf ? 1 : 0.22; if (still >= 10) { save(); setFrozen(true); clearInterval(id); } } else still = 0;
+      last = boot.frames; lastRaf = raf;
     }, 2000);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); cancelAnimationFrame(rafId); };
   }, []);
   const firstTouch = () => { initAudio(); music.title = true; };
   const begin = (fresh: boolean) => {
@@ -218,7 +232,8 @@ export default function App() {
         >
           <Suspense fallback={null}><Scene quality={quality} onSlow={() => { if (quality === 'low') return; const nq: Quality = quality === 'high' ? 'medium' : 'low'; setAutoQ(nq); toast(`動作を軽くするため画質を「${nq === 'low' ? '低' : '中'}」にしました（設定で変更できます）`, 4); }} /></Suspense>
         </Canvas>
-        {started && <HUD quality={quality} mode={mode} setMode={setMode} onPause={() => pause(true)} />}
+        {started && !(riding && line.mode === 'seat') && <HUD quality={quality} mode={mode} setMode={setMode} onPause={() => pause(true)} />}
+        {started && riding && <LineHUD onPause={() => pause(true)} />}
         {!started && arriving && <ArrivalScreen ready={ready} onGo={() => begin(false)} />}
         {!started && !arriving && <TitleScreen hadSave={hadSave} ready={ready} onStart={() => begin(false)} onNewGame={newGame} mode={mode} setMode={setMode} effective={quality} onFirstTouch={firstTouch} />}
         {started && paused && <PauseMenu onResume={() => pause(false)} mode={mode} setMode={setMode} effective={quality} goal={goal} />}

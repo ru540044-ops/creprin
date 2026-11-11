@@ -31,6 +31,7 @@ import { copSees, setWanted } from '../crime/crime';
 import { STATIONS } from '../radio';
 import * as A from '../anim/pose';
 import { admin, tdt } from '../admin';
+import { line } from '../line/line';
 
 const R = 0.38, H = 1.8, WALK = 2.3, RUN = 5.2, SPRINT = 8.2, CROUCH = 1.6, GRAV = 22, JUMP = 6.4;
 const angDiff = (a: number, b: number) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
@@ -97,6 +98,7 @@ export default function Player() {
   };
 
   useFrame((_, rawDt) => {
+    if (line.on) return; // riding between the cities: LineView has the camera
     if (lookState.ver !== lookVer.current) { lookVer.current = lookState.ver; setC(makeCharacter(progress.look)); }
     const dt = tdt(Math.min(rawDt, 0.05)), p = game.player, inside = game.where !== 'out', def = INTERIORS[game.where];
     const me = playerCar();

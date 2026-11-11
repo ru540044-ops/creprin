@@ -9,6 +9,7 @@ import { explode, tickExplosives } from '../combat/explode';
 import { game, toast } from '../state/store';
 import { input } from '../input';
 import { engine, trainSound } from '../audio';
+import { line, limitAt } from '../line/line';
 import { getTextures, labelTexture } from '../world/textures';
 import { GARAGE } from '../world/cityGen';
 import { updateCrime, law } from '../crime/crime';
@@ -210,6 +211,7 @@ export default function Vehicles() {
     for (const v of [...vehicles]) if (v.dead && v.burn <= 0 && v.exploded && v.owned >= 0 && v.id !== game.inCar && Math.hypot(v.x - fx, v.z - fz) > 45) { remove(v); toast(v.def.name + 'はガレージで修理された', 2.4); }
     const train = !!me && me.def.kind === 'shinkansen';
     if (me) { const c = driveInput(me.def.kind); engine(game.started && !train, me.rpm, me.gear, c.thr, me.slip, me.def.kind); trainSound(game.started && train, Math.abs(me.vz) * 3.6, c.thr, c.brake, game.tunnel, dt); game.speed = Math.hypot(me.vx, me.vz); }
+    else if (line.on) { engine(false, 0, 0, 0, 0, ''); trainSound(game.started, line.v * 3.6, line.v < limitAt(line.s) - 2 ? 0.7 : 0, 0, game.tunnel, dt); } // a passenger seat on the line between cities
     else { engine(false, 0, 0, 0, 0, ''); trainSound(false, 0, 0, 0, 0, dt); }
     // headlight cone for the player's car at night
     const L = headSpot.current;

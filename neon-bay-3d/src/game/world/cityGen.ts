@@ -117,12 +117,16 @@ function outerZone(o: Exclude<Outer, ''>, ci: number, cj: number): Zone {
 }
 /** Tower height falloff for a downtown block (0 = tallest). */
 function towerFall(ci: number, cj: number) {
-  if (!inTokyo()) { const c = (N - 1) / 2, i = ci + O, j = cj + O, cs: [number, number][] = REGION.id === 'osaka' ? [[c, c - 6], [c - 1, c + 3]] : REGION.id === 'fukuoka' ? [[c - 3, c - 1], [c + 5, c + 1]] : [[c + 2, c - 7]]; return Math.min(1.25, Math.min(...cs.map(([a, b]) => Math.hypot(i - a, j - b))) / 3); }
+  if (!inTokyo()) { const c = (N - 1) / 2, i = ci + O, j = cj + O, cs: [number, number][] = REGION.id === 'osaka' ? [[c, c - 6], [c - 1, c + 3]] : REGION.id === 'fukuoka' ? [[c - 3, c - 1], [c + 5, c + 1]] : REGION.id === 'nara' ? [[STATION_BLOCK.i - 1, STATION_BLOCK.j - 1]] : [[c + 2, c - 7]]; return Math.min(1.25, Math.min(...cs.map(([a, b]) => Math.hypot(i - a, j - b))) / 3); }
   const o = outerOf(ci, cj);
   if (o === 'midtown') return Math.min(1.25, Math.hypot(ci - MIDTOWN.ci, cj - MIDTOWN.cj) / 4.6);
   if (o) return o === 'eastbay' ? 0.95 : 1.15;
   const c = (CORE - 1) / 2; return Math.min(1.25, Math.hypot(ci - c, cj - c) / c) * (ringOf(ci, cj) ? 0.62 : 1);
 }
+/** Nara's great hall, in metres from its block's centre (+z = south, the front): hall walls, open doorway, the seated figure, the cloister. */
+export const DAIBUTSU = { hx0: -28, hx1: 28, hz0: -30, hz1: 12, wallH: 28, door: 7, doorH: 11, bz: -16, lantZ: 22, clo: 41, gate: 6 };
+/** Stone lanterns along the paths of Nara's park. */
+export const NARA_LANTERNS: { x: number; z: number }[] = [];
 /** Block (grid coordinates) the region's landmark stands in. */
 export const LM_BLOCK = { i: REGION.landmark.ci + O, j: REGION.landmark.cj + O };
 /* ---------- canals (Osaka's Dotonbori, Fukuoka's river): a channel through a row / column of blocks, bridged by the cross streets ---------- */
@@ -186,13 +190,17 @@ export const canalAt = (x: number, z: number) => { for (const r of CANAL_RECTS) 
 export const STATION_BLOCK = { i: O + 12, j: N / 2 };
 /** The station-front rotary (filled in when the station block is built). */
 export const ROTARY = { on: false, x0: 0, x1: 0, z0: 0, z1: 0, island: { x0: 0, x1: 0, z0: 0, z1: 0 }, taxi: { x: 0, z: 0 }, bus: { x: 0, z: 0 } };
+/** Nara: the deer park east of the station (grid coordinates), the pagoda's block, the old merchant quarter (Naramachi) south of the pond. */
+export const NARA = { park: { i0: 19, i1: 24, j0: 3, j1: 18 }, pagoda: { i: 20, j: 12 }, machi: { i0: 15, i1: 21, j0: 15, j1: 20 } };
+export const inNaraPark = (i: number, j: number) => REGION.id === 'nara' && i >= NARA.park.i0 && i <= NARA.park.i1 && j >= NARA.park.j0 && j <= NARA.park.j1;
 /** Blocks kept open for a signature place (they become plazas / parks). */
-export const SIG_BLOCKS = new Map<number, 'temple' | 'skytower' | 'shinsekai' | 'dome'>();
+export const SIG_BLOCKS = new Map<number, 'temple' | 'skytower' | 'shinsekai' | 'dome' | 'pagoda'>();
 {
-  const put = (ci: number, cj: number, tag: 'temple' | 'skytower' | 'shinsekai' | 'dome', abs = false) => { const i = abs ? ci : ci + O, j = abs ? cj : cj + O; if (i > 0 && j > 0 && i < N - 1 && j < N - 1) SIG_BLOCKS.set(j * N + i, tag); };
+  const put = (ci: number, cj: number, tag: 'temple' | 'skytower' | 'shinsekai' | 'dome' | 'pagoda', abs = false) => { const i = abs ? ci : ci + O, j = abs ? cj : cj + O; if (i > 0 && j > 0 && i < N - 1 && j < N - 1) SIG_BLOCKS.set(j * N + i, tag); };
   if (REGION.id === 'tokyo') { put(-10, 21, 'temple'); put(-7, 19, 'skytower'); }
   if (REGION.id === 'osaka') put(3, 12, 'shinsekai');
   if (REGION.id === 'fukuoka') put(N - 2, Math.round(N * 0.4), 'dome', true);
+  if (REGION.id === 'nara') put(NARA.pagoda.i, NARA.pagoda.j, 'pagoda', true);
 }
 /** The regional cities (Osaka, Fukuoka, Naha): a compact centre, a shopping ring and main streets, an industrial quarter by the port, houses beyond. */
 function regionZone(i: number, j: number): Zone {
@@ -222,6 +230,19 @@ function regionZone(i: number, j: number): Zone {
     if (hakata < 3.4) return u < 0.1 ? 'parking' : 'commercial';
     if (j < 6) return u < 0.25 ? 'park' : u < 0.55 ? 'commercial' : 'residential';
     if (dx > 6 && dz > 5) return u < 0.75 ? 'industrial' : 'parking';
+    return rest(0.1);
+  }
+  if (REGION.id === 'nara') {
+    // a small centre round the station, the shopping arcades west of it, the deer park with the great hall and the pagoda in the east,
+    // the old merchant quarter (machiya) south of the pond, quiet houses beyond
+    const st = D(STATION_BLOCK.i - 1, STATION_BLOCK.j - 1), M = NARA.machi;
+    if (inNaraPark(i, j)) return u < 0.05 && i === NARA.park.i0 ? 'parking' : 'park';
+    if (st < 1.5) return 'downtown';
+    if (i >= M.i0 && i <= M.i1 && j >= M.j0 && j <= M.j1) return u < 0.22 ? 'commercial' : 'residential';
+    if (st < 3.2) return u < 0.1 ? 'parking' : 'commercial';
+    if ((j === 12 || j === 13) && i > 6 && i < 18) return 'commercial';
+    if (i >= 7 && i <= 10 && j >= 10 && j <= 13) return 'commercial';
+    if (i < 5 && j > N - 7) return u < 0.6 ? 'industrial' : 'parking';
     return rest(0.1);
   }
   // Naha: the new downtown (Omoromachi) in the north, Kokusai street running south through the old centre,
@@ -365,6 +386,11 @@ function downtownBlock(i: number, j: number, ix0: number, iz0: number, ix1: numb
   const sq = (cx: number, cz: number, s: number) => [cx - s / 2, cz - s / 2, cx + s / 2, cz + s / 2] as const;
   const W = ix1 - ix0, D = iz1 - iz0, cx = (ix0 + ix1) / 2, cz = (iz0 + iz1) / 2, k = j * N + i;
   const pickShape = (): Building['shape'] => { const u = r(); return u < 0.3 ? 'round' : u < 0.62 ? 'cham' : undefined; };
+  if (REGION.id === 'nara') { // the old capital keeps its skyline low: a department store or a hotel, nothing in glass, nothing above about 30 m
+    const P = podium(ix0, iz0, ix1, iz1, 12 + r() * 6); const s = Math.min(W, D) * (0.5 + r() * 0.2);
+    if (r() < 0.6) P.up = addB({ x0: cx - s / 2, z0: cz - s / 2, x1: cx + s / 2, z1: cz + s / 2, y0: S + P.h, h: 10 + r() * 10, type: 'office', tint: pick(OFFICE_T, r), fac: 'ribbon' });
+    return;
+  }
   if (k === DT.twin) { // twin round towers on a long podium (the station's landmark office and hotel towers)
     const P = podium(ix0, iz0 + 6, ix1, iz1 - 6, low ? 16 : 30), py = S + P.h, d1 = Math.min(44, W * 0.5), d2 = d1 * 0.9;
     const a = tower(...sq(ix0 + W * 0.27, cz, d1), py, S + Math.max(minH + 30, 245 * hm), 'round', true), b = tower(...sq(ix1 - W * 0.27, cz, d2), py, S + Math.max(minH + 20, 226 * hm), 'round', true);
@@ -402,7 +428,7 @@ function downtownBlock(i: number, j: number, ix0: number, iz0: number, ix1: numb
 
 const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', '食堂 ネオン亭', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store'], ['arms', 'BAY ARMS', '#ff5a36', 'arms']];
 let shopDoorsLeft = SHOP_LABELS.length;
-const MACHIYA_BLOCKS = new Set<number>(), DANCHI_BLOCKS = new Set<number>();
+export const MACHIYA_BLOCKS = new Set<number>(), DANCHI_BLOCKS = new Set<number>();
 
 for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
   const x0 = blockX0(i), z0 = blockX0(j), x1 = x0 + BLOCK, z1 = z0 + BLOCK, zone = zoneOf(i, j), ci = i - O, cj = j - O, core = !ringOf(ci, cj);
@@ -433,8 +459,8 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     }
     for (let k = 0; k < 3; k++) props.bins.push({ x: ix0 + d2 + 2 + r() * (ix1 - ix0 - 2 * d2 - 4), z: iz0 + d2 + 2 });
   } else if (zone === 'residential') {
-    const oldTown = inTokyo() ? outerOf(ci, cj) === 'oldtown' : REGION.id === 'osaka' ? Math.hypot(i - (N - 1) / 2 + 1, j - (N - 1) / 2 - 7) < 4 : REGION.id === 'fukuoka' ? i > (N - 1) / 2 + 3 && j > (N - 1) / 2 + 2 && j < (N - 1) / 2 + 6 : false;
-    if (oldTown && r() < 0.7) { MACHIYA_BLOCKS.add(j * N + i);
+    const oldTown = inTokyo() ? outerOf(ci, cj) === 'oldtown' : REGION.id === 'osaka' ? Math.hypot(i - (N - 1) / 2 + 1, j - (N - 1) / 2 - 7) < 4 : REGION.id === 'fukuoka' ? i > (N - 1) / 2 + 3 && j > (N - 1) / 2 + 2 && j < (N - 1) / 2 + 6 : REGION.id === 'nara' ? i >= NARA.machi.i0 && i <= NARA.machi.i1 && j >= NARA.machi.j0 && j <= NARA.machi.j1 : false;
+    if (oldTown && r() < (REGION.id === 'nara' ? 0.92 : 0.7)) { MACHIYA_BLOCKS.add(j * N + i);
       // old town: terraces of narrow two-storey timber townhouses (machiya) with lattice fronts along both streets
       for (const [z0r, z1r] of [[iz0, iz0 + 13], [iz1 - 13, iz1]]) { let x = ix0; while (x < ix1 - 5) { const w = Math.min(ix1 - x, 6 + r() * 2.5); if (w < 4) break; addB({ x0: x, z0: z0r, x1: x + w - 0.15, z1: z1r, y0: S, h: 5.8 + r() * 0.8, type: 'house', tint: [0.75 + r() * 0.2, 0.7 + r() * 0.15, 0.62 + r() * 0.1], gable: true, roofTint: pick(REGION.roofs, r), style: 'machiya' }); x += w; } }
       for (let k = 0; k < 3; k++) props.trees.push({ x: ix0 + 15 + k * 25, z: (iz0 + iz1) / 2, s: 0.7 + r() * 0.3, y: S, c: r() < 0.3 ? SAKURA : undefined });
@@ -468,7 +494,8 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     }
     for (let k = 0; k < 6; k++) props.containers.push({ x: ix0 + 6 + k * 12, z: iz1 - 8, y: S, a: 0, c: pick([[0.75, 0.2, 0.15], [0.15, 0.35, 0.65], [0.85, 0.6, 0.15], [0.25, 0.55, 0.3]], r) });
   } else if (zone === 'park') {
-    for (let k = 0; k < 22; k++) { const x = ix0 + 4 + r() * (ix1 - ix0 - 8), z = iz0 + 4 + r() * (iz1 - iz0 - 8); if (Math.abs(x - (x0 + x1) / 2) < 3 || Math.abs(z - (z0 + z1) / 2) < 3) continue; const q = r(); if (REGION.palmStreets && q < 0.3) props.palms.push({ x, z, s: 0.8 + r() * 0.4, y: 0.3 }); else props.trees.push({ x, z, s: 0.9 + r() * 0.8, y: 0.3, c: q > 0.62 ? (q > 0.9 ? MOMIJI : SAKURA) : undefined }); }
+    if (inNaraPark(i, j) && !(i === LM_BLOCK.i && j === LM_BLOCK.j) && !SIG_BLOCKS.has(j * N + i) && !CANAL_BLOCKS.has(j * N + i)) for (let k = 0; k < 4; k++) { const s = k % 2 ? 1 : -1, z = iz0 + 8 + Math.floor(k / 2) * 60; NARA_LANTERNS.push({ x: (x0 + x1) / 2 + s * 3.4, z }); solids.push({ x0: (x0 + x1) / 2 + s * 3.4 - 0.35, z0: z - 0.35, x1: (x0 + x1) / 2 + s * 3.4 + 0.35, z1: z + 0.35, y0: 0, y1: 2.2 }); }
+    for (let k = 0; k < (inNaraPark(i, j) ? 11 : 22); k++) { const x = ix0 + 4 + r() * (ix1 - ix0 - 8), z = iz0 + 4 + r() * (iz1 - iz0 - 8); if (Math.abs(x - (x0 + x1) / 2) < 3 || Math.abs(z - (z0 + z1) / 2) < 3) continue; const q = r(); if (REGION.palmStreets && q < 0.3) props.palms.push({ x, z, s: 0.8 + r() * 0.4, y: 0.3 }); else props.trees.push({ x, z, s: 0.9 + r() * 0.8, y: 0.3, c: q > 0.62 ? (q > 0.9 ? MOMIJI : SAKURA) : undefined }); }
     for (let k = 0; k < 4; k++) props.benches.push({ x: (x0 + x1) / 2 + (k % 2 ? 4 : -4), z: z0 + 20 + k * 14, a: k % 2 ? -Math.PI / 2 : Math.PI / 2 });
   } else if (zone === 'parking') {
     addB({ x0: ix1 - 16, z0: iz0 + 2, x1: ix1 - 2, z1: iz0 + 12, y0: S, h: 4, type: 'office', tint: [0.8, 0.8, 0.82] });
@@ -710,7 +737,7 @@ export const JETPARK = { x: AIRPORT.x0 + 130, z: 150, slots: [0, 1, 2, 3].map((n
 }
 
 
-/* ---------- the city's landmark (model in Landmarks.tsx): red lattice tower, castle, seaside tower, red-tiled castle hall ---------- */
+/* ---------- the city's landmark (model in Landmarks.tsx): red lattice tower, castle, seaside tower, red-tiled castle hall, Nara's great hall ---------- */
 export const LANDMARK3D = (() => {
   const L = REGION.landmark;
   if (L.kind === 'seatower') return { kind: L.kind, label: L.label, x: BEACH_X + 34, z: -320 };
@@ -718,12 +745,23 @@ export const LANDMARK3D = (() => {
   return { kind: L.kind, label: L.label, x: (b.x0 + b.x1) / 2, z: (b.z0 + b.z1) / 2 };
 })();
 {
-  const { x, z, kind } = LANDMARK3D, R = kind === 'tower' ? 24 : kind === 'castle' ? 33 : kind === 'redcastle' ? 38 : 16;
+  const { x, z, kind } = LANDMARK3D, R = kind === 'tower' ? 24 : kind === 'castle' ? 33 : kind === 'redcastle' ? 38 : kind === 'daibutsu' ? 43 : 16;
   const clear = (L: { x: number; z: number }[]) => { for (let k = L.length - 1; k >= 0; k--) if (Math.abs(L[k].x - x) < R && Math.abs(L[k].z - z) < R) L.splice(k, 1); };
   clear(props.trees); clear(props.palms); clear(props.benches); clear(props.umbrellas); clear(props.bins);
   const box = (x0: number, z0: number, x1: number, z1: number, y0: number, y1: number) => solids.push({ x0: x + x0, z0: z + z0, x1: x + x1, z1: z + z1, y0, y1 });
   if (kind === 'tower') { for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(sx * 15 - 3, sz * 15 - 3, sx * 15 + 3, sz * 15 + 3, 0, 26); box(-9, -9, 9, 9, 0, 6.6); box(-9, -9, 9, 9, 26, 96); box(-11, -11, 11, 11, 96, 106); box(-5, -5, 5, 5, 106, 168); }
   else if (kind === 'castle') { box(-25, -21, 25, 21, 0, 14); box(-15, -12, 15, 12, 14, 50); }
+  else if (kind === 'daibutsu') {
+    // the great hall (open front: you can walk in to the seated bronze figure), the cloister round the forecourt with its middle gate, the bronze lantern
+    const D = DAIBUTSU;
+    box(D.hx0, D.hz0, D.hx1, D.hz0 + 1.2, 0, D.wallH); box(D.hx0, D.hz0, D.hx0 + 1.2, D.hz1, 0, D.wallH); box(D.hx1 - 1.2, D.hz0, D.hx1, D.hz1, 0, D.wallH);
+    box(D.hx0, D.hz1 - 1.2, -D.door, D.hz1, 0, D.wallH); box(D.door, D.hz1 - 1.2, D.hx1, D.hz1, 0, D.wallH); box(-D.door, D.hz1 - 1.2, D.door, D.hz1, D.doorH, D.wallH);
+    box(D.hx0 - 3, D.hz0 - 3, D.hx1 + 3, D.hz1 + 3, D.wallH, D.wallH + 16);
+    box(-7, D.bz - 7, 7, D.bz + 7, 0, 18); // the seated figure on its lotus
+    box(-1.3, D.lantZ - 1.3, 1.3, D.lantZ + 1.3, 0, 4.8);
+    const C = D.clo; box(-C, -C + 4, -C + 1.2, C, 0, 6); box(C - 1.2, -C + 4, C, C, 0, 6); box(-C, -C + 4, C, -C + 5.2, 0, 6);
+    box(-C, C - 1.2, -D.gate, C, 0, 6); box(D.gate, C - 1.2, C, C, 0, 6); for (const s of [-1, 1]) box(s * D.gate - 0.6, C - 2.2, s * D.gate + 0.6, C + 0.6, 0, 9);
+  }
   else if (kind === 'redcastle') { box(-24, -12, 24, 12, 0, 14); for (const [a, b2, c, d] of [[-35, -28, 35, -26], [-35, 26, -6, 28], [6, 26, 35, 28], [-35, -28, -33, 28], [33, -28, 35, 28]]) box(a, b2, c, d, 0, 4.2); }
   else { box(-15, -15, 15, 15, -2, 6.6); box(-8, -8, 8, 8, 6.6, 152); }
 }
@@ -838,7 +876,9 @@ export const SIG = {
   station: null as null | { x0: number; z0: number; x1: number; z1: number; red: boolean },
   arches: [] as { x: number; z: number; name: string }[],
   lanterns: [] as { x0: number; z0: number; x1: number; z1: number; y: number }[],
-  yatai: [] as { x: number; z: number; a: number; food: string; price: number }[],
+  yatai: [] as { x: number; z: number; a: number; food: string; price: number; /** Nara: sells crackers for the deer, carried in your pocket */ senbei?: boolean }[],
+  /** Nara: the five-storey pagoda (x, z of its centre) and the hall beside it */
+  pagoda: null as null | { x: number; z: number; hx: number; hz: number },
   gates: [] as { x: number; z: number; st: number; name: string }[],
   /** police boxes on street corners (ask for directions), red post boxes */
   koban: [] as { x: number; z: number; a: number }[],
@@ -859,6 +899,7 @@ export const SIG = {
     const tz = b.z1 - (big ? 4 : 3), tw = big ? 6 : 3; for (const s of [-1, 1]) solid(cx + s * tw - 0.4, tz - 0.4, cx + s * tw + 0.4, tz + 0.4, 0, big ? 11 : 5.5);
   };
   if (inTokyo()) { const b = blk((4 + O) * N + 9 + O); if (b && b.zone === 'park') shrineAt(b, true, '明治神宮'); }
+  if (LANDMARK3D.kind === 'daibutsu') SIG.shrines.push({ x: LANDMARK3D.x, z: LANDMARK3D.z + DAIBUTSU.bz - 3.5, big: true, name: LANDMARK3D.label }); // pray in front of the great figure
   { const parks = blocks.filter((b) => b.zone === 'park' && !SIG_BLOCKS.has(b.j * N + b.i) && !(b.i === LM_BLOCK.i && b.j === LM_BLOCK.j) && !(inTokyo() && b.i - O >= 9 && b.i - O <= 10 && b.j - O >= 3 && b.j - O <= 4));
     for (let k = 0; k < Math.min(5, parks.length); k++) { const b = parks[Math.floor(r() * parks.length)]; if (SIG.shrines.some((q) => Math.hypot(q.x - (b.x0 + b.x1) / 2, q.z - (b.z0 + b.z1) / 2) < 120)) continue; shrineAt(b, false, SHRINE_NAMES[k % SHRINE_NAMES.length]); } }
   // signature blocks
@@ -876,7 +917,15 @@ export const SIG = {
       for (const [lx0, lz0, lx1, lz1] of [[b.x0, b.z0 + 3, b.x1, b.z0 + 3], [b.x0, b.z1 - 3, b.x1, b.z1 - 3], [b.x0 + 3, b.z0, b.x0 + 3, b.z1], [b.x1 - 3, b.z0, b.x1 - 3, b.z1]]) SIG.lanterns.push({ x0: lx0, z0: lz0, x1: lx1, z1: lz1, y: 4.6 });
       for (let n = 0; n < 2; n++) SIG.yatai.push({ x: cx + (n ? 18 : -18), z: b.z1 - 9, a: 0, food: food(1)[0], price: food(1)[1] }); }
     else if (tag === 'dome') { clearIn(b.x0, b.z0, b.x1, b.z1); SIG.dome = { x: cx, z: cz, r: 38 }; solid(cx - 26, cz - 26, cx + 26, cz + 26, 0, 30); }
+    else if (tag === 'pagoda') { // Nara: a 50 m five-storey pagoda, a temple hall beside it, a stall selling crackers for the deer
+      clearIn(b.x0, b.z0, b.x1, b.z1); const px = cx + 14, pz = cz - 10, hx = cx - 17, hz = cz - 12; SIG.pagoda = { x: px, z: pz, hx, hz };
+      solid(px - 6, pz - 6, px + 6, pz + 6, 0, 52); solid(hx - 11, hz - 7, hx + 11, hz + 7, 0, 12);
+      SIG.shrines.push({ x: hx, z: hz - 1, big: true, name: '若草寺 東堂' });
+      SIG.yatai.push({ x: cx, z: b.z1 - 9, a: 0, food: '鹿せんべい', price: 2, senbei: true }); solid(cx - 1.3, b.z1 - 10, cx + 1.3, b.z1 - 8, 0, 2.6);
+    }
   }
+  // Nara: two more cracker stalls in the deer park (by the station end and on the way to the great hall)
+  if (REGION.id === 'nara') for (const [i, j] of [[NARA.park.i0, 13], [LM_BLOCK.i, LM_BLOCK.j + 1]]) { const b = blk(j * N + i); if (!b || b.zone !== 'park') continue; const x = (b.x0 + b.x1) / 2 - 12, z = b.z1 - 9; clearIn(x - 3, z - 3, x + 3, z + 3); SIG.yatai.push({ x, z, a: 0, food: '鹿せんべい', price: 2, senbei: true }); solid(x - 1.3, z - 1, x + 1.3, z + 1, 0, 2.6); }
   // station hall
   { const b = blk(STATION_BLOCK.j * N + STATION_BLOCK.i); if (b) SIG.station = { x0: b.x0 + 5, z0: b.z0 + 6, x1: b.x0 + 29, z1: b.z1 - 6, red: inTokyo() }; }
   // shopping street: a lit arch at each end of one block of a north-south street, lantern strings across it
@@ -1092,6 +1141,11 @@ export function districtAt(x: number, z: number): string {
   if (i === LM_BLOCK.i && j === LM_BLOCK.j && REGION.landmark.kind !== 'seatower') return RN.park;
   { const C = CANAL_BLOCKS.get(j * N + i); if (C && C.axis !== 'pond') return C.name; }
   if (isBay(i, j)) return RN.sea;
+  if (REGION.id === 'nara') { // the deer park, the old merchant quarter, the station area and its arcades, houses beyond
+    const M = NARA.machi; if (inNaraPark(i, j)) return RN.park; if (i >= M.i0 && i <= M.i1 && j >= M.j0 && j <= M.j1) return RN.residential[0];
+    const st = Math.hypot(i - STATION_BLOCK.i, j - STATION_BLOCK.j); if (st < 2.5) return RN.downtown; if (zoneOf(i, j) === 'commercial') return RN.commercial[i < 12 ? 0 : 1];
+    return zoneOf(i, j) === 'industrial' ? RN.industrial : RN.residential[1];
+  }
   const c = (N - 1) / 2, dx = i - c, dz = j - c, d = Math.max(Math.abs(dx), Math.abs(dz));
   if (d < N * 0.12) return RN.downtown;
   if (d < N * 0.24) return RN.commercial[dx < 0 ? 0 : 1];
