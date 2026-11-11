@@ -43,6 +43,13 @@ export interface BlockInfo { i: number; j: number; x0: number; z0: number; x1: n
 export const blocks: BlockInfo[] = [];
 export const buildings: Building[] = [];
 export const solids: Solid[] = [];
+/** Stairs of the pedestrian bridges, by block (j * N + i): the ground rises from the foot (z1) to the deck (z0, height top). */
+const STAIR_MAP = new Map<number, { x0: number; x1: number; z0: number; z1: number; top: number }[]>();
+function stairH(b: number, x: number, z: number): number {
+  const L = STAIR_MAP.get(b); if (!L) return 0.15;
+  for (const s of L) if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1) return Math.max(0.15, s.top - ((z - s.z0) / (s.z1 - s.z0)) * (s.top - 0.15));
+  return 0.15;
+}
 export const doors: Door[] = [];
 export const props = {
   lamps: [] as { x: number; z: number; a: number }[],
@@ -393,7 +400,7 @@ function downtownBlock(i: number, j: number, ix0: number, iz0: number, ix1: numb
 
 const SHOP_LABELS: [string, string, string, string][] = [['store', 'QWIK 24', '#3dffb0', 'store'], ['diner', '食堂 ネオン亭', '#ff6a9a', 'diner'], ['clothes', 'THREADS', '#c07aff', 'clothes'], ['store2', 'QWIK 24', '#3dffb0', 'store'], ['store3', 'QWIK 24', '#3dffb0', 'store'], ['arms', 'BAY ARMS', '#ff5a36', 'arms']];
 let shopDoorsLeft = SHOP_LABELS.length;
-const MACHIYA_BLOCKS = new Set<number>();
+const MACHIYA_BLOCKS = new Set<number>(), DANCHI_BLOCKS = new Set<number>();
 
 for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
   const x0 = blockX0(i), z0 = blockX0(j), x1 = x0 + BLOCK, z1 = z0 + BLOCK, zone = zoneOf(i, j), ci = i - O, cj = j - O, core = !ringOf(ci, cj);
@@ -430,7 +437,7 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       for (const [z0r, z1r] of [[iz0, iz0 + 13], [iz1 - 13, iz1]]) { let x = ix0; while (x < ix1 - 5) { const w = Math.min(ix1 - x, 6 + r() * 2.5); if (w < 4) break; addB({ x0: x, z0: z0r, x1: x + w - 0.15, z1: z1r, y0: S, h: 5.8 + r() * 0.8, type: 'house', tint: [0.75 + r() * 0.2, 0.7 + r() * 0.15, 0.62 + r() * 0.1], gable: true, roofTint: pick(REGION.roofs, r), style: 'machiya' }); x += w; } }
       for (let k = 0; k < 3; k++) props.trees.push({ x: ix0 + 15 + k * 25, z: (iz0 + iz1) / 2, s: 0.7 + r() * 0.3, y: S, c: r() < 0.3 ? SAKURA : undefined });
     } else if (r() < 0.25) {
-      const h = 14 + r() * 18;
+      const h = 14 + r() * 18; DANCHI_BLOCKS.add(j * N + i);
       addB({ x0: ix0 + 4, z0: iz0 + 4, x1: ix1 - 4, z1: iz0 + 34, y0: S, h, type: 'brick', tint: pick(BRICK_T, r) });
       addB({ x0: ix0 + 4, z0: iz1 - 34, x1: ix1 - 4, z1: iz1 - 4, y0: S, h: h * 0.8, type: 'brick', tint: pick(BRICK_T, r) });
     } else {
@@ -929,15 +936,57 @@ if (REGION.palmStreets) {
     else if (b.type === 'shop' && k.zone === 'commercial' && b.z0 - k.z0 < 8 && r() < 0.6) for (const s of [-1, 1]) props.shisa.push({ x: (b.x0 + b.x1) / 2 + s * 2.2, z: b.z0 - 0.7, y: 0.15, a: Math.PI });
   }
 }
-// low concrete-block walls (limestone in Naha) around the housing plots, with an opening in front of every plot
+/* ---------- pedestrian bridges (歩道橋) over the avenue, a little south of some signalled junctions: walk up the stairs and across ---------- */
+export const FB = { top: 5.3, hw: 1.2, run: 11, land: 1.9, s0: 0.3, s1: 1.8 };
+/** One bridge: it spans the north-south road at x; the deck is centred on z; stairs come down southwards on both pavements. */
+export const BRIDGES: { x: number; z: number }[] = [];
+{
+  const bad = (k: BlockInfo | undefined) => !k || k.zone === 'water' || k.zone === 'canal' || k.zone === 'station' || k === GARAGE.block;
+  for (let j = 0; j < N; j++) for (let i = 1; i < N; i++) {
+    if ((i + j) % 2 !== 0 || hash01(i * 13 + 5, j * 7 + 11) > 0.045) continue;
+    const x = roadC(i), W = blocks[j * N + i - 1], E = blocks[j * N + i];
+    if (bad(W) || bad(E) || !segOpen('z', i, j) || !nodeOpen(i, j) || Math.abs(x - RAIL.x) < 2 || (SHIN.has && Math.abs(x - SHIN.x) < 2) || (i === O + 4 && j === O + 4)) continue;
+    const z = E.z0 + 8, xw = x - ROAD / 2, xe = x + ROAD / 2, z0 = z + FB.hw, z1 = z0 + FB.run, T = FB.top;
+    if (doors.some((d) => Math.abs(d.x - x) < ROAD / 2 + 14 && d.z > z - 12 && d.z < z1 + 10)) continue; // not at a hand-made shop or home door (the start point is in front of one)
+    BRIDGES.push({ x, z });
+    const box = (x0: number, za: number, x1: number, zb: number, y0: number, y1: number) => solids.push({ x0, z0: za, x1, z1: zb, y0, y1 });
+    box(xw - FB.land, z - FB.hw, xe + FB.land, z + FB.hw, T - 0.5, T); // deck
+    box(xw - FB.land, z - FB.hw - 0.1, xe + FB.land, z - FB.hw, T, T + 1.15); box(xw - FB.s0, z + FB.hw, xe + FB.s0, z + FB.hw + 0.1, T, T + 1.15); // parapets
+    for (const [xa, xb] of [[xw - FB.land - 0.1, xw - FB.land], [xe + FB.land, xe + FB.land + 0.1]]) box(xa, z - FB.hw, xb, z + FB.hw, T, T + 1.15);
+    for (const px of [xw - 0.45, xe + 0.05]) box(px, z - 0.2, px + 0.4, z + 0.2, 0, T - 0.5); // piers at the kerbs
+    for (const [k, sx0, sx1] of [[j * N + i - 1, xw - FB.s1, xw - FB.s0], [j * N + i, xe + FB.s0, xe + FB.s1]] as [number, number, number][]) {
+      let a = STAIR_MAP.get(k); if (!a) STAIR_MAP.set(k, (a = [])); a.push({ x0: sx0, x1: sx1, z0, z1, top: T });
+      // solid sides so the stairs are only entered at the foot (in four steps of height)
+      for (let q = 0; q < 4; q++) { const za = z0 + (FB.run * q) / 4, zb = z0 + (FB.run * (q + 1)) / 4, h = T - ((T - 0.15) * q) / 4 + 1.0; box(sx0 - 0.1, za, sx0, zb, 0, h); box(sx1, za, sx1 + 0.1, zb, 0, h); }
+    }
+    for (const L of [props.trees, props.lamps, props.benches, props.bins, props.vends, props.poles, props.hydrants] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (L[k].z > z - 2.2 && L[k].z < z1 + 1.5 && ((L[k].x > xw - 2.6 && L[k].x < xw + 0.3) || (L[k].x > xe - 0.3 && L[k].x < xe + 2.6))) L.splice(k, 1);
+  }
+}
+
+/* ---------- narrow back lanes (生活道路): 4 m lanes east-west through the blocks of houses, between the rows of plots ---------- */
+export const LANE_W = 4;
+/** One lane: from the west kerb to the east kerb of its block at z. */
+export const LANES: { x0: number; x1: number; z: number }[] = [];
+/** z of the lanes through block b (two between the three rows of house plots, one between the slabs of a housing estate). */
+const lanesOf = (b: BlockInfo): number[] => {
+  if (b.zone !== 'residential' || b === GARAGE.block || MACHIYA_BLOCKS.has(b.j * N + b.i)) return [];
+  const iz0 = b.z0 + 5, iz1 = b.z1 - 5;
+  return DANCHI_BLOCKS.has(b.j * N + b.i) ? [(iz0 + iz1) / 2] : [iz0 + (iz1 - iz0) / 3, iz0 + ((iz1 - iz0) * 2) / 3];
+};
+for (const b of blocks) for (const z of lanesOf(b)) {
+  LANES.push({ x0: b.x0, x1: b.x1, z });
+  // nothing stands in the mouth of a lane
+  for (const L of [props.trees, props.lamps, props.benches, props.bins, props.vends, props.poles, props.hydrants] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (Math.abs(L[k].z - z) < LANE_W / 2 + 1 && L[k].x > b.x0 - 0.5 && L[k].x < b.x1 + 0.5) L.splice(k, 1);
+}
+// low concrete-block walls (limestone in Naha) around the housing plots, with an opening in front of every plot and at every lane
 {
   const lime = REGION.palmStreets;
   for (const b of blocks) {
     if (b.zone !== 'residential' || b === GARAGE.block || MACHIYA_BLOCKS.has(b.j * N + b.i)) continue;
-    const ix0 = b.x0 + 5, iz0 = b.z0 + 5, ix1 = b.x1 - 5, iz1 = b.z1 - 5, cw = (ix1 - ix0) / 3, gaps = [0.5, 1.5, 2.5].map((k) => ix0 + cw * k), zgap = (iz0 + iz1) / 2;
+    const ix0 = b.x0 + 5, iz0 = b.z0 + 5, ix1 = b.x1 - 5, iz1 = b.z1 - 5, cw = (ix1 - ix0) / 3, gaps = [0.5, 1.5, 2.5].map((k) => ix0 + cw * k), LZ = lanesOf(b);
     const seg = (x0: number, z0: number, x1: number, z1: number) => { if (x1 - x0 < 0.5 && z1 - z0 < 0.5) return; props.walls.push({ x0, z0, x1, z1, lime }); solids.push({ x0, z0, x1, z1, y0: 0, y1: 1.3 }); };
     for (const z of [iz0, iz1 - 0.2]) { let a = ix0; for (const g of gaps) { seg(a, z, g - 2.2, z + 0.2); a = g + 2.2; } seg(a, z, ix1, z + 0.2); }
-    for (const x of [ix0, ix1 - 0.2]) { seg(x, iz0, x + 0.2, zgap - 2.2); seg(x, zgap + 2.2, x + 0.2, iz1); }
+    for (const x of [ix0, ix1 - 0.2]) { let a = iz0; for (const g of LZ) { seg(x, a, x + 0.2, g - LANE_W / 2 - 0.3); a = g + LANE_W / 2 + 0.3; } seg(x, a, x + 0.2, iz1); }
   }
 }
 
@@ -982,7 +1031,7 @@ export function groundAt(x: number, z: number): number {
   const lx = x + HALF, lz = z + HALF;
   if (lx >= 0 && lz >= 0 && lx <= CITY && lz <= CITY) {
     const i = Math.floor((lx - ROAD) / PITCH), j = Math.floor((lz - ROAD) / PITCH);
-    if (i >= 0 && j >= 0 && i < N && j < N && lx - ROAD - i * PITCH < BLOCK && lz - ROAD - j * PITCH < BLOCK) return (CANAL_RECTS.length && inCanal(x, z)) || inBay(x, z) ? WATER_Y - 3 : 0.15;
+    if (i >= 0 && j >= 0 && i < N && j < N && lx - ROAD - i * PITCH < BLOCK && lz - ROAD - j * PITCH < BLOCK) return (CANAL_RECTS.length && inCanal(x, z)) || inBay(x, z) ? WATER_Y - 3 : STAIR_MAP.size ? stairH(j * N + i, x, z) : 0.15;
     return inBay(x, z) ? WATER_Y - 3 : rampAt(x, z);
   }
   if (onPier(x, z)) return PIER.y;

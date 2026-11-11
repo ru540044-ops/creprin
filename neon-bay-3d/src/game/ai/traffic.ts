@@ -6,11 +6,12 @@ import { signalState } from '../world/City';
 import { steer, newAI, nodeIdx, edgeOpen } from './driver';
 import { clamp } from '../world/rng';
 import { admin } from '../admin';
+import { trafficFactor } from './schedule';
 
 /** Civilian traffic: cars wander the street grid in the left-hand lane (Japan), stop at red lights and keep their distance. */
 const KINDS: VKind[] = ['sedan', 'sedan', 'sedan', 'suv', 'suv', 'truck', 'sport', 'bike', 'super', 'taxi', 'taxi', 'hatch', 'hatch', 'pickup', 'pickup', 'muscle'];
 const LANE = 3.3;
-export const trafficCap = () => Math.round((game.quality === 'low' ? 8 : game.quality === 'medium' ? 13 : 18) * (admin.is ? admin.density : 1));
+export const trafficCap = () => Math.round((game.quality === 'low' ? 8 : game.quality === 'medium' ? 13 : 18) * (admin.is ? admin.density : 1) * trafficFactor());
 let spawnT = 0, patrolT = 20;
 
 /** Obstacles (cars, the player, pedestrians) directly ahead limit the speed. */

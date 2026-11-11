@@ -139,7 +139,8 @@ function pedPose(p: Ped, out: A.Pose, tmp: A.Pose, t: number) {
     }
     default: {
       A.locomotion(out, p.phase, sp, p.gait);
-      if (p.state === 'flee' && p.flail) { A.copyPose(tmp, out); A.flail(tmp, tt); A.blendUpper(out, tmp, 0.85); }
+      if (p.callT > 0) { A.copyPose(tmp, out); A.phoneCall(tmp); A.blendUpper(out, tmp, 1); } // calling the police
+      else if (p.state === 'flee' && p.flail) { A.copyPose(tmp, out); A.flail(tmp, tt); A.blendUpper(out, tmp, 0.85); }
       else if (p.gait.kind === 'texting' && p.state !== 'flee') { A.copyPose(tmp, out); A.texting(tmp); A.blendUpper(out, tmp, 1); }
       else if (p.gait.kind === 'caller' && p.state !== 'flee') { A.copyPose(tmp, out); A.phoneCall(tmp); A.blendUpper(out, tmp, 1); }
     }

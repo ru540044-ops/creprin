@@ -86,7 +86,7 @@ export const lookState = { ver: 0 };
 const rnd = (seed: number, k: number) => { const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
 export function lookFromSeed(seed: number, outfit = 0): Appearance {
   const r = (k: number) => rnd(seed, k), pick = <T,>(a: readonly T[], k: number) => a[Math.floor(r(k) * a.length) % a.length];
-  const fem = r(1) < 0.5, mood = fashion.style === 'mix' ? (['casual', 'casual', 'business', 'street', 'luxury'] as const)[Math.floor(r(2) * 5)] : fashion.style;
+  const fem = r(1) < 0.5, mood = outfit === 4 ? 'business' : fashion.style === 'mix' ? (['casual', 'casual', 'business', 'street', 'luxury'] as const)[Math.floor(r(2) * 5)] : fashion.style; // outfit 4: a commuter in office clothes
   const L: Appearance = { ...DEFAULT_LOOK, fem, height: 0.95 + r(3) * 0.1, skin: Math.floor(r(4) * SKINS.length), face: Math.floor(r(5) * 6), eye: Math.floor(r(6) * EYE_COLORS.length), brow: Math.floor(r(7) * 3),
     lips: fem && r(8) < 0.7 ? 1 + Math.floor(r(9) * (LIPS.length - 1)) : 0, hairColor: r(10) < 0.85 ? Math.floor(r(11) * 6) : Math.floor(r(11) * HAIR_COLORS.length),
     hair: fem ? pick(['long', 'pony', 'bob', 'curly', 'bun', 'long', 'short'] as const, 12) : pick(['short', 'side', 'buzz', 'curly', 'bald', 'short', 'side'] as const, 12),

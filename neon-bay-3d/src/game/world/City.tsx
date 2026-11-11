@@ -6,7 +6,7 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay, TUN, chamCut,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay, TUN, chamCut, LANES, LANE_W, BRIDGES, FB,
 } from './cityGen';
 import { REGION } from './region';
 import { game } from '../state/store';
@@ -230,11 +230,7 @@ function buildChunkLevel(list: Building[], hi: boolean): Built {
       if (b.style === 'okinawa') { const tx = b.x0 + 2.2, tz = b.z1 - 2.2; m.box(tx - 0.6, top, tz - 0.6, tx + 0.6, top + 0.7, tz + 0.6, [0.6, 0.6, 0.6]); g('metal').box(tx - 0.75, top + 0.7, tz - 0.75, tx + 0.75, top + 2.0, tz + 0.75, [0.1, 0.1, 0.12]); }
       if (b.type === 'glass' && b.h > 70) { g('metal').box(cx - 0.3, top, cz - 0.3, cx + 0.3, top + 14, cz + 0.3, [0.7, 0.7, 0.75]); g('glow').box(cx - 0.6, top + 14, cz - 0.6, cx + 0.6, top + 15, cz + 0.6, [1, 0.15, 0.15]); }
       if (b.type === 'brick' && r() < 0.5) { const tx = b.x1 - 6, tz = b.z1 - 6; for (const [ox, oz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) m.box(tx + ox - 0.15, top, tz + oz - 0.15, tx + ox + 0.15, top + 3, tz + oz + 0.15, [0.3, 0.25, 0.2]); m.box(tx - 2, top + 3, tz - 2, tx + 2, top + 6.5, tz + 2, [0.5, 0.38, 0.28]); }
-      if (b.type === 'shop') {
-        const sides: [number, number, number, number, number][] = [[b.x0, b.z0 - 1.6, b.x1, b.z0, 0], [b.x0, b.z1, b.x1, b.z1 + 1.6, 0]];
-        const aw = [[0.85, 0.2, 0.25], [0.15, 0.5, 0.35], [0.2, 0.35, 0.7], [0.9, 0.65, 0.15]][Math.floor(r() * 4)];
-        void aw; for (const [a0, b0, a1, b1] of sides) { g('glow').box(a0 + (a1 - a0) * 0.3, b.y0 + 4.1, b0 + (b1 - b0) * 0.5 - 0.12, a0 + (a1 - a0) * 0.7, b.y0 + 5, b0 + (b1 - b0) * 0.5 + 0.12, [[1, 0.3, 0.55], [0.25, 0.9, 1], [1, 0.8, 0.25], [0.4, 1, 0.55]][Math.floor(r() * 4)]); }
-      }
+      // (shops carry the sign of their business over the door: see Detail.tsx)
       if (b.type === 'warehouse') for (let n = 0; n < 3; n++) { const dx = b.x0 + 6 + n * ((b.x1 - b.x0 - 12) / 2.5); m.box(dx, b.y0, b.z1, dx + 6, b.y0 + 5, b.z1 + 0.1, [0.25, 0.27, 0.3]); }
     }
   }
@@ -562,7 +558,34 @@ function buildPaint(tx: number, tz: number): Built {
       G.flat(Math.min(sx + lx * 0.2, sx + lx * 6.4 + hx * 0.45), Math.min(sz + lz * 0.2, sz + lz * 6.4 + hz * 0.45), Math.max(sx + lx * 0.2, sx + lx * 6.4 + hx * 0.45), Math.max(sz + lz * 0.2, sz + lz * 6.4 + hz * 0.45), 0.021, W === 2.9 ? [0.92, 0.92, 0.9] : Y);
     }
   }
+  for (const L of LANES) {
+    if (!inT((L.x0 + L.x1) / 2, L.z)) continue;
+    for (const o of [-LANE_W / 2 + 0.25, LANE_W / 2 - 0.37]) G.flat(L.x0 + 5, L.z + o, L.x1 - 5, L.z + o + 0.12, 0.19, W);
+    for (const [ex, hx] of [[L.x0 + 5, -1], [L.x1 - 5, 1]]) { // leaving the lane: stop line just inside the pavement, the marking behind it
+      G.flat(Math.min(ex, ex - hx * 0.4), L.z - LANE_W / 2 + 0.25, Math.max(ex, ex - hx * 0.4), L.z + LANE_W / 2 - 0.25, 0.19, W);
+      const cx = ex - hx * 3.4, lz = -hx, Wd = 2.3, Ln = 3.6;
+      const P = (u: number, v: number) => [cx + hx * (v - 0.5) * Ln, 0.195, L.z + lz * (0.5 - u) * Wd];
+      const A = P(0, 0), Bq = P(1, 0), Cq = P(1, 1), D = P(0, 1), up = (Bq[2] - A[2]) * (Cq[0] - Bq[0]) - (Bq[0] - A[0]) * (Cq[2] - Bq[2]) > 0;
+      if (up) TM.quad(A, Bq, Cq, D, [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1]); else TM.quad(D, Cq, Bq, A, [0, 1, 0], [[0, 1], [1, 1], [1, 0], [0, 0]], [1, 1, 1]);
+    }
+  }
+  // pedestrian bridges: painted steel deck and girders, panel parapets, concrete piers, stairs down both pavements
+  const FBG = new Geo(), FBM = new Geo();
+  for (const B of BRIDGES) {
+    if (!inT(B.x, B.z)) continue;
+    const xw = B.x - ROAD / 2, xe = B.x + ROAD / 2, T = FB.top, z = B.z, STEEL = [0.56, 0.74, 0.72], PANEL = [0.86, 0.9, 0.88], CON = [0.7, 0.69, 0.66], z0 = z + FB.hw, n = 26, tread = FB.run / n;
+    FBG.box(xw - FB.land, T - 0.14, z - FB.hw, xe + FB.land, T, z + FB.hw, [0.5, 0.5, 0.52]); // walking surface
+    for (const s of [-1, 1]) FBG.box(xw - FB.land, T - 0.75, z + s * FB.hw - 0.12, xe + FB.land, T - 0.14, z + s * FB.hw + 0.12, STEEL); // girders
+    FBM.box(xw - FB.land, T, z - FB.hw - 0.06, xe + FB.land, T + 1.15, z - FB.hw, PANEL); FBM.box(xw - FB.s0, T, z + FB.hw, xe + FB.s0, T + 1.15, z + FB.hw + 0.06, PANEL);
+    for (const [xa, xb] of [[xw - FB.land - 0.06, xw - FB.land], [xe + FB.land, xe + FB.land + 0.06]]) FBM.box(xa, T, z - FB.hw, xb, T + 1.15, z + FB.hw, PANEL);
+    for (const px of [xw - 0.45, xe + 0.05]) FBG.box(px, 0.15, z - 0.2, px + 0.4, T - 0.75, z + 0.2, CON);
+    for (const [sx0, sx1] of [[xw - FB.s1, xw - FB.s0], [xe + FB.s0, xe + FB.s1]]) {
+      for (let k = 0; k < n; k++) { const h = T - ((T - 0.15) * (k + 1)) / n; FBG.box(sx0, 0.15, z0 + k * tread, sx1, h + 0.1, z0 + (k + 1) * tread, k % 2 ? [0.62, 0.62, 0.64] : [0.56, 0.56, 0.58]); }
+      for (const sx of [sx0 - 0.06, sx1]) for (let q = 0; q < 8; q++) { const za = z0 + (FB.run * q) / 8, zb = z0 + (FB.run * (q + 1)) / 8, h = T - ((T - 0.15) * q) / 8; FBM.box(sx, h - 0.6, za, sx + 0.06, h + 1.05, zb, PANEL); }
+    }
+  }
   const out: Built = []; if (!G.empty) out.push({ k: 'paint', geo: G.build() }); if (!TM.empty) out.push({ k: 'tomare', geo: TM.build() });
+  if (!FBG.empty) out.push({ k: 'misc', geo: FBG.build() }); if (!FBM.empty) out.push({ k: 'metal', geo: FBM.build() });
   return out;
 }
 function buildGround() {
@@ -608,6 +631,15 @@ function buildGround() {
   for (let k = 0; k <= N; k++) { const c = roadC(k); for (let s = 0; s < N; s++) { const a = roadC(s) + ROAD / 2, e = roadC(s + 1) - ROAD / 2; if (segOpen('x', k, s)) G.road.flat(a, c - ROAD / 2, e, c + ROAD / 2, 0, ONE, 10); if (segOpen('z', k, s)) G.road.flat(c - ROAD / 2, a, c + ROAD / 2, e, 0, ONE, 10); } }
   for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) if (nodeOpen(i, j)) G.road.flat(roadC(i) - ROAD / 2, roadC(j) - ROAD / 2, roadC(i) + ROAD / 2, roadC(j) + ROAD / 2, 0, ONE, 10);
   for (const q of SHORE) { G.misc.box(q.x0, -3.2, q.z0, q.x1, q.top + 0.05, q.z1, [0.56, 0.55, 0.52], 4, 4, G.misc); const ax = q.x1 - q.x0 > q.z1 - q.z0; G.metal.box(q.x0, q.top + 0.95, q.z0, q.x1, q.top + 1.03, q.z1, [0.75, 0.77, 0.8]); for (let t = ax ? q.x0 : q.z0; t < (ax ? q.x1 : q.z1); t += 2.5) G.metal.box(ax ? t : q.x0 + 0.1, q.top, ax ? q.z0 + 0.1 : t, ax ? t + 0.08 : q.x0 + 0.18, q.top + 0.95, ax ? q.z0 + 0.18 : t + 0.08, [0.75, 0.77, 0.8]); }
+  // back lanes through the housing blocks, with an orange curve mirror at each mouth
+  for (const L of LANES) {
+    G.road.flat(L.x0, L.z - LANE_W / 2, L.x1, L.z + LANE_W / 2, 0.175, [0.86, 0.86, 0.88], 10);
+    for (const [x, s] of [[L.x0 + 4.4, 1], [L.x1 - 4.4, -1]]) {
+      const z = L.z + s * (LANE_W / 2 + 0.5);
+      G.misc.box(x - 0.05, 0.15, z - 0.05, x + 0.05, 2.7, z + 0.05, [0.95, 0.5, 0.1]);
+      G.misc.box(x - 0.42, 2.25, z - 0.06, x + 0.42, 3.05, z + 0.06, [0.95, 0.5, 0.1]); G.metal.box(x - 0.34, 2.33, z - 0.08, x + 0.34, 2.97, z + 0.08, [0.82, 0.86, 0.9]);
+    }
+  }
   // ring highway
   const C = HWY_C, hw = HWY_W / 2;
   const seg = (x0: number, z0: number, x1: number, z1: number) => G.asphalt2.flat(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), 0.03, ONE, 8);
