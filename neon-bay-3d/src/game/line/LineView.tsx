@@ -97,7 +97,7 @@ export default function LineView() {
       // ground either side, coloured by what the line runs through; water beside the line (sea, lake)
       for (const sd of [-1, 1]) {
         const w = g.water.find((q) => q.side === sd && q0 + C > q.a && q0 < q.b);
-        if (w) { put(P.ground, sd * 40, -0.2, zc, 64, 0.25, C, [0.78, 0.74, 0.6]); put(P.water, sd * 1580, -0.3, zc, 3000, 0.3, C, w.lake ? [0.16, 0.34, 0.42] : [0.1, 0.27, 0.42]); continue; }
+        if (w) { put(P.ground, sd * 18, -0.2, zc, 24, 0.25, C, w.lake ? [0.4, 0.5, 0.32] : [0.78, 0.74, 0.6]); put(P.water, sd * 1530, -0.3, zc, 3000, 0.3, C, w.lake ? [0.16, 0.34, 0.42] : [0.1, 0.27, 0.42]); continue; }
         const gc = GROUND[zn], k = 0.92 + r(sd + 11) * 0.12; put(P.ground, sd * 606, -0.2, zc, 1200, 0.25, C, [gc[0] * k, gc[1] * k, gc[2] * k]);
       }
       // a river under a bridge
