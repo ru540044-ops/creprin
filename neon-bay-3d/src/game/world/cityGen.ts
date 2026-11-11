@@ -184,6 +184,8 @@ export const inCanal = (x: number, z: number) => { for (const r of CANAL_RECTS) 
 export const canalAt = (x: number, z: number) => { for (const r of CANAL_RECTS) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return r; return null; };
 /** The main station building stands east of the elevated railway, level with its middle station. */
 export const STATION_BLOCK = { i: O + 12, j: N / 2 };
+/** The station-front rotary (filled in when the station block is built). */
+export const ROTARY = { on: false, x0: 0, x1: 0, z0: 0, z1: 0, island: { x0: 0, x1: 0, z0: 0, z1: 0 }, taxi: { x: 0, z: 0 }, bus: { x: 0, z: 0 } };
 /** Blocks kept open for a signature place (they become plazas / parks). */
 export const SIG_BLOCKS = new Map<number, 'temple' | 'skytower' | 'shinsekai' | 'dome'>();
 {
@@ -485,7 +487,12 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     // the main station: a long hall facing the railway (red brick with domes in Tokyo, glass elsewhere), a forecourt behind
     const red = inTokyo(), nm = (REGION.station || REGION.names.downtown + '駅') + ' 駅構内';
     addB({ x0: ix0, z0: iz0 + 1, x1: ix0 + 24, z1: iz1 - 1, y0: S, h: red ? 15 : 19, type: red ? 'brick' : 'glass', tint: red ? [0.86, 0.42, 0.32] : [0.78, 0.86, 0.94], name: nm });
-    for (const z of [iz0 + 6, iz1 - 6]) props.trees.push({ x: ix0 + 34, z, s: 0.9, y: S });
+    // the station-front rotary between the hall and the Shinkansen concourse: a one-way loop round an island with the taxi rank and the bus stop
+    const R = ROTARY; R.on = true; R.x0 = ix0 + 24.5; R.x1 = ix0 + 40.5; R.z0 = iz0; R.z1 = iz1;
+    R.island = { x0: ix0 + 29.5, x1: ix0 + 35.5, z0: iz0 + 17, z1: iz1 - 17 };
+    R.taxi = { x: R.island.x0 - 0.9, z: R.island.z0 + 6 }; R.bus = { x: R.island.x1 + 0.9, z: R.island.z1 - 7 };
+    solids.push({ ...R.island, y0: 0, y1: 0.32 }); // the island kerb
+    for (let z = R.island.z0 + 4; z < R.island.z1 - 3; z += 9) props.trees.push({ x: (R.island.x0 + R.island.x1) / 2, z, s: 0.75, y: 0.32 });
   } else if (zone === 'gas') {
     const sx0 = ix0 + 10, sz0 = iz0 + 50;
     addB({ x0: sx0, z0: sz0, x1: sx0 + 26, z1: sz0 + 16, y0: S, h: 5, type: 'shop', tint: [0.95, 0.95, 0.95] });

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { SIG, buildings, roadC, O, ROAD, RAIL } from './cityGen';
+import { SIG, buildings, roadC, O, ROAD, RAIL, ROTARY } from './cityGen';
 import { REGION } from './region';
 import { labelTexture } from './textures';
 import { game } from '../state/store';
@@ -42,6 +42,8 @@ export default function Signature() {
   const D = useMemo(() => {
     const S: THREE.BufferGeometry[] = [], G: THREE.BufferGeometry[] = [], L: THREE.BufferGeometry[] = [];
     const signs: { tex: THREE.Texture; x: number; y: number; z: number; w: number; h: number; ry: number }[] = [];
+    // station-front rotary: signs over the taxi rank and the bus stop (both sides, readable from the loop)
+    if (ROTARY.on) for (const [p, t, c] of [[ROTARY.taxi, 'タクシーのりば', '#ffd23a'], [ROTARY.bus, '空港バス のりば', '#2be4ff']] as [{ x: number; z: number }, string, string][]) { const tex = labelTexture(t, c, 512, 128); signs.push({ tex, x: p.x, y: 2.95, z: p.z, w: 2.4, h: 0.6, ry: Math.PI / 2 }, { tex, x: p.x, y: 2.95, z: p.z, w: 2.4, h: 0.6, ry: -Math.PI / 2 }); }
     // shrines and the temple hall
     for (const sh of SIG.shrines) {
       if (sh.tz !== undefined) { torii(S, sh.x, sh.tz, sh.big); hall(S, G, sh.x, sh.z, sh.big ? 18 : 9, sh.big ? 13 : 6.5, sh.big ? 8 : 4.2, sh.big ? [0.3, 0.42, 0.36] : ROOF, false); }

@@ -6,7 +6,7 @@ import { Geo } from './geo';
 import { getTextures, labelTexture } from './textures';
 import { mulberry } from './rng';
 import {
-  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay, TUN, chamCut, LANES, LANE_W, BRIDGES, FB,
+  blocks, buildings, props, doors, topFoot, Building, BType, N, ROAD, PITCH, HALF, CITY, HWY_C, HWY_W, roadC, LAND, PORT, AIRPORT, BEACH_X, heightAt, WATER_Y, PIER, HWY_LINKS, O, CANAL_RECTS, PROM, CANAL_BLOCKS, SHORE, segOpen, nodeOpen, inBay, TUN, chamCut, LANES, LANE_W, BRIDGES, FB, ROTARY,
 } from './cityGen';
 import { REGION } from './region';
 import { game } from '../state/store';
@@ -558,6 +558,11 @@ function buildPaint(tx: number, tz: number): Built {
       G.flat(Math.min(sx + lx * 0.2, sx + lx * 6.4 + hx * 0.45), Math.min(sz + lz * 0.2, sz + lz * 6.4 + hz * 0.45), Math.max(sx + lx * 0.2, sx + lx * 6.4 + hx * 0.45), Math.max(sz + lz * 0.2, sz + lz * 6.4 + hz * 0.45), 0.021, W === 2.9 ? [0.92, 0.92, 0.9] : Y);
     }
   }
+  if (ROTARY.on && inT((ROTARY.x0 + ROTARY.x1) / 2, (ROTARY.z0 + ROTARY.z1) / 2)) { // one-way markings round the island, bus and taxi bays
+    const R = ROTARY, I = R.island, Yb = [0.95, 0.75, 0.2];
+    for (let z = R.z0 + 3; z < R.z1 - 3; z += 5) { G.flat(R.x0 + 0.4, z, R.x0 + 0.55, z + 2.4, 0.19, W); G.flat(R.x1 - 0.55, z, R.x1 - 0.4, z + 2.4, 0.19, W); }
+    for (const [x0, x1] of [[R.taxi.x - 2.4, R.taxi.x - 0.3], [R.bus.x + 0.3, R.bus.x + 3.0]]) { const z0 = x0 < I.x0 ? R.taxi.z - 3 : R.bus.z - 7, z1 = z0 + (x0 < I.x0 ? 13 : 14); G.flat(x0, z0, x0 + 0.12, z1, 0.19, Yb); G.flat(x1 - 0.12, z0, x1, z1, 0.19, Yb); G.flat(x0, z0, x1, z0 + 0.12, 0.19, Yb); G.flat(x0, z1 - 0.12, x1, z1, 0.19, Yb); }
+  }
   for (const L of LANES) {
     if (!inT((L.x0 + L.x1) / 2, L.z)) continue;
     for (const o of [-LANE_W / 2 + 0.25, LANE_W / 2 - 0.37]) G.flat(L.x0 + 5, L.z + o, L.x1 - 5, L.z + o + 0.12, 0.19, W);
@@ -631,6 +636,17 @@ function buildGround() {
   for (let k = 0; k <= N; k++) { const c = roadC(k); for (let s = 0; s < N; s++) { const a = roadC(s) + ROAD / 2, e = roadC(s + 1) - ROAD / 2; if (segOpen('x', k, s)) G.road.flat(a, c - ROAD / 2, e, c + ROAD / 2, 0, ONE, 10); if (segOpen('z', k, s)) G.road.flat(c - ROAD / 2, a, c + ROAD / 2, e, 0, ONE, 10); } }
   for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) if (nodeOpen(i, j)) G.road.flat(roadC(i) - ROAD / 2, roadC(j) - ROAD / 2, roadC(i) + ROAD / 2, roadC(j) + ROAD / 2, 0, ONE, 10);
   for (const q of SHORE) { G.misc.box(q.x0, -3.2, q.z0, q.x1, q.top + 0.05, q.z1, [0.56, 0.55, 0.52], 4, 4, G.misc); const ax = q.x1 - q.x0 > q.z1 - q.z0; G.metal.box(q.x0, q.top + 0.95, q.z0, q.x1, q.top + 1.03, q.z1, [0.75, 0.77, 0.8]); for (let t = ax ? q.x0 : q.z0; t < (ax ? q.x1 : q.z1); t += 2.5) G.metal.box(ax ? t : q.x0 + 0.1, q.top, ax ? q.z0 + 0.1 : t, ax ? t + 0.08 : q.x0 + 0.18, q.top + 0.95, ax ? q.z0 + 0.18 : t + 0.08, [0.75, 0.77, 0.8]); }
+  // station-front rotary: asphalt loop, the island with its kerb, a bus shelter and the taxi rank sign
+  if (ROTARY.on) {
+    const R = ROTARY, I = R.island;
+    G.road.flat(R.x0, R.z0, R.x1, R.z1, 0.17, [0.9, 0.9, 0.92], 10);
+    G.misc.box(I.x0, 0, I.z0, I.x1, 0.32, I.z1, [0.72, 0.71, 0.68], 4, 4, G.side, 2);
+    G.misc.box(I.x0 + 1.4, 0.32, I.z0 + 1.4, I.x1 - 1.4, 0.36, I.z1 - 1.4, [0.42, 0.62, 0.36]);
+    const b = R.bus; // shelter on the east side of the island, facing the buses
+    for (const z of [b.z - 3, b.z + 3]) G.metal.box(b.x - 1.6, 0.32, z - 0.06, b.x - 1.48, 2.7, z + 0.06, [0.6, 0.63, 0.67]);
+    G.metal.box(b.x - 2.0, 2.7, b.z - 3.4, b.x - 0.2, 2.82, b.z + 3.4, [0.78, 0.82, 0.86]); G.misc.box(b.x - 1.9, 0.32, b.z - 2.4, b.x - 1.5, 0.78, b.z + 2.4, [0.35, 0.55, 0.8]);
+    for (const p of [b, R.taxi]) G.metal.box(p.x - 0.05, 0.32, p.z - 0.05, p.x + 0.05, 2.6, p.z + 0.05, [0.55, 0.57, 0.6]);
+  }
   // back lanes through the housing blocks, with an orange curve mirror at each mouth
   for (const L of LANES) {
     G.road.flat(L.x0, L.z - LANE_W / 2, L.x1, L.z + LANE_W / 2, 0.175, [0.86, 0.86, 0.88], 10);

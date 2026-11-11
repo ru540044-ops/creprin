@@ -1,6 +1,6 @@
 import { game, toast, save, progress } from '../state/store';
 import { playerCar } from '../vehicles/sim';
-import { props, SIG, RAIL, inCanal, CANAL_RECTS, PROM, groundAt, SHIN, isWater, LANDMARK3D, shinStand, shinCabDoor, shinUp, shinDown, ShinPlatform, TUN, inTunnel, HALF } from '../world/cityGen';
+import { props, SIG, RAIL, inCanal, CANAL_RECTS, PROM, groundAt, SHIN, isWater, LANDMARK3D, shinStand, shinCabDoor, shinUp, shinDown, ShinPlatform, TUN, inTunnel, HALF, ROTARY, AIRPORT_ARRIVAL, floorAt } from '../world/cityGen';
 import { spawn, remove, playerCar as pcar, Veh, shinLimits, SHIN_FLIP, atcKmh, shinRun } from '../vehicles/sim';
 import { releaseDrive, input } from '../input';
 import { REGIONS, route, RegionId } from '../world/region';
@@ -33,6 +33,8 @@ function nearVend(x: number, z: number) {
   }
   return null;
 }
+/** Taxi fare: a flag fall plus distance, in dollars. */
+const taxiFare = (d: number) => Math.round(7 + d / 250);
 const front = (o: { x: number; z: number; a: number }, d: number) => ({ x: o.x + Math.sin(o.a) * d, z: o.z + Math.cos(o.a) * d });
 
 export function japanNear(): Near | null {
@@ -40,6 +42,10 @@ export function japanNear(): Near | null {
   const p = game.player;
   if (CANAL_RECTS.length && inCanal(p.x, p.z) && p.y < -0.2) return { kind: 'job', id: 'jp:climb', label: '岸に上がる', btn: '上がる' };
   { const st = stationNear(p); if (st) return st; }
+  if (ROTARY.on) { // the station-front rotary: the taxi rank takes you to your waypoint, the bus to the airport
+    if (Math.hypot(ROTARY.taxi.x - p.x, ROTARY.taxi.z - p.z) < 2.4) { const w = game.waypoint, d = w ? Math.hypot(w.x - p.x, w.z - p.z) : 0; return w && d > 60 ? { kind: 'job', id: 'jp:taxi', label: `タクシーで目的地へ（約${(d / 1000).toFixed(1)}km・$${taxiFare(d)}）`, btn: '乗る' } : { kind: 'job', id: 'jp:taxinone', label: 'タクシー乗り場（マップで目的地を決めると乗れる）', btn: '乗る' }; }
+    if (Math.hypot(ROTARY.bus.x - p.x, ROTARY.bus.z - p.z) < 2.4) return { kind: 'job', id: 'jp:bus', label: `空港リムジンバスで${REGION.names.airport}へ（$12）`, btn: '乗る' };
+  }
   for (let i = 0; i < SIG.gates.length; i++) { const g = SIG.gates[i]; if (Math.hypot(g.x - p.x, g.z - p.z) < 2.6) { const to = SIG.gates[(i + 1) % SIG.gates.length]; return { kind: 'job', id: 'jp:train:' + i, label: `${RAIL.name}で${to.name}へ（$3）`, btn: '乗車' }; } }
   for (let i = 0; i < SIG.yatai.length; i++) { const y = SIG.yatai[i], f = front(y, 2.2); if (Math.hypot(f.x - p.x, f.z - p.z) < 1.7) return { kind: 'job', id: 'jp:yatai:' + i, label: `屋台で${y.food}を食べる（$${y.price}・体力全回復）`, btn: '食べる' }; }
   for (let i = 0; i < SIG.shrines.length; i++) { const s = SIG.shrines[i], d = s.big ? 10.5 : 6; if (Math.hypot(s.x - p.x, s.z + d - p.z) < (s.big ? 3.4 : 2.4)) { const cd = (shrineCool[i] ?? -1e9) + 90 - game.clock; return cd > 0 ? { kind: 'job', id: 'jp:wait', label: `${s.name}：おみくじはまた後で（あと${Math.ceil(cd)}秒）`, btn: '参拝' } : { kind: 'job', id: 'jp:omikuji:' + i, label: `${s.name}でおみくじを引く（$1）`, btn: 'おみくじ' }; } }
@@ -72,6 +78,16 @@ export function japanAction(id: string) {
     if (SHIN.has) spots.push(['新幹線のりば', SHIN.gate.x, SHIN.gate.z]);
     const far = spots.filter((q) => Math.hypot(q[1] - p.x, q[2] - p.z) > 150), q = (far.length ? far : spots)[Math.floor(Math.random() * (far.length || spots.length))];
     game.waypoint = { x: q[1], z: q[2] }; sfx('ui'); toast(`👮 おまわりさん「${q[0]}なら、この先ですよ」（目的地に設定）`, 3);
+  } else if (id === 'jp:taxinone') { toast('スマホのマップで目的地を選んでからタクシーに乗ろう', 2.2); sfx('ui');
+  } else if (id === 'jp:taxi') {
+    const w = game.waypoint; if (!w) return;
+    if (game.wanted > 0) { toast('手配中はタクシーに乗せてもらえない', 1.8); return; }
+    const d = Math.hypot(w.x - p.x, w.z - p.z), fare = taxiFare(d); if (!pay(fare)) return;
+    p.x = w.x; p.z = w.z; p.y = floorAt(w.x, w.z, 1e4) + 0.05; p.vy = 0; game.hour = (game.hour + Math.min(1, d / 30000)) % 24; game.fadeT = 1.4; game.waypoint = null; sfx('door'); toast(`🚕 タクシーで目的地に着いた（$${fare}）`, 2.2); save();
+  } else if (id === 'jp:bus') {
+    if (game.wanted > 0) { toast('手配中はバスに乗れない', 1.8); return; }
+    if (!pay(12)) return;
+    p.x = AIRPORT_ARRIVAL.x; p.z = AIRPORT_ARRIVAL.z + 6; p.y = groundAt(p.x, p.z); p.vy = 0; game.hour = (game.hour + 0.6) % 24; game.fadeT = 1.4; sfx('door'); toast(`🚌 空港リムジンバスで${REGION.names.airport}に着いた`, 2.4); save();
   } else if (id.startsWith('jp:shin') || id.startsWith('jp:st') || id.startsWith('jp:board:')) { shinAction(id);
   } else if (id.startsWith('jp:train:')) {
     const i = Number(id.slice(9)), to = SIG.gates[(i + 1) % SIG.gates.length]; if (!to || !pay(3)) return;
