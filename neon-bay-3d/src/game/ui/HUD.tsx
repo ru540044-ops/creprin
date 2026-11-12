@@ -160,7 +160,7 @@ function FullMap({ onClose }: { onClose: () => void }) {
         <div className="mapZoom"><button type="button" aria-label="拡大" onClick={() => zoomAt(1.4)}>＋</button><button type="button" aria-label="縮小" onClick={() => zoomAt(1 / 1.4)}>−</button><button type="button" onClick={() => centerOnPlayer()}>現在地</button><button type="button" onClick={() => { view.current.z = view.current.fit; const img = mapImage(); view.current.cx = img.width / 2; view.current.cy = img.height / 2; clampV(); }}>全体</button></div>
       </div>
       <div className="placeBar">
-        <div className="placeCats">{[{ id: 'all' as const, icon: '📍', name: 'すべて' }, ...CATS].map((k) => <button type="button" key={k.id} className={cat === k.id ? 'on' : ''} onClick={() => { setCat(k.id); setSel(null); }}>{k.icon} {k.name}</button>)}</div>
+        <div className="placeCats">{[{ id: 'all' as const, icon: '📍', name: 'すべて' }, ...CATS.filter((k) => places().some((q) => q.cat === k.id))].map((k) => <button type="button" key={k.id} className={cat === k.id ? 'on' : ''} onClick={() => { setCat(k.id); setSel(null); }}>{k.icon} {k.name}</button>)}</div>
         <div className="placeList">{(sel ? [{ ...sel, d: Math.hypot(sel.x - here().x, sel.z - here().z) }] : nearest(cat, here().x, here().z, cat === 'all' ? 3 : 4)).map((q) => (
           <div key={q.name + q.x + q.z} className={'placeRow' + (sel ? ' sel' : '')}>
             <span className="pi">{q.icon}</span><b>{q.name}</b><small>{q.d < 1000 ? Math.round(q.d) + 'm' : (q.d / 1000).toFixed(1) + 'km'}</small>
