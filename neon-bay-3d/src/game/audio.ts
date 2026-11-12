@@ -73,18 +73,37 @@ function chirp(f: number, vol: number, at?: number, len = 0.09) {
 
 export function sfx(kind: 'crash' | 'door' | 'buy' | 'ui' | 'shot' | 'boom' | 'thunder' | 'step', vol = 1) {
   if (!C || audio.muted) return; const t = C.currentTime;
-  if (kind === 'step') { const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 500; f.Q.value = 1.2; const g = C.createGain(); g.gain.setValueAtTime(0.11 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.07); s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random() * 1.5); s.stop(t + 0.08); return; }
+  if (kind === 'step') { const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 500; f.Q.value = 1.2; const g = C.createGain(); g.gain.setValueAtTime(0.11 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.07); s.connect(f); f.connect(g); g.connect(OUT || master); s.start(t, Math.random() * 1.5); s.stop(t + 0.08); return; }
   if (kind === 'boom' || kind === 'thunder') { // deep blast / rolling thunder
-    const len = kind === 'boom' ? 1.6 : 3.2, s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(kind === 'boom' ? 1400 : 500, t); f.frequency.exponentialRampToValueAtTime(90, t + len); const g = C.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9 * vol, t + (kind === 'boom' ? 0.01 : 0.3)); g.gain.exponentialRampToValueAtTime(0.001, t + len); s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + len);
-    if (kind === 'boom') { const o = C.createOscillator(); o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(25, t + 0.6); const g2 = C.createGain(); g2.gain.setValueAtTime(0.8 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.7); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.75); } return; }
+    const len = kind === 'boom' ? 1.6 : 3.2, s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(kind === 'boom' ? 1400 : 500, t); f.frequency.exponentialRampToValueAtTime(90, t + len); const g = C.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9 * vol, t + (kind === 'boom' ? 0.01 : 0.3)); g.gain.exponentialRampToValueAtTime(0.001, t + len); s.connect(f); f.connect(g); g.connect(OUT || master); s.start(t, Math.random()); s.stop(t + len);
+    if (kind === 'boom') { const o = C.createOscillator(); o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(25, t + 0.6); const g2 = C.createGain(); g2.gain.setValueAtTime(0.8 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.7); o.connect(g2); g2.connect(OUT || master); o.start(t); o.stop(t + 0.75); } return; }
   if (kind === 'shot') { // sharp crack + body thump
-    const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.7; const g = C.createGain(); g.gain.setValueAtTime(0.55 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18); s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + 0.2);
-    const o = C.createOscillator(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); const g2 = C.createGain(); g2.gain.setValueAtTime(0.5 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.14); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.15); return; }
-  if (kind === 'crash') { const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; const g = C.createGain(); g.gain.setValueAtTime(0.5 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45); s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.5);
-    const o = C.createOscillator(); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.3); const g2 = C.createGain(); g2.gain.setValueAtTime(0.4 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.35); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.4); return; }
+    const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.7; const g = C.createGain(); g.gain.setValueAtTime(0.55 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18); s.connect(f); f.connect(g); g.connect(OUT || master); s.start(t, Math.random()); s.stop(t + 0.2);
+    const o = C.createOscillator(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); const g2 = C.createGain(); g2.gain.setValueAtTime(0.5 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.14); o.connect(g2); g2.connect(OUT || master); o.start(t); o.stop(t + 0.15); return; }
+  if (kind === 'crash') { const s = C.createBufferSource(); s.buffer = noise; const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; const g = C.createGain(); g.gain.setValueAtTime(0.5 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45); s.connect(f); f.connect(g); g.connect(OUT || master); s.start(t); s.stop(t + 0.5);
+    const o = C.createOscillator(); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.3); const g2 = C.createGain(); g2.gain.setValueAtTime(0.4 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.35); o.connect(g2); g2.connect(OUT || master); o.start(t); o.stop(t + 0.4); return; }
   const o = C.createOscillator(), g = C.createGain(); o.type = kind === 'door' ? 'square' : 'triangle';
   const f = kind === 'door' ? 180 : kind === 'buy' ? 880 : 620; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(kind === 'door' ? 90 : f * 1.5, t + 0.15);
-  g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.22);
+  g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.connect(g); g.connect(OUT || master); o.start(t); o.stop(t + 0.22);
+}
+/** Where the next sfx() goes (null: straight to the mix). Set only for the duration of one sfxAt() call. */
+let OUT: AudioNode | null = null;
+/** Where the listener is (the camera): set every frame. */
+export const ear = { x: 0, z: 0, yaw: 0 };
+/** The level (0..1) and pan (-1 left .. 1 right) of a sound at (x, z) for the listener; range: metres at which it is gone. */
+export function hear(x: number, z: number, range = 140) {
+  const dx = x - ear.x, dz = z - ear.z, d = Math.hypot(dx, dz), k = Math.max(0, 1 - d / range);
+  const fx = -Math.sin(ear.yaw), fz = -Math.cos(ear.yaw); // the way the camera looks; its right-hand side is (-fz, fx)
+  return { vol: k * k, pan: d < 1.5 ? 0 : Math.max(-1, Math.min(1, (dx * -fz + dz * fx) / d)), d };
+}
+/** A sound at a place in the world: quieter with distance, panned to the side it comes from. */
+export function sfxAt(kind: Parameters<typeof sfx>[0], x: number, z: number, vol = 1, range = 140) {
+  if (!C || audio.muted) return; const h = hear(x, z, range); if (h.vol < 0.01) return;
+  const pan = C.createStereoPanner ? C.createStereoPanner() : null;
+  if (!pan) { sfx(kind, vol * h.vol); return; }
+  pan.pan.value = h.pan * 0.85; pan.connect(master); OUT = pan;
+  try { sfx(kind, vol * h.vol); } finally { OUT = null; }
+  setTimeout(() => { try { pan.disconnect(); } catch { /* gone */ } }, 4000);
 }
 
 /* ---------- the bullet train: inverter whine, rolling rumble, wind, rail joints, the tunnel; chimes; trains passing by ---------- */

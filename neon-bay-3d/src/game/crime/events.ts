@@ -3,7 +3,7 @@ import { peds, ejectPed, Ped } from '../ai/peds';
 import { blocks, SIG, LANDMARK3D, pointBlocked, groundAt, HALF, STATION } from '../world/cityGen';
 import { line } from '../line/line';
 import { mission } from './story';
-import { sfx } from '../audio';
+import { sfx, sfxAt } from '../audio';
 
 /**
  * Things that happen in the street while you walk about, each with a decision to make:
@@ -57,7 +57,7 @@ function start(kind: EventKind): boolean {
     const s = spotNear(16); if (!s) return false;
     const th = ejectPed(s.x, s.z, P.x, P.z); th.callT = 0; th.outfit = 0; th.cash = 0; th.speed = 1.5; th.t = 60;
     ev.ped = th; ev.cash = 180 + Math.floor(Math.random() * 420); ev.kind = kind; ev.stage = 0; ev.t = 45;
-    toast('🚨 ひったくりだ！ 逃げていく男を止めろ（殴る・体当たり・車で）', 3.6); sfx('crash', 0.35);
+    toast('🚨 ひったくりだ！ 逃げていく男を止めろ（殴る・体当たり・車で）', 3.6); sfxAt('crash', s.x, s.z, 0.6, 80);
     return true;
   }
   if (kind === 'wallet') {

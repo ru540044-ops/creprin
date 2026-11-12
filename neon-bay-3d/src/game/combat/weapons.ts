@@ -6,7 +6,7 @@ import { pointBlocked } from '../world/cityGen';
 import { clearLine } from '../ai/driver';
 import { setWanted, copSees, armored } from '../crime/crime';
 import { flash, tracer, impact } from './fx';
-import { sfx } from '../audio';
+import { sfx, sfxAt } from '../audio';
 import { admin } from '../admin';
 import { throwGrenade } from './explode';
 
@@ -63,7 +63,7 @@ function damageVehicle(v: Veh, dmg: number) {
   if (v.role === 'traffic') panic(v);
   if (v.role === 'armored' && v === armored.v && (armored.state === 'drive' || armored.state === 'alert')) { armored.dmg += dmg * 0.22; if (armored.state === 'drive') { armored.state = 'alert'; setWanted(Math.max(1, game.wanted), '現金輸送車を襲撃'); } }
   if (v.role === 'police') setWanted(Math.max(3, game.wanted), '警察を撃った');
-  if (v.hp <= 0 && !v.dead) { v.hp = 0; v.dead = true; v.burn = 4.5; sfx('crash', 0.9); if (v.role === 'police') setWanted(Math.min(5, game.wanted + 1), 'パトカーを破壊'); }
+  if (v.hp <= 0 && !v.dead) { v.hp = 0; v.dead = true; v.burn = 4.5; sfxAt('crash', v.x, v.z, 1, 160); if (v.role === 'police') setWanted(Math.min(5, game.wanted + 1), 'パトカーを破壊'); }
 }
 
 /** Fire the current weapon from (ox,oy,oz) along (dx,dy,dz). Returns true if a shot/punch happened. */

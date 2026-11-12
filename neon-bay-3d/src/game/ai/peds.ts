@@ -3,7 +3,7 @@ import { vehicles, playerCar, Veh } from '../vehicles/sim';
 import { blocks, N, collide, groundAt, floorAt, HALF, isWater, WATER_Y, blockAt } from '../world/cityGen';
 import { pedsAhead } from './traffic';
 import { setWanted, copSees } from '../crime/crime';
-import { sfx } from '../audio';
+import { sfx, sfxAt } from '../audio';
 import { clamp } from '../world/rng';
 import { admin } from '../admin';
 import { gaitFor, Gait, IDLE_VARIANTS, IdleVariant } from '../anim/pose';
@@ -175,7 +175,7 @@ function carHits(p: Ped, v: Veh) {
   if (Math.abs(lf) > v.def.len / 2 + 0.35 || Math.abs(ls) > v.def.wid / 2 + 0.35) return false;
   const mine = v.id === game.inCar;
   hitPed(p, sp * 6, v.vx * 0.8 + fz * Math.sign(ls) * 1.5, v.vz * 0.8 - fx * Math.sign(ls) * 1.5, mine);
-  sfx('crash', Math.min(0.6, sp / 30)); v.vx *= 0.92; v.vz *= 0.92;
+  if (mine) sfx('crash', Math.min(0.6, sp / 30)); else sfxAt('crash', p.x, p.z, Math.min(0.7, sp / 26), 90); v.vx *= 0.92; v.vz *= 0.92;
   if (mine && copSees(p.x, p.z, 60)) setWanted(Math.max(1, game.wanted), '人をはねた');
   return true;
 }

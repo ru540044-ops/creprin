@@ -3,7 +3,7 @@ import { vehicles } from '../vehicles/sim';
 import { peds, hitPed, scare } from '../ai/peds';
 import { damagePlayer, copSees, setWanted } from '../crime/crime';
 import { floorAt, pointBlocked } from '../world/cityGen';
-import { sfx } from '../audio';
+import { sfx, sfxAt } from '../audio';
 import { flash } from './fx';
 
 /** Fireballs (visual), live grenades, and the blast itself: damage, knockback, chain reactions. */
@@ -12,7 +12,7 @@ export const grenades: { x: number; y: number; z: number; vx: number; vy: number
 
 export function explode(x: number, y: number, z: number, power = 1, byPlayer = false) {
   booms.push({ x, y, z, t: 1.4, s: power }); if (booms.length > 12) booms.shift();
-  flash(x, y + 0.5, z, 9 * power); sfx('boom', Math.min(1, power));
+  flash(x, y + 0.5, z, 9 * power); sfxAt('boom', x, z, Math.min(1, power) * 1.15, 420);
   const R = 8.5 * power, pl = game.player, me = vehicles.find((v) => v.id === game.inCar);
   const px = me ? me.x : pl.x, pz = me ? me.z : pl.z, dp = Math.hypot(px - x, pz - z);
   game.shake = Math.max(game.shake, Math.max(0, 1.6 - dp / 45));

@@ -9,7 +9,7 @@ import { newAI, steer, clearLine, nodeIdx } from '../ai/driver';
 import { nodeOpen, CUSTOMS, roadC, N, POLICE_HQ, HOSPITAL, EXPORT_DOCK, TRIALS, Trial, HALF, groundAt } from '../world/cityGen';
 import { INTERIORS, viewMode } from '../world/Interiors';
 import { releaseDrive } from '../input';
-import { sfx, siren } from '../audio';
+import { sfx, siren, sfxAt } from '../audio';
 import { cruise, panic } from '../ai/traffic';
 import { flash } from '../combat/fx';
 import { clamp } from '../world/rng';
@@ -110,7 +110,7 @@ function updatePolice(dt: number) {
       c.ai.shootT = (c.ai.shootT ?? 0.8) - dt;
       if (c.ai.shootT <= 0 && clearLine(c.x, c.z, p.x, p.z, 1.4)) {
         c.ai.shootT = 1.25 - game.wanted * 0.1 + Math.random() * 0.5;
-        const side = Math.cos(c.yaw), sz = -Math.sin(c.yaw); flash(c.x + side * 1.1, c.y + 1.3, c.z + sz * 1.1, 0.8); sfx('shot', clamp(1 - d / 60, 0.15, 0.7));
+        const side = Math.cos(c.yaw), sz = -Math.sin(c.yaw); flash(c.x + side * 1.1, c.y + 1.3, c.z + sz * 1.1, 0.8); sfxAt('shot', c.x, c.z, 0.8, 110);
         const fast = me ? Math.hypot(me.vx, me.vz) > 12 : game.player.speed > 4;
         if (Math.random() < 0.6 - d / 100 - (fast ? 0.25 : 0) + game.wanted * 0.03) { if (me) { me.hp -= 2.5; if (Math.random() < 0.45) damagePlayer(4 + game.wanted); } else damagePlayer(5 + game.wanted * 1.5); }
       }

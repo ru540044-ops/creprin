@@ -38,7 +38,7 @@ import * as pedsMod from './game/ai/peds';
 import * as traffic from './game/ai/traffic';
 import * as weapons from './game/combat/weapons';
 import { vehicles, playerCar, owned, spawn, remove, drive, collisions } from './game/vehicles/sim';
-import { initAudio, ambience, pauseAudio, music, trainAudioState } from './game/audio';
+import { initAudio, ambience, pauseAudio, music, trainAudioState, ear, hear } from './game/audio';
 import { settings, loadSettings, saveSettings, autoQuality, QualityMode } from './game/settings';
 import { updateProgression, startTutorial, tutorial } from './game/progression';
 import { TitleScreen, PauseMenu, ErrorBoundary } from './game/ui/Menus';
@@ -76,7 +76,7 @@ import * as deerMod from './game/ai/deer';
 import * as scheduleMod from './game/ai/schedule';
 import type { RegionId } from './game/world/region';
 import { REGION } from './game/world/region'; // after the game modules (import cycles resolve in the old order)
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, deerMod, lineMod, hoursMod, eventsMod, parkingMod, saveNow: save, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, deerMod, lineMod, hoursMod, eventsMod, parkingMod, ear, hear, saveNow: save, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
@@ -107,6 +107,7 @@ function Ticker({ quality, onSlow }: { quality: Quality; onSlow: () => void }) {
     // auto quality: if the frame rate stays low even at the lowest render scale, step the quality down (once per level)
     const W = slow.current; if (game.started && settings.quality === 'auto' && quality !== 'low') { W.t += dt; if (W.t > 1) { W.bad = D.dpr <= min + 0.01 && game.fps < 24 ? W.bad + W.t : 0; W.t = 0; if (W.bad > 8) { W.bad = 0; onSlow(); } } }
     boot.frames++; if (!boot.ready && boot.frames > 12 && (cityStream.pending === 0 || boot.frames > 1200)) boot.ready = true; // wait until the streamed city around the camera is built
+    ear.x = st.camera.position.x; ear.z = st.camera.position.z; ear.yaw = game.cam.yaw; // where sounds are heard from
     updateProgression(dt); japanMod.updateTrain(); shopsMod.updateShops(tdt(dt)); eventsMod.updateEvents(tdt(dt)); parkingMod.updateParking();
     // a drink or two: the view sways for a while (after the player camera has been placed this frame)
     if (shopsMod.buffs.tipsy > 0 && game.started) { const k = Math.min(1, shopsMod.buffs.tipsy / 6), t = st.clock.elapsedTime; st.camera.rotateZ(Math.sin(t * 1.3) * 0.035 * k); st.camera.rotateX(Math.sin(t * 0.9 + 1) * 0.012 * k); }
