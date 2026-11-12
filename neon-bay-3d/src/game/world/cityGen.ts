@@ -188,6 +188,10 @@ export const inCanal = (x: number, z: number) => { for (const r of CANAL_RECTS) 
 export const canalAt = (x: number, z: number) => { for (const r of CANAL_RECTS) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return r; return null; };
 /** The main station building stands east of the elevated railway, level with its middle station. */
 export const STATION_BLOCK = { i: O + 12, j: N / 2 };
+/** Nara's station: the terminus of the private line to Osaka, east of the forecourt (filled in when the station block is built).
+ *  A low platform (px0..px1, top y) beside a dead-end track (centre tx) with the train standing at it, ticket gates across the
+ *  platform's south end (gateZ), the door you board by, and where you arrive by train. */
+export const NARA_ST = { on: false, px0: 0, px1: 0, tx: 0, z0: 0, z1: 0, y: 0.5, gateZ: 0, tz0: 0, tz1: 0, door: { x: 0, z: 0 }, spawn: { x: 0, z: 0, yaw: 0 } };
 /** The station-front rotary (filled in when the station block is built). */
 export const ROTARY = { on: false, x0: 0, x1: 0, z0: 0, z1: 0, island: { x0: 0, x1: 0, z0: 0, z1: 0 }, taxi: { x: 0, z: 0 }, bus: { x: 0, z: 0 } };
 /** Nara: the deer park east of the station (grid coordinates), the pagoda's block, the old merchant quarter (Naramachi) south of the pond. */
@@ -512,8 +516,23 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     }
   } else if (zone === 'station') {
     // the main station: a long hall facing the railway (red brick with domes in Tokyo, glass elsewhere), a forecourt behind
-    const red = inTokyo(), nm = (REGION.station || REGION.names.downtown + '駅') + ' 駅構内';
-    addB({ x0: ix0, z0: iz0 + 1, x1: ix0 + 24, z1: iz1 - 1, y0: S, h: red ? 15 : 19, type: red ? 'brick' : 'glass', tint: red ? [0.86, 0.42, 0.32] : [0.78, 0.86, 0.94], name: nm });
+    const red = inTokyo(), nm = (REGION.station || REGION.names.downtown + '駅') + ' 駅構内', nara = REGION.id === 'nara';
+    // Nara: a low cream station house under a temple-style roof (the roof and its spire are drawn in Signature)
+    addB({ x0: ix0, z0: iz0 + 1, x1: ix0 + 24, z1: iz1 - 1, y0: S, h: red ? 15 : nara ? 8.5 : 19, type: red ? 'brick' : nara ? 'office' : 'glass', tint: red ? [0.86, 0.42, 0.32] : nara ? [0.93, 0.9, 0.82] : [0.78, 0.86, 0.94], name: nm });
+    if (nara) { // the line to Osaka starts here: platform, track, the train, ticket gates (models in Signature)
+      const T = NARA_ST; T.on = true; T.tx = ix0 + 62; T.px1 = T.tx - 1.75; T.px0 = T.px1 - 7; T.z0 = iz0 + 4; T.z1 = iz1 - 4; T.gateZ = iz1 - 13; T.tz0 = iz0 + 8; T.tz1 = iz0 + 8 + 3 * 20.6;
+      const box = (x0: number, z0: number, x1: number, z1: number, y0: number, y1: number) => solids.push({ x0, z0, x1, z1, y0, y1 });
+      box(T.px0, T.z0, T.px1, T.z1, 0, T.y); // the platform (you step up onto it)
+      box(T.tx - 1.6, T.tz0, T.tx + 1.6, T.tz1, 0, 4.2); // the train at the platform
+      box(T.px1, T.z0, T.tx + 2.6, T.tz0 - 0.4, 0, 1.2); // buffer stop at the north end of the track
+      box(T.tx + 2.4, T.z0, T.tx + 2.6, T.z1, 0, 1.6); // fence on the far side of the track
+      box(T.px1, T.tz1 + 0.4, T.tx + 2.4, T.z1, 0, 1.1); // fence across the track south of the train
+      for (let z = T.z0 + 4; z < T.gateZ - 2; z += 12) box(T.px0 + 0.7, z - 0.18, T.px0 + 1.06, z + 0.18, T.y, 4.4); // canopy posts
+      box(T.px0 - 0.2, T.z0, T.px0, T.gateZ, 0, 1.4); // the platform's back fence (you come in through the gates)
+      for (let x = T.px0 + 0.6; x < T.px1 - 0.4; x += 1.3) box(x - 0.15, T.gateZ - 0.75, x + 0.15, T.gateZ + 0.75, T.y, T.y + 1.05); // ticket gates
+      T.door = { x: T.px1 - 0.7, z: T.tz0 + 20.6 * 1.5 }; T.spawn = { x: (T.px0 + T.px1) / 2, z: T.door.z + 4, yaw: Math.PI };
+      for (const L of [props.trees, props.benches, props.lamps, props.bins, props.vends, props.poles] as { x: number; z: number }[][]) for (let k = L.length - 1; k >= 0; k--) if (L[k].x > T.px0 - 2 && L[k].x < T.tx + 3 && L[k].z > T.z0 - 1 && L[k].z < T.z1 + 1) L.splice(k, 1);
+    }
     // the station-front rotary between the hall and the Shinkansen concourse: a one-way loop round an island with the taxi rank and the bus stop
     const R = ROTARY; R.on = true; R.x0 = ix0 + 24.5; R.x1 = ix0 + 40.5; R.z0 = iz0; R.z1 = iz1;
     R.island = { x0: ix0 + 29.5, x1: ix0 + 35.5, z0: iz0 + 17, z1: iz1 - 17 };
@@ -600,7 +619,7 @@ function landmark(id: string, label: string, color: string, tx: number, tz: numb
 export const POLICE_HQ = landmark('pd', REGION.name + '警察署', '#2b6bff', -380, -220);
 export const HOSPITAL = landmark('hosp', REGION.name + '総合病院', '#ff4b5c', 330, 120);
 /** Where the bullet train arrives (Naha is reached by plane: no station). */
-export const STATION: Landmark | null = REGION.station ? (() => { const x0 = blockX0(STATION_BLOCK.i), z = blockX0(STATION_BLOCK.j) + BLOCK / 2; return { id: 'station', label: REGION.station, color: '#ffffff', x: x0 + 4.2, z, ang: -Math.PI / 2, spawn: { x: x0 + 2, z: z + 8, yaw: -Math.PI / 2 } }; })() : null;
+export const STATION: Landmark | null = REGION.station ? (() => { const x0 = blockX0(STATION_BLOCK.i), z = blockX0(STATION_BLOCK.j) + BLOCK / 2; return { id: 'station', label: REGION.station, color: '#ffffff', x: x0 + 4.2, z, ang: -Math.PI / 2, spawn: NARA_ST.on ? NARA_ST.spawn : { x: x0 + 2, z: z + 8, yaw: -Math.PI / 2 } }; })() : null;
 export const LANDMARKS = STATION ? [POLICE_HQ, HOSPITAL, STATION] : [POLICE_HQ, HOSPITAL];
 /** Arrival point at the airport terminal (planes). */
 export const AIRPORT_ARRIVAL = { x: AIRPORT.x0 + 390, z: 168, yaw: 0 };

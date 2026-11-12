@@ -1,6 +1,6 @@
 import { game, toast, save, progress } from '../state/store';
 import { playerCar } from '../vehicles/sim';
-import { STATION } from '../world/cityGen';
+import { STATION, NARA_ST } from '../world/cityGen';
 import { blocker } from '../ui/TravelApp';
 import { props, SIG, RAIL, inCanal, CANAL_RECTS, PROM, groundAt, SHIN, isWater, LANDMARK3D, shinStand, shinCabDoor, shinUp, shinDown, ShinPlatform, TUN, inTunnel, HALF, ROTARY, AIRPORT_ARRIVAL, floorAt } from '../world/cityGen';
 import { spawn, remove, playerCar as pcar, Veh, shinLimits, SHIN_FLIP, atcKmh, shinRun } from '../vehicles/sim';
@@ -50,7 +50,9 @@ export function japanNear(): Near | null {
     if (Math.hypot(ROTARY.taxi.x - p.x, ROTARY.taxi.z - p.z) < 2.4) { const w = game.waypoint, d = w ? Math.hypot(w.x - p.x, w.z - p.z) : 0; return w && d > 60 ? { kind: 'job', id: 'jp:taxi', label: `タクシーで目的地へ（約${(d / 1000).toFixed(1)}km・$${taxiFare(d)}）`, btn: '乗る' } : { kind: 'job', id: 'jp:taxinone', label: 'タクシー乗り場（マップで目的地を決めると乗れる）', btn: '乗る' }; }
     if (Math.hypot(ROTARY.bus.x - p.x, ROTARY.bus.z - p.z) < 2.4) return { kind: 'job', id: 'jp:bus', label: `空港リムジンバスで${REGION.names.airport}へ（$12）`, btn: '乗る' };
   }
-  if (STATION && (REGION.id === 'osaka' || REGION.id === 'nara') && Math.hypot(STATION.x - 2 - p.x, STATION.z - p.z) < 3.4) { const to: RegionId = REGION.id === 'osaka' ? 'nara' : 'osaka', R = route(REGION.id, to); return { kind: 'job', id: 'jp:yamato', label: `${R.label}で${REGIONS[to].name}へ（$${R.fare}・32.8km・車窓を見ながら）`, btn: '乗る' }; }
+  if (NARA_ST.on && Math.abs(p.x - NARA_ST.door.x) < 1.6 && Math.abs(p.z - NARA_ST.door.z) < 12 && p.y > NARA_ST.y - 0.2) { const R = route('nara', 'osaka'); return { kind: 'job', id: 'jp:yamato', label: `やまと線 特急 なんば（大阪）行きに乗る（$${R.fare}・32.8km・車窓を見ながら）`, btn: '乗る' }; }
+  if (STATION && NARA_ST.on && Math.hypot(STATION.x - 2 - p.x, STATION.z - p.z) < 3.4) return { kind: 'job', id: 'jp:narast', label: 'やまと線のりばへ（駅舎の東・ロータリーの奥の改札）', btn: '案内' };
+  if (STATION && REGION.id === 'osaka' && Math.hypot(STATION.x - 2 - p.x, STATION.z - p.z) < 3.4) { const to: RegionId = REGION.id === 'osaka' ? 'nara' : 'osaka', R = route(REGION.id, to); return { kind: 'job', id: 'jp:yamato', label: `${R.label}で${REGIONS[to].name}へ（$${R.fare}・32.8km・車窓を見ながら）`, btn: '乗る' }; }
   for (let i = 0; i < SIG.gates.length; i++) { const g = SIG.gates[i]; if (Math.hypot(g.x - p.x, g.z - p.z) < 2.6) { const to = SIG.gates[(i + 1) % SIG.gates.length]; return { kind: 'job', id: 'jp:train:' + i, label: `${RAIL.name}で${to.name}へ（$3）`, btn: '乗車' }; } }
   { const d = deerNear(2.8); if (d) return game.items.senbei > 0 ? { kind: 'job', id: 'nara:feed', label: `鹿にせんべいをあげる（残り${game.items.senbei}枚）`, btn: 'あげる' } : { kind: 'job', id: 'nara:bow', label: '鹿におじぎをする', btn: 'おじぎ' }; }
   for (let i = 0; i < SIG.yatai.length; i++) { const y = SIG.yatai[i], f = front(y, 2.2); if (Math.hypot(f.x - p.x, f.z - p.z) < 1.7) return y.senbei ? { kind: 'job', id: 'nara:senbei:' + i, label: `鹿せんべいを買う（$${y.price}・5枚／持てるのは10枚まで）`, btn: '買う' } : { kind: 'job', id: 'jp:yatai:' + i, label: `屋台で${y.food}を食べる（$${y.price}・体力全回復）`, btn: '食べる' }; }
@@ -73,6 +75,7 @@ export function japanAction(id: string) {
   } else if (id === 'jp:yamato') {
     const to: RegionId = REGION.id === 'osaka' ? 'nara' : 'osaka', why = blocker(); if (why) { toast(why, 2); return; }
     if (!pay(route(REGION.id, to).fare)) return; sfx('buy'); save(); startLine(to, 'seat');
+  } else if (id === 'jp:narast') { game.waypoint = { x: (NARA_ST.px0 + NARA_ST.px1) / 2, z: NARA_ST.gateZ + 3 }; save(); toast('やまと線の改札を目的地に設定（駅舎をぐるっと回って東へ）', 2.4); sfx('ui');
   } else if (id === 'nara:feed') { feedDeer();
   } else if (id === 'nara:bow') { bowToDeer();
   } else if (id.startsWith('nara:senbei:')) {

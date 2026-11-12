@@ -48,7 +48,14 @@ const mc=await E(()=>{const C=window.__nb3d.cityMod;const k=[...C.MACHIYA_BLOCKS
 await shot('aerial',[L.x-250,180,L.z+420],[L.x-60,0,L.z+200],15);
 await E(()=>{window.__nb3dCamOverride=null});
 // ---- the commuter train to Osaka, boarded at the station ----
-const st=await E(()=>{const S=window.__nb3d.cityMod.STATION;return {x:S.x,z:S.z}});await tp(st.x-2,st.z);console.log('station near',await waitNear('jp:yamato'));await act();
+const st=await E(()=>{const S=window.__nb3d.cityMod.STATION;return {x:S.x,z:S.z}});await tp(st.x-2,st.z);console.log('station front',await waitNear('jp:narast'));
+const NS=await E(()=>JSON.parse(JSON.stringify(window.__nb3d.cityMod.NARA_ST)));
+await shot('station',[st.x-60,14,st.z+55],[st.x+10,6,st.z],15);await shot('platform',[NS.px0+1.5,2.2,NS.gateZ-1],[NS.tx,1.6,NS.z0+10],15);await E(()=>{window.__nb3dCamOverride=null});
+// walk in from the forecourt: up onto the platform, through a ticket gate, along to the train door
+const gx=NS.px0+0.6+0.65;await tp(gx,NS.z1+3);
+console.log('to gates',JSON.stringify(await walk(gx,NS.gateZ+1.5,300000)));console.log('through gate',JSON.stringify(await walk(gx,NS.gateZ-3,300000)));
+console.log('to door',JSON.stringify(await walk(NS.door.x,NS.door.z,300000)),'y',await E(()=>window.__nb3d.game.player.y.toFixed(2)));
+console.log('station near',await waitNear('jp:yamato'));await act();
 console.log('line',JSON.stringify(await E(()=>{const L=window.__nb3d.lineMod.line;return {on:L.on,mode:L.mode,to:L.to,L:Math.round(L.L),stops:L.stops.map(s=>s.name+'@'+(s.s/1000).toFixed(1))}})));
 await W(4000);await p.screenshot({path:'jp/nara_ride_cab.png',timeout:180000});
 // step the ride: 3 minutes of running time

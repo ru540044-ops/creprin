@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { SIG, buildings, roadC, O, ROAD, RAIL, ROTARY, NARA_LANTERNS } from './cityGen';
+import { SIG, buildings, roadC, O, ROAD, RAIL, ROTARY, NARA_LANTERNS, NARA_ST } from './cityGen';
 import { REGION } from './region';
 import { labelTexture } from './textures';
 import { game } from '../state/store';
@@ -107,8 +107,42 @@ export default function Signature() {
         for (const y of [5.2, 10.2, 14.9]) S.push(box(0.4, 0.5, st.z1 - st.z0, fx - 0.05, y, cz, WHITE));
         for (const dz of [-30, 30]) { const x = (st.x0 + st.x1) / 2, zz = cz + dz; S.push(cyl(9, 9, 6, x, 15.15, zz, [0.86, 0.42, 0.32], 8), cyl(9.3, 9.3, 0.6, x, 21, zz, WHITE, 8)); const g = new THREE.SphereGeometry(9, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(1, 0.75, 1); g.translate(x, 21.6, zz); S.push(paint(g, [0.25, 0.27, 0.28])); }
         S.push(frus(10, 3, 5, (st.x0 + st.x1) / 2, 15.15, cz, [0.25, 0.27, 0.28], 1.2, 1));
+      } else if (NARA_ST.on) { // Nara: a temple-style hipped roof in two tiers with a bronze spire, a deep porch over the entrance
+        const hx = (st.x0 - 5 + st.x0 + 19) / 2, w = 24, d = st.z1 - st.z0 + 12, TILE: Col = [0.2, 0.21, 0.23];
+        S.push(box(w + 1.2, 0.5, d + 0.4, hx, 8.5, cz, [0.4, 0.27, 0.18]), frus(w / 2 + 2.6, w / 2 - 3, 3.4, hx, 9.0, cz, TILE, 1, (d + 5) / (w + 5)));
+        S.push(box(w * 0.45, 3.2, d * 0.3, hx, 12.4, cz, [0.93, 0.9, 0.82]), frus(w * 0.3 + 1.6, 1.2, 4.2, hx, 15.6, cz, TILE, 1, (d * 0.3 + 3) / (w * 0.45 + 3)));
+        S.push(cyl(0.35, 0.18, 7, hx, 19.4, cz, [0.4, 0.33, 0.22], 8)); for (let n = 0; n < 6; n++) S.push(cyl(0.75 - n * 0.06, 0.75 - n * 0.06, 0.18, hx, 20.4 + n * 0.8, cz, GOLD, 10));
+        S.push(box(4, 0.5, 14, st.x0 - 7, 6, cz, [0.4, 0.27, 0.18]), frus(3.8, 1.4, 1.6, st.x0 - 7, 6.5, cz, TILE, 1, 3.4)); for (const s of [-1, 1]) S.push(cyl(0.3, 0.3, 6, st.x0 - 8.5, 0.15, cz + s * 6, [0.4, 0.27, 0.18], 8));
       } else S.push(box(6, 0.6, st.z1 - st.z0 + 8, st.x0 - 3, 7, cz, [0.85, 0.87, 0.9]));
-      signs.push({ tex: labelTexture(REGION.station || RAIL.names[1], '#ffffff', 512, 128), x: fx - 0.3, y: 9, z: cz, w: 10, h: 2.5, ry: -Math.PI / 2 });
+      signs.push({ tex: labelTexture(REGION.station || RAIL.names[1], '#ffffff', 512, 128), x: fx - 0.3, y: NARA_ST.on ? 5.2 : 9, z: cz, w: 10, h: 2.5, ry: -Math.PI / 2 });
+    }
+    // Nara: the terminus of the line to Osaka (platform, canopy, the dead-end track with its buffer stop, the red-and-white train, ticket gates, signs)
+    if (NARA_ST.on) {
+      const T = NARA_ST, pcx = (T.px0 + T.px1) / 2, pw = T.px1 - T.px0, pz = (T.z0 + T.z1) / 2, pl = T.z1 - T.z0, RED: Col = [0.74, 0.12, 0.14], CRM: Col = [0.95, 0.94, 0.9];
+      S.push(box(pw, T.y, pl, pcx, 0, pz, [0.72, 0.71, 0.68]), box(0.5, 0.02, T.gateZ - T.z0, T.px1 - 0.6, T.y, (T.z0 + T.gateZ) / 2, [0.95, 0.8, 0.15]));
+      S.push(box(pw + 1.2, 0.35, T.gateZ - T.z0 - 2, pcx - 0.3, 4.4, (T.z0 + T.gateZ) / 2 - 1, [0.55, 0.58, 0.62]));
+      for (let z = T.z0 + 4; z < T.gateZ - 2; z += 12) S.push(box(0.36, 4.4 - T.y, 0.36, T.px0 + 0.88, T.y, z, [0.5, 0.52, 0.56]));
+      for (let z = T.z0 + 6; z < T.gateZ - 4; z += 6) G.push(box(0.3, 0.08, 2.2, pcx, 4.3, z, [1, 0.95, 0.85]));
+      S.push(box(0.2, 1.4, T.gateZ - T.z0, T.px0 - 0.1, 0, (T.z0 + T.gateZ) / 2, [0.55, 0.57, 0.6]));
+      // the track: ballast, rails, sleepers, the fence beyond it, the buffer stop
+      S.push(box(T.tx + 2.4 - T.px1, 0.12, T.z1 - T.z0, (T.px1 + T.tx + 2.4) / 2, 0.15, pz, [0.45, 0.43, 0.4]));
+      for (const s of [-0.72, 0.72]) S.push(box(0.1, 0.16, T.z1 - T.z0, T.tx + s, 0.27, pz, [0.75, 0.77, 0.8]));
+      for (let z = T.z0 + 1; z < T.z1; z += 1.2) S.push(box(2.3, 0.08, 0.26, T.tx, 0.24, z, [0.35, 0.3, 0.26]));
+      S.push(box(0.2, 1.6, T.z1 - T.z0, T.tx + 2.5, 0, pz, [0.5, 0.55, 0.5]), box(4.6, 1.2, 0.6, T.tx + 0.4, 0, T.tz0 - 0.7, [0.85, 0.15, 0.12]), box(3, 0.3, 0.62, T.tx, 0.9, T.tz0 - 0.7, CRM));
+      S.push(box(T.tx + 2.4 - T.px1, 1.1, 0.2, (T.px1 + T.tx + 2.4) / 2, 0, T.tz1 + 0.5, [0.5, 0.55, 0.5]));
+      // the train: three cars in red with a cream band, dark windows, doors, the cab front with its lamps
+      for (let k = 0; k < 3; k++) {
+        const z0 = T.tz0 + k * 20.6, zc = z0 + 10;
+        S.push(box(3.0, 3.4, 20, T.tx, 0.5, zc, RED), box(3.04, 0.45, 20, T.tx, 2.0, zc, CRM), box(3.06, 0.9, 18.4, T.tx, 2.55, zc, [0.12, 0.13, 0.16]), box(2.6, 0.3, 19.6, T.tx, 3.9, zc, [0.55, 0.56, 0.6]));
+        for (const dz of [-6, 0, 6]) S.push(box(3.08, 2.1, 1.3, T.tx, 0.6, zc + dz, [0.6, 0.08, 0.1]));
+      }
+      for (const z of [T.tz0 - 0.05, T.tz1 + 0.05]) { S.push(box(2.6, 1.0, 0.1, T.tx, 2.5, z, [0.1, 0.11, 0.14])); for (const s of [-1, 1]) G.push(box(0.35, 0.25, 0.06, T.tx + s * 1.0, 1.2, z + (z < T.tz1 ? -0.05 : 0.05), [1, 0.95, 0.75])); }
+      // ticket gates across the platform, with the line's sign over them, the departure board and the station name board
+      for (let x = T.px0 + 0.6; x < T.px1 - 0.4; x += 1.3) { S.push(box(0.3, 1.05, 1.5, x, T.y, T.gateZ, [0.62, 0.64, 0.68])); G.push(box(0.32, 0.12, 0.3, x, T.y + 1.0, T.gateZ - 0.5, [0.3, 0.8, 1])); }
+      S.push(box(0.25, 3.6, 0.25, T.px0 + 0.3, T.y, T.gateZ, [0.4, 0.42, 0.45]), box(0.25, 3.6, 0.25, T.px1 - 0.3, T.y, T.gateZ, [0.4, 0.42, 0.45]));
+      signs.push({ tex: labelTexture('やまと線 のりば  特急 なんば（大阪）行き', '#ff6a6a', 1024, 128), x: pcx, y: T.y + 3.3, z: T.gateZ + 0.15, w: pw - 0.2, h: 0.85, ry: 0 });
+      signs.push({ tex: labelTexture('特急 なんば行き  32.8km  車窓を見ながら', '#ffd23a', 1024, 128), x: pcx, y: 3.6, z: T.gateZ - 2.5, w: pw - 1, h: 0.8, ry: Math.PI });
+      for (const z of [T.z0 + 14, T.z0 + 44]) signs.push({ tex: labelTexture('な ら  奈良  NARA', '#ffffff', 768, 160), x: T.px0 + 0.25, y: 2.3, z, w: 4, h: 0.85, ry: Math.PI / 2 });
     }
     // shopping-street arches and lantern strings
     for (const a of SIG.arches) {
