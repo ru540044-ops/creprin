@@ -119,7 +119,7 @@ export default function Signature() {
     // Nara: the terminus of the line to Osaka (platform, canopy, the dead-end track with its buffer stop, the red-and-white train, ticket gates, signs)
     if (NARA_ST.on) {
       const T = NARA_ST, pcx = (T.px0 + T.px1) / 2, pw = T.px1 - T.px0, pz = (T.z0 + T.z1) / 2, pl = T.z1 - T.z0, RED: Col = [0.74, 0.12, 0.14], CRM: Col = [0.95, 0.94, 0.9];
-      S.push(box(pw, T.y, pl, pcx, 0, pz, [0.72, 0.71, 0.68]), box(0.5, 0.02, T.gateZ - T.z0, T.px1 - 0.6, T.y, (T.z0 + T.gateZ) / 2, [0.95, 0.8, 0.15]));
+      S.push(box(pw, 0.25, 1.2, pcx, 0, T.z1 + 0.6, [0.66, 0.65, 0.62]), box(pw, T.y, pl, pcx, 0, pz, [0.72, 0.71, 0.68]), box(0.5, 0.02, T.gateZ - T.z0, T.px1 - 0.6, T.y, (T.z0 + T.gateZ) / 2, [0.95, 0.8, 0.15]));
       S.push(box(pw + 1.2, 0.35, T.gateZ - T.z0 - 2, pcx - 0.3, 4.4, (T.z0 + T.gateZ) / 2 - 1, [0.55, 0.58, 0.62]));
       for (let z = T.z0 + 4; z < T.gateZ - 2; z += 12) S.push(box(0.36, 4.4 - T.y, 0.36, T.px0 + 0.88, T.y, z, [0.5, 0.52, 0.56]));
       for (let z = T.z0 + 6; z < T.gateZ - 4; z += 6) G.push(box(0.3, 0.08, 2.2, pcx, 4.3, z, [1, 0.95, 0.85]));
