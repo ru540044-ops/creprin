@@ -45,7 +45,12 @@ export function nearest(cat: PlaceCat | 'all', x: number, z: number, n: number):
 /** Where you are standing (outside). */
 export const here = () => (game.where !== 'out' ? game.outsidePos : game.player);
 /** Why you cannot skip right now ('' = you can). */
-export function cantSkip(): string { return blocker(); }
+export function cantSkip(): string {
+  if (game.wanted > 0) return '手配中はスキップできない（手配を消してから）';
+  if (game.where !== 'out') return '建物の外に出てからスキップできます';
+  if (game.inCar) return '乗り物を降りてからスキップできます';
+  return blocker().replace('移動できません', 'スキップできません');
+}
 /** Go straight to a place: the clock moves on by the time the trip would take (about a bus ride), no charge. */
 export function skipTo(p: Place): boolean {
   const why = cantSkip(); if (why) { toast(why, 2); sfx('ui'); return false; }
