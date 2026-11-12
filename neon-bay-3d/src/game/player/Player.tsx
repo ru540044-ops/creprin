@@ -16,7 +16,8 @@ import { collide, groundAt, floorAt, doors, pointBlocked, districtAt, isWater, T
 import { INTERIORS, FLOOR, interiorCollide, viewMode } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
-import { nearBDoor, bdoorById, genInterior } from '../world/bldgInteriors';
+import { nearBDoor, bdoorById, genInterior, shopKey } from '../world/bldgInteriors';
+import { shopOpen, hoursText } from '../world/hours';
 import { roofTrip } from '../crime/crime';
 import { freeSprint } from '../crime/shops';
 import { models } from '../vehicles/Vehicles';
@@ -187,7 +188,7 @@ export default function Player() {
       game.near = null;
       if (inside && def) { if (Math.hypot(p.x - def.ox - def.exit.x, p.z - def.oz - def.exit.z) < 1.6) game.near = { kind: 'exit', label: '外へ出る', id: def.id }; }
       else { for (const d of doors) if (Math.hypot(p.x - d.x, p.z - d.z) < 1.8) { game.near = { kind: 'door', label: d.label + 'に入る', id: d.id }; break; }
-        if (!game.near && Math.abs(p.y - groundAt(p.x, p.z)) < 1.2) { const bd = nearBDoor(p.x, p.z); if (bd) game.near = { kind: 'door', label: bd.label + 'に入る', id: bd.id }; } }
+        if (!game.near && Math.abs(p.y - groundAt(p.x, p.z)) < 1.2) { const bd = nearBDoor(p.x, p.z); if (bd) { const key = bd.kind === 'shop' ? shopKey(bd) : ''; game.near = key && !shopOpen(key, game.hour) ? { kind: 'job', label: `${bd.label}：準備中（営業 ${hoursText(key)}）`, id: 'shut:' + key, btn: '閉店中' } : { kind: 'door', label: bd.label + 'に入る', id: bd.id }; } } }
       { const j = jobNear(); if (j && (!game.near || game.near.kind !== 'door')) game.near = j; }
       if (!inside && !game.near && armed()) { const q = nearestPed(p.x, p.z, 2.4); if (q && q.state !== 'hands' && q.state !== 'flee') game.near = { kind: 'job', id: 'mug:' + q.id, label: 'カツアゲする（銃で脅す）', btn: '脅す' }; }
       if (!inside && !game.near) {

@@ -12,7 +12,7 @@ const waitNear=async(pre,ms=20000)=>{const t=Date.now();while(Date.now()-t<ms){c
 const act=async()=>{const w0=await E(()=>window.__nb3d.game.where+'|'+window.__nb3d.game.ui+'|'+window.__nb3d.game.fadeT);await E(()=>{window.__nb3d.input.action=true});for(let k=0;k<40;k++){await W(400);const w1=await E(()=>window.__nb3d.game.where+'|'+window.__nb3d.game.ui+'|'+window.__nb3d.game.fadeT);if(w1!==w0||!(await E(()=>window.__nb3d.input.action)))break;}await W(900);};
 const settle=async()=>{for(let k=0;k<50;k++){await W(1000);if(await E(()=>window.__nb3d.cityStream.pending)===0&&k>2)break;}};
 const st=()=>E(()=>{const N=window.__nb3d,G=N.game;return {where:G.where,name:N.INTERIORS[G.where]&&N.INTERIORS[G.where].name,money:G.money,hp:Math.round(G.health),items:G.items,ui:G.ui,buffs:Object.fromEntries(Object.entries(N.shopsMod.buffs).map(([k,v])=>[k,Math.round(v)])),ticket:N.shopsMod.meal.ticket&&N.shopsMod.meal.ticket.id,toast:G.toast}});
-await E(()=>{const G=window.__nb3d.game;G.money=1000;G.hour=14;G.weather.kind='clear';G.weather.cloud=0;G.weather.rain=0;G.weather.next=9999;});
+await E(()=>{const G=window.__nb3d.game;G.money=1000;G.hour=19;G.weather.kind='clear';G.weather.cloud=0;G.weather.rain=0;G.weather.next=9999;});
 // shop doors by type
 const D=await E(()=>{const N=window.__nb3d,out={},cnt={};for(const d of N.BDOORS){if(d.kind!=='shop')continue;const k=N.cityMod&&0;const key=(N.shopKeyOf||(()=>''))(d);void k;void key;}
   // the shop type is not exported on the hook: derive it from the interior generator through the label lists
@@ -67,4 +67,13 @@ for(const k of ['cafe','bar','pharmacy','boutique']){const d=doors.by[k];if(!d){
 for(const id of ['diner','store']){const d=await E((id)=>{const q=window.__nb3d.doors.find(o=>o.id===id);return q&&{id:q.id,x:q.x,z:q.z,ang:q.ang}},id);if(!d){console.log(id,'no door in this city');continue;}
   console.log(id,'door',await goDoor(d));await act();const s=await st();console.log(id,'inside',s.name,s.where);
   if(id==='diner'){await stand(0,-3.3);console.log(' prompt',await waitNear('shop:diner'));}else{await stand(6.2,2.5);console.log(' prompt',await waitNear('shop:konbini'));}}
+// ---- opening hours: at 3 am the ramen shop is shut (shutter down, the door turns you away), the convenience store is open ----
+await E(()=>{const G=window.__nb3d.game;G.where='out';G.ui='';G.hour=3;});
+{const d=doors.by.ramen;await E((d)=>{const G=window.__nb3d.game;G.player.x=d.x+Math.sin(d.ang)*0.4;G.player.z=d.z+Math.cos(d.ang)*0.4;G.player.y=0.2;},d);
+ console.log('ramen at 3:00',await waitNear('shut:ramen'));await E(()=>{window.__nb3d.input.action=true});await W(1500);console.log(' ->',await E(()=>window.__nb3d.game.toast),'| still outside',await E(()=>window.__nb3d.game.where));
+ const nx=Math.sin(d.ang),nz=Math.cos(d.ang);await E(([P,T])=>{window.__nb3dCamOverride={p:P,t:T}},[[d.x+nx*9-nz*3,2.2,d.z+nz*9+nx*3],[d.x,2.4,d.z]]);await W(3000);await p.screenshot({path:'jp/hours_'+region+'_ramen_0300.png',timeout:180000});
+ await E(()=>{window.__nb3d.game.hour=12.5});await W(3000);await p.screenshot({path:'jp/hours_'+region+'_ramen_1230.png',timeout:180000});await E(()=>{window.__nb3dCamOverride=null;window.__nb3d.game.hour=3});
+ console.log('ramen at 12:30 after the hour change',await E(()=>{window.__nb3d.game.hour=12.5;return 1}),await waitNear(d.id));await E(()=>{window.__nb3d.game.hour=3});}
+{const d=doors.by.konbini;await E((d)=>{const G=window.__nb3d.game;G.player.x=d.x+Math.sin(d.ang)*0.4;G.player.z=d.z+Math.cos(d.ang)*0.4;G.player.y=0.2;},d);console.log('konbini at 3:00',await waitNear(d.id));}
+console.log('hours',JSON.stringify(await E(()=>{const H=window.__nb3d.hoursMod;return {ramen3:H.shopOpen('ramen',3),ramen1:H.shopOpen('ramen',1.5),ramen12:H.shopOpen('ramen',12),bar14:H.shopOpen('bar',14),bar2:H.shopOpen('bar',2),bar6:H.shopOpen('bar',6),cafe7:H.shopOpen('cafe',7),cafe22:H.shopOpen('cafe',22),konbini4:H.shopOpen('konbini',4),text:H.hoursText('ramen')}})));
 console.log('errors',JSON.stringify(errs.slice(0,10)));await b.close();})();

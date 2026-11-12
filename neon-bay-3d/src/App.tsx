@@ -66,12 +66,13 @@ import LineView from './game/line/LineView';
 import LineHUD from './game/line/LineHUD';
 import { line } from './game/line/line';
 import * as lineMod from './game/line/line';
+import * as hoursMod from './game/world/hours';
 import DeerView from './game/ai/DeerView';
 import * as deerMod from './game/ai/deer';
 import * as scheduleMod from './game/ai/schedule';
 import type { RegionId } from './game/world/region';
 import { REGION } from './game/world/region'; // after the game modules (import cycles resolve in the old order)
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, deerMod, lineMod, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, deerMod, lineMod, hoursMod, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },

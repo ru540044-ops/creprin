@@ -10,8 +10,9 @@ import { gaitFor, Gait, IDLE_VARIANTS, IdleVariant } from '../anim/pose';
 import { signalState } from '../world/City';
 import { combat } from '../combat/weapons';
 import { spots, AMBIENT_STATES, Spot } from './ambient';
-import { BDOORS } from '../world/bldgInteriors';
+import { BDOORS, shopKey } from '../world/bldgInteriors';
 import { pedFactor, commuterShare, wantsDoor, leavesDoor } from './schedule';
+import { shopOpen } from '../world/hours';
 
 /** Pedestrians walk the sidewalk ring of each block, cross at corners, and react to danger. */
 export type PedState = 'enter' | 'exit' | 'walk' | 'idle' | 'cross' | 'flee' | 'down' | 'dead' | 'hands' | 'wait' | 'cower' | 'handsup' | 'getup' | 'sit' | 'lie' | 'chat' | 'fish' | 'dance' | 'jog' | 'work' | 'watch';
@@ -37,7 +38,7 @@ const corner = (b: number, c: number) => { const B = blocks[b]; return { x: c ==
 function setTarget(p: Ped) { const c = corner(p.blk, p.corner); p.tx = c.x; p.tz = c.z; }
 
 /* ---------- doors people use: every street door of a block, with the point on the pavement in front of it ---------- */
-interface DoorPt { x: number; z: number; rx: number; rz: number; kind: string; edge: number }
+interface DoorPt { x: number; z: number; rx: number; rz: number; kind: string; edge: number; /** kind of shop (for its opening hours) */ key: string }
 let doorsByBlock: Map<number, DoorPt[]> | null = null;
 const NO_DOORS: DoorPt[] = [];
 function blockDoors(b: number): DoorPt[] {
@@ -49,15 +50,16 @@ function blockDoors(b: number): DoorPt[] {
       const edge = nz < -0.5 ? 0 : nx > 0.5 ? 1 : nz > 0.5 ? 2 : 3;
       const rx = edge === 1 ? B.x1 - INSET : edge === 3 ? B.x0 + INSET : clamp(d.x, B.x0 + INSET, B.x1 - INSET), rz = edge === 0 ? B.z0 + INSET : edge === 2 ? B.z1 - INSET : clamp(d.z, B.z0 + INSET, B.z1 - INSET);
       if (Math.hypot(rx - d.x, rz - d.z) > 7) continue;
-      const k = B.j * N + B.i; let a = doorsByBlock.get(k); if (!a) doorsByBlock.set(k, (a = [])); a.push({ x: d.x, z: d.z, rx, rz, kind: d.kind, edge });
+      const k = B.j * N + B.i; let a = doorsByBlock.get(k); if (!a) doorsByBlock.set(k, (a = [])); a.push({ x: d.x, z: d.z, rx, rz, kind: d.kind, edge, key: d.kind === 'shop' ? shopKey(d) : '' });
     }
   }
   return doorsByBlock.get(b) || NO_DOORS;
 }
 /** Pick a door by weight (how likely people are to use that kind of door at this hour); -1 when none. */
 function pickDoor(L: DoorPt[], w: (kind: string) => number): number {
-  let tot = 0; for (const d of L) tot += w(d.kind); if (tot <= 0) return -1;
-  let r = Math.random() * tot; for (let k = 0; k < L.length; k++) { r -= w(L[k].kind); if (r <= 0) return k; }
+  const W = (d: DoorPt) => (d.key && !shopOpen(d.key, game.hour) ? 0 : w(d.kind)); // closed shops: nobody goes in or comes out
+  let tot = 0; for (const d of L) tot += W(d); if (tot <= 0) return -1;
+  let r = Math.random() * tot; for (let k = 0; k < L.length; k++) { r -= W(L[k]); if (r <= 0) return k; }
   return L.length - 1;
 }
 /** A witness starts calling the police: it shows over their head, and scaring them or knocking them down stops it. */

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { HOURS, hoursPair } from './hours';
 import { buildings, Building, BlockInfo, topFoot, blockOfB, CANAL_BLOCKS, N } from './cityGen';
-import { SHOP_TYPES, shopCell } from './bldgInteriors';
+import { SHOP_TYPES, shopCell, shopKey } from './bldgInteriors';
 import type { BDoor } from './bldgInteriors';
 import { KONBINI_BRANDS } from './shopFurn';
 import { game } from '../state/store';
@@ -69,6 +70,20 @@ function atlasMaterial(tex: THREE.Texture, sx: number, sy: number) {
 
 /* ---------------- shared materials and geometries (created once) ---------------- */
 let SH: ReturnType<typeof makeShared> | null = null;
+/** The hour of day, for the shutters (set every frame by Detail). */
+export const shutterHour = { value: 12 };
+/** Roll-down shutter: grey slats. Each instance carries its shop's [opens, closes] hours; while the shop is open the panel is collapsed to nothing. */
+function shutterMaterial() {
+  const cv = document.createElement('canvas'); cv.width = 32; cv.height = 64; const c = cv.getContext('2d')!;
+  for (let y = 0; y < 64; y += 4) { c.fillStyle = y % 8 ? '#9a9da2' : '#b4b7bc'; c.fillRect(0, y, 32, 4); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, y + 3, 32, 1); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.55, metalness: 0.5 });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uHour = shutterHour;
+    sh.vertexShader = 'attribute vec2 aHours;\nuniform float uHour;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  float o = aHours.x, c = aHours.y;\n  float isOpen = o < c ? step(o, uHour) * step(uHour, c - 0.0001) : max(step(o, uHour), step(uHour, c - 0.0001));\n  transformed *= 1.0 - isOpen;');
+  };
+  return m;
+}
 function makeShared() {
   const stripe = (() => { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 8; const c = cv.getContext('2d')!; for (let x = 0; x < 64; x += 16) { c.fillStyle = '#ffffff'; c.fillRect(x, 0, 8, 8); c.fillStyle = '#9a9a9a'; c.fillRect(x + 8, 0, 8, 8); } const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(6, 1); return t; })();
   return {
@@ -79,6 +94,7 @@ function makeShared() {
     doorMat: new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }),
     doorGlassMat: new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false }), doorLampMat: new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false }),
     beaconMat: new THREE.MeshBasicMaterial({ map: getTextures().glow, color: '#ff2020', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+    shutMat: shutterMaterial(),
   };
 }
 const shared = () => (SH ||= makeShared());
@@ -126,12 +142,13 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
   const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
   const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
   // every shop gets the sign of the business inside, over its door
-  const fs: { m: THREE.Matrix4; o: [number, number] }[] = [], doorOf = new Map<Building, BDoor>();
+  const fs: { m: THREE.Matrix4; o: [number, number] }[] = [], doorOf = new Map<Building, BDoor>(), shut: { m: THREE.Matrix4; o: [number, number] }[] = [];
   for (const dd of doorList) {
     doorOf.set(buildings[dd.b], dd); if (dd.kind !== 'shop') continue;
     const [col, row] = shopCell(dd), nx = Math.sin(dd.ang), nz = Math.cos(dd.ang);
     Q.setFromAxisAngle(UP, dd.ang); P.set(dd.fx + nx * 0.34, dd.y + 4.0, dd.fz + nz * 0.34); S.set(FASCIA.w, FASCIA.h, 1);
     fs.push({ m: M.compose(P, Q, S).clone(), o: [col * 0.25, 1 - (row + 1) / SHOP_TYPES.length] });
+    const key = shopKey(dd); if (HOURS[key]) { P.set(dd.fx + nx * 0.2, dd.y + 1.45, dd.fz + nz * 0.2); S.set(2.5, 2.9, 1); shut.push({ m: M.compose(P, Q, S).clone(), o: hoursPair(key) }); }
   }
   for (const b of list) {
     if (b.gable || b.type === 'hangar' || b.shape === 'spiral') continue;
@@ -210,6 +227,7 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
   };
   mk(D.box, D.roofMat, boxes); mk(D.cyl, D.roofMat, cyls);
   withOff(hs, D.hMat); withOff(vs, D.vMat); withOff(ts, D.tMat); withOff(cs, D.cMat); withOff(fs, D.fMat);
+  if (shut.length) { const g = D.plane.clone(), a = new THREE.InstancedBufferAttribute(new Float32Array(shut.length * 2), 2); shut.forEach((it, i) => a.setXY(i, it.o[0], it.o[1])); g.setAttribute('aHours', a); const im = mk(g, D.shutMat, shut, false); if (im) { im.userData.ownGeo = true; im.frustumCulled = false; } }
   const awn = mk(D.box, D.awnMat, aw); if (awn) awn.castShadow = true;
   mk(D.box, D.doorMat, frameM); mk(D.plane, D.doorGlassMat, glassM, false); mk(D.box, D.doorLampMat, lampM, false);
   return out;
@@ -227,7 +245,7 @@ export default function Detail() {
   }, []);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
   useFrame(({ camera, clock }) => {
-    const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2), sh = D.sh;
+    const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2), sh = D.sh; shutterHour.value = h;
     const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k); sh.tMat.color.setScalar(k); sh.cMat.color.setScalar(night ? 1.5 : dusk ? 1.05 : 0.8); sh.fMat.color.setScalar(night ? 1.6 : dusk ? 1.15 : 0.92);
     sh.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); sh.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
     const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; sh.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
