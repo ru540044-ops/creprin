@@ -51,6 +51,7 @@ function useTicker(ms: number) { const [, f] = useReducer((x: number) => x + 1, 
 
 /* ---------- moving blips: search area, police, cash truck ---------- */
 function drawDynamic(c: CanvasRenderingContext2D, k: number, t: number) {
+  for (const v of vehicles) if (v.parked) { const [a, b] = toMap(v.x, v.z), s = 13 * k; c.drawImage(badge('🅿️', '#2b6bff'), a - s / 2, b - s / 2, s, s); } // cars left in coin parking
   if (mission.marker && mission.marker.y > -40) { // story: start blip (R) or the current objective
     const [a, b] = toMap(mission.marker.x, mission.marker.z), pulse = 1 + Math.sin(t / 250) * 0.15;
     c.fillStyle = '#ffd23a'; c.strokeStyle = '#000'; c.lineWidth = 1.4 * k; c.beginPath(); c.arc(a, b, 6.5 * k * 1.4 * pulse, 0, Math.PI * 2); c.fill(); c.stroke();

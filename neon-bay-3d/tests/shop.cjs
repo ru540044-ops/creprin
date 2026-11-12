@@ -50,7 +50,7 @@ await E(()=>{window.__nb3d.game.arms.cur='fist'});console.log('unarmed prompt',a
 // save / load keeps the pocket
 console.log('saved items',await E(()=>{window.__nb3d.game.started&&0;const s=JSON.parse(localStorage.getItem('neonbay3d.save.v1')||'{}');return JSON.stringify(s.items)}));
 // ---- ramen: ticket machine, then a booth ----
-console.log('ramen door',await goDoor(doors.by.ramen));await act();console.log('inside',JSON.stringify(await st()));
+await E(()=>{window.__nb3d.game.hour=19});console.log('ramen door',await goDoor(doors.by.ramen));await act();console.log('inside',JSON.stringify(await st()));
 await E(()=>{const N=window.__nb3d,G=N.game,I=N.INTERIORS[G.where];window.__nb3dCamOverride={p:[I.ox-5.2,-50+2.3,I.oz+3.6],t:[I.ox+1.5,-50+1.1,I.oz-2.6]};});await W(2500);await p.screenshot({path:'jp/shop_'+region+'_ramen_in.png',timeout:180000});await E(()=>{window.__nb3dCamOverride=null});
 await stand(0.6,-0.95);console.log('seat without ticket',await waitNear('ramen:eat'));await act();console.log(' ->',(await st()).toast);
 await stand(5.4,3.2);console.log('machine',await waitNear('shop:ramen'));await act();await p.screenshot({path:'jp/shop_'+region+'_ramen_panel.png'});
@@ -58,6 +58,7 @@ await E(()=>{window.__nb3d.game.health=30});await buy('博多ラーメン');awai
 await stand(0.6,-0.95);console.log('seat with ticket',await waitNear('ramen:eat'));await act();console.log('eating',await eatShot('ramen_'+region));await W(1500);console.log('ate',JSON.stringify(await st()));
 // ---- the other counters ----
 for(const k of ['cafe','bar','pharmacy','boutique']){const d=doors.by[k];if(!d){console.log(k,'no door');continue;}
+  await E(()=>{window.__nb3d.game.hour=19});// (the clock runs an hour a minute: keep it at a time when all four are open)
   await goDoor(d);await act();const I=await E(()=>{const N=window.__nb3d,I=N.INTERIORS[N.game.where];return {name:I.name,acts:I.acts}});if(!I.acts){console.log(k,'NO ACTS',I.name);continue;}
   await stand(I.acts[0].x,I.acts[0].z);const n=await waitNear(I.acts[0].id);await act();const s=await st();
   if(k==='boutique'){console.log(k,n,'studio:',await p.locator('.studio,.styleWrap,[class*=style]').count());await p.locator('.stop .done').click({timeout:60000});for(let q=0;q<30&&(await E(()=>window.__nb3d.game.styling));q++)await W(400);console.log(' studio closed with 完了:',!(await E(()=>window.__nb3d.game.styling)));continue;}

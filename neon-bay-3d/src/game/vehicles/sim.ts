@@ -8,6 +8,7 @@ import { line, stepLine } from '../line/line';
 
 export interface Veh {
   id: number; def: VDef; color: string; x: number; z: number; y: number; yaw: number; vx: number; vz: number; yr: number;
+  /** left in a coin-parking bay (paid): it stays wherever you go */ parked?: boolean; px?: number; pz?: number;
   steer: number; hp: number; slot: number; owned: number; touched: boolean; drift: boolean; gear: number; rpm: number;
   braking: boolean; reversing: boolean; spin: number; pitch: number; roll: number; slip: number; dead: boolean; burn: number; lean: number;
   role: '' | 'police' | 'armored' | 'traffic' | 'racer'; ai: AI | null;
@@ -48,7 +49,7 @@ export function stream(px: number, pz: number, dt: number) {
     const v = vehicles[i]; if (v.id === game.inCar || v.owned >= 0 || v.role || (v.id === game.yachtId && game.where === 'yacht')) continue;
     const d = Math.hypot(v.x - px, v.z - pz);
     if (d > 240 && !v.touched) remove(v);
-    else if (d > 520) remove(v); // abandoned cars far away disappear
+    else if (d > 520 && !v.parked) remove(v); // abandoned cars far away disappear (not the ones in a coin-parking bay)
   }
   // parked cars: the nearest slots first, up to a cap per quality level (each car is a dozen draw calls)
   const cap = game.quality === 'low' ? 24 : game.quality === 'medium' ? 38 : 52;

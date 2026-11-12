@@ -30,17 +30,24 @@ function addRep(n: number, why: string) { progress.stats.flags.rep = Math.max(-2
 const pay = (n: number) => { game.money += n; progress.stats.earned += n; sfx('buy', 0.7); };
 const done = (gap = 110) => { ev.kind = ''; ev.stage = 0; ev.ped = null; ev.mark = null; ev.choice = null; ev.next = game.clock + gap + Math.random() * 70; save(); };
 
-/** A free spot on a pavement d metres from the player (roughly ahead), or null. */
+/** A free spot on a pavement about d metres from the player (ahead of the camera when there is one), or null. */
 function spotNear(d: number): { x: number; z: number } | null {
-  const P = game.player, yaw = game.cam.yaw + Math.PI;
-  for (let k = 0; k < 14; k++) {
-    const a = yaw + (Math.random() - 0.5) * (k < 6 ? 1.6 : 6.3), r = d * (0.8 + Math.random() * 0.4), x = P.x + Math.sin(a) * r, z = P.z + Math.cos(a) * r;
-    if (Math.abs(x) > HALF - 20 || Math.abs(z) > HALF - 20 || pointBlocked(x, 0.9, z) || pointBlocked(x, 1.6, z)) continue;
-    const B = blocks.find((q) => x > q.x0 && x < q.x1 && z > q.z0 && z < q.z1); if (!B || B.zone === 'water' || B.zone === 'canal') continue;
-    const edge = Math.min(x - B.x0, B.x1 - x, z - B.z0, B.z1 - z); if (edge > 6.5) continue; // on the pavement ring, not in the middle of a block
-    return { x, z };
+  const P = game.player, yaw = game.cam.yaw + Math.PI, fx = Math.sin(yaw), fz = Math.cos(yaw), IN = 2.6, out: { x: number; z: number; w: number }[] = [];
+  for (const B of blocks) {
+    if (B.zone === 'water' || B.zone === 'canal' || P.x < B.x0 - d * 1.5 || P.x > B.x1 + d * 1.5 || P.z < B.z0 - d * 1.5 || P.z > B.z1 + d * 1.5) continue;
+    // walk the pavement ring of the block (IN metres inside its kerb), a point every 3 m
+    const ring: [number, number][] = [];
+    for (let x = B.x0 + IN; x <= B.x1 - IN; x += 3) ring.push([x, B.z0 + IN], [x, B.z1 - IN]);
+    for (let z = B.z0 + IN + 3; z <= B.z1 - IN - 3; z += 3) ring.push([B.x0 + IN, z], [B.x1 - IN, z]);
+    for (const [x, z] of ring) {
+      const dx = x - P.x, dz = z - P.z, L = Math.hypot(dx, dz); if (L < d * 0.7 || L > d * 1.4 || Math.abs(x) > HALF - 10 || Math.abs(z) > HALF - 10) continue;
+      if (pointBlocked(x, 0.9, z) || pointBlocked(x, 1.6, z)) continue;
+      out.push({ x, z, w: 1 + Math.max(0, (dx * fx + dz * fz) / L) * 3 });
+    }
   }
-  return null;
+  if (!out.length) return null;
+  let r = Math.random() * out.reduce((a, q) => a + q.w, 0); for (const q of out) { r -= q.w; if (r <= 0) return q; }
+  return out[out.length - 1];
 }
 const idle = () => game.started && game.where === 'out' && !game.inCar && game.wanted === 0 && mission.id < 0 && !line.on && !game.phone && !game.ui && !game.paused;
 
@@ -65,7 +72,7 @@ function start(kind: EventKind): boolean {
     const s = spotNear(12); if (!s) return false;
     const T = far[Math.floor(Math.random() * far.length)], tp = ejectPed(s.x, s.z, s.x, s.z); tp.state = 'idle'; tp.t = 90; tp.callT = 0; tp.flail = false;
     const a = Math.atan2(T[1] - s.x, -(T[2] - s.z)); // 0 = north (−z), clockwise
-    ev.ped = tp; ev.target = T[0]; ev.dir = ((Math.round(a / (Math.PI / 2)) % 4) + 4) % 4; ev.kind = kind; ev.stage = 0; ev.t = 80;
+    ev.ped = tp; ev.x = s.x; ev.z = s.z; ev.target = T[0]; ev.dir = ((Math.round(a / (Math.PI / 2)) % 4) + 4) % 4; ev.kind = kind; ev.stage = 0; ev.t = 80;
     toast('🙋 観光客が道に迷っているようだ', 2.6); return true;
   }
   return false;
@@ -104,7 +111,7 @@ export function updateEvents(dt: number) {
     else { const k = nearestKoban(); ev.mark = k ? { x: k.x, y: 5, z: k.z - 2.6, icon: '!' } : null; }
   } else if (ev.kind === 'tourist') {
     const tp = ev.ped!; if (!peds.includes(tp) || tp.state === 'flee' || tp.state === 'down' || tp.state === 'dead' || ev.t <= 0) { done(50); return; }
-    tp.state = 'idle'; tp.t = 5; tp.yaw = Math.atan2(P.x - tp.x, P.z - tp.z);
+    tp.state = 'idle'; tp.t = 5; tp.vx = tp.vz = 0; tp.x = ev.x; tp.z = ev.z; tp.yaw = Math.atan2(P.x - tp.x, P.z - tp.z); // stands where they stopped you
     ev.mark = { x: tp.x, y: tp.y + 2.3, z: tp.z, icon: '?' };
   }
 }
@@ -116,7 +123,7 @@ export function eventNear(): { kind: 'job'; id: string; label: string; btn: stri
   const P = game.player;
   if (ev.kind === 'wallet' && ev.stage === 0 && Math.hypot(ev.x - P.x, ev.z - P.z) < 2.2) return { kind: 'job', id: 'ev:wallet', label: '落ちている財布を拾う', btn: '拾う' };
   if (ev.kind === 'wallet' && ev.stage === 1) { const k = nearestKoban(); if (k && Math.hypot(k.x - P.x, k.z - 2.6 - P.z) < 2.6) return { kind: 'job', id: 'ev:koban', label: '交番に財布を届ける', btn: '届ける' }; }
-  if (ev.kind === 'tourist' && ev.ped && Math.hypot(ev.ped.x - P.x, ev.ped.z - P.z) < 2.6) return { kind: 'job', id: 'ev:tourist', label: '観光客に話しかける', btn: '話す' };
+  if (ev.kind === 'tourist' && ev.ped && Math.hypot(ev.ped.x - P.x, ev.ped.z - P.z) < 3.4) return { kind: 'job', id: 'ev:tourist', label: '観光客に話しかける', btn: '話す' };
   return null;
 }
 export function eventAction(id: string) {
