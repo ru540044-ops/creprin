@@ -60,7 +60,7 @@ await stand(0.6,-0.95);console.log('seat with ticket',await waitNear('ramen:eat'
 for(const k of ['cafe','bar','pharmacy','boutique']){const d=doors.by[k];if(!d){console.log(k,'no door');continue;}
   await goDoor(d);await act();const I=await E(()=>{const N=window.__nb3d,I=N.INTERIORS[N.game.where];return {name:I.name,acts:I.acts}});if(!I.acts){console.log(k,'NO ACTS',I.name);continue;}
   await stand(I.acts[0].x,I.acts[0].z);const n=await waitNear(I.acts[0].id);await act();const s=await st();
-  if(k==='boutique'){console.log(k,n,'studio:',await p.locator('.studio,.styleWrap,[class*=style]').count());await p.keyboard.press('Escape');await p.locator('button',{hasText:'閉じる'}).first().click({timeout:3000}).catch(()=>{});await p.locator('button',{hasText:'完了'}).first().click({timeout:2000}).catch(()=>{});await W(500);continue;}
+  if(k==='boutique'){console.log(k,n,'studio:',await p.locator('.studio,.styleWrap,[class*=style]').count());await p.locator('.stop .done').click({timeout:60000});for(let q=0;q<30&&(await E(()=>window.__nb3d.game.styling));q++)await W(400);console.log(' studio closed with 完了:',!(await E(()=>window.__nb3d.game.styling)));continue;}
   const first=await p.locator('.shopRow b').first().textContent();await p.locator('.shopRow button').first().click();await W(300);console.log(' eating',await eatShot(k+'_'+region));console.log(k,n,'|',first,'|',JSON.stringify({money:(await st()).money,buffs:(await st()).buffs,msg:await p.textContent('.shopMsg').catch(()=>'')}));
   await noEat();await p.locator('.shop .pHome').click();await W(300);}
 // ---- the hand-made diner and the first QWIK 24 ----
