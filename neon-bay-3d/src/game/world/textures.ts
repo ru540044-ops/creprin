@@ -33,7 +33,7 @@ function normalFromHeight(hc: HTMLCanvasElement, strength: number) {
 /** Facade with a window grid. cols x rows windows per texture repeat; su/sv = meters covered by one repeat. */
 function facade(opts: { cols: number; rows: number; su: number; sv: number; wall: string; glass: string; frame: string; winW: number; winH: number; shop?: boolean; brick?: boolean; tile?: boolean; corrug?: boolean; siding?: boolean; lattice?: boolean; seed: number }): FacadeSet {
   const W = 512, H = 512, cw = W / opts.cols, ch = H / opts.rows, r = mulberry(opts.seed);
-  const lit: boolean[] = []; for (let i = 0; i < opts.cols * opts.rows; i++) lit.push(r() < 0.42);
+  const lit: boolean[] = []; for (let i = 0; i < opts.cols * opts.rows; i++) lit.push(r() < 0.36);
   const warm: boolean[] = lit.map(() => r() < 0.75);
   const rectOf = (cx: number, cy: number) => { const ww = cw * opts.winW, hh = ch * opts.winH; return [cx * cw + (cw - ww) / 2, cy * ch + (ch - hh) / 2, ww, hh]; };
   const isShopRow = (cy: number) => opts.shop && cy === opts.rows - 1;
@@ -67,7 +67,15 @@ function facade(opts: { cols: number; rows: number; su: number; sv: number; wall
       const k = cy * opts.cols + cx; if (opts.corrug && cy !== 1) continue;
       let [x, y, ww, hh] = rectOf(cx, cy);
       if (isShopRow(cy)) { x = cx * cw + 2; ww = cw - 4; y = cy * ch + ch * 0.12; hh = ch * 0.78; c.fillStyle = '#ffe3b0'; c.fillRect(x, y, ww, hh); continue; }
-      if (!lit[k]) continue; c.fillStyle = warm[k] ? '#ffcf86' : '#9fd8ff'; c.fillRect(x, y, ww, hh);
+      if (!lit[k]) continue;
+      // a lit room: its own brightness and tone (amber, warm white, cool white, now and then the blue of a TV), brighter
+      // towards the ceiling light, and often a curtain half drawn or blinds
+      const tone = warm[k] ? ['#ffcf86', '#ffe0b0', '#ffd08f', '#f2b870'][(k * 7) % 4] : (k % 11 === 0 ? '#6a9cff' : ['#cfe6ff', '#9fd8ff', '#eaf2ff'][(k * 5) % 3]);
+      const g = c.createLinearGradient(x, y, x, y + hh); g.addColorStop(0, tone); g.addColorStop(1, 'rgba(0,0,0,.55)');
+      c.globalAlpha = 0.5 + ((k * 37) % 50) / 100; c.fillStyle = tone; c.fillRect(x, y, ww, hh); c.fillStyle = g; c.globalAlpha *= 0.6; c.fillRect(x, y, ww, hh); c.globalAlpha = 1;
+      const v = (k * 13) % 10;
+      if (v < 4) { c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(v < 2 ? x : x + ww * 0.62, y, ww * 0.38, hh); }
+      else if (v < 6) { c.fillStyle = 'rgba(0,0,0,.45)'; for (let by = y + 2; by < y + hh; by += 4) c.fillRect(x, by, ww, 1.5); }
     }
   });
   const rough = canvas(W, H, (c) => {
