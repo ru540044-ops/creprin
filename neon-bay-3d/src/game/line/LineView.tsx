@@ -22,6 +22,14 @@ const GROUND: Record<Zone, Col> = { city: [0.4, 0.41, 0.43], suburb: [0.44, 0.46
 const BIG = ['東京', '品川', '新横浜', '名古屋', '新大阪', '京都', '博多', '広島', '岡山', '小倉', 'なんば', '鶴橋', '静岡', '浜松', '姫路'];
 const hash = (a: number, b: number) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 
+/** Painted textures for the scenery: office windows, house walls (two floors, a door), rice paddies with their ridges. */
+function canvasTex(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, rx = 1, ry = 1) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d')!);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 4; return t;
+}
+const officeTex = () => canvasTex(128, 256, (c) => { c.fillStyle = '#e8e8e8'; c.fillRect(0, 0, 128, 256); for (let r = 0; r < 16; r++) for (let k = 0; k < 6; k++) { c.fillStyle = (r * 7 + k * 3) % 5 === 0 ? '#9ab0c4' : '#5e7186'; c.fillRect(6 + k * 20.5, 6 + r * 15.6, 15, 10); } });
+const houseTex = () => canvasTex(128, 64, (c) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, 128, 64); c.fillStyle = '#5a6a7a'; for (const x of [12, 52, 92]) { c.fillRect(x, 8, 22, 16); c.fillRect(x, 38, 22, 16); } c.fillStyle = '#6a4a30'; c.fillRect(54, 36, 16, 28); c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(0, 30, 128, 2); });
+const paddyTex = () => canvasTex(128, 128, (c) => { c.fillStyle = '#7aa04a'; c.fillRect(0, 0, 128, 128); c.fillStyle = '#8ab65a'; c.fillRect(4, 4, 58, 58); c.fillRect(66, 66, 58, 58); c.fillStyle = '#6a9a8a'; c.fillRect(66, 4, 58, 58); c.fillStyle = '#9ac26a'; c.fillRect(4, 66, 58, 58); c.fillStyle = 'rgba(80,60,30,.6)'; c.fillRect(0, 62, 128, 4); c.fillRect(62, 0, 4, 128); c.fillRect(0, 0, 128, 2); c.fillRect(0, 0, 2, 128); }, 1, 1);
 interface Pool { mesh: THREE.InstancedMesh; n: number; max: number }
 function pool(geo: THREE.BufferGeometry, mat: THREE.Material, max: number): Pool { const m = new THREE.InstancedMesh(geo, mat, max); m.count = 0; m.frustumCulled = false; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3); return { mesh: m, n: 0, max }; }
 /** A hillside dome beside the line: never reaches across the track (or over a tunnel bore). */
@@ -39,12 +47,15 @@ export default function LineView() {
     const water = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, color: '#ffffff' });
     const roofG = new THREE.ConeGeometry(0.75, 1, 4); roofG.rotateY(Math.PI / 4); roofG.translate(0, 0.5, 0);
     const treeG = mergeGeometries([new THREE.CylinderGeometry(0.12, 0.16, 1.2, 5).translate(0, 0.6, 0), new THREE.ConeGeometry(0.9, 2.6, 6).translate(0, 2.3, 0)])!;
+    const roundG = mergeGeometries([new THREE.CylinderGeometry(0.12, 0.16, 1.4, 5).translate(0, 0.7, 0), new THREE.IcosahedronGeometry(1.1, 1).translate(0, 2.2, 0)])!; // broadleaf
+    const office = new THREE.MeshStandardMaterial({ map: officeTex(), roughness: 0.6, metalness: 0.15 }), houseM = new THREE.MeshStandardMaterial({ map: houseTex(), roughness: 0.85 }), paddyM = new THREE.MeshStandardMaterial({ map: paddyTex(), roughness: 0.6, metalness: 0.05 });
     const hillG = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     const mastG = mergeGeometries([new THREE.BoxGeometry(0.35, 7.6, 0.35).translate(0, 3.8, 0), new THREE.BoxGeometry(4.6, 0.25, 0.25).translate(-2.1, 7.2, 0)])!;
     const tubeG = mergeGeometries([new THREE.BoxGeometry(1.2, 8, 20).translate(-6.6, 4, 0), new THREE.BoxGeometry(1.2, 8, 20).translate(6.6, 4, 0), new THREE.BoxGeometry(14.4, 1.2, 20).translate(0, 8.4, 0)])!;
     const P = {
       ground: pool(unitBox(), std, 260), bldg: pool(unitBox(), std, 1600), roof: pool(roofG, std, 1100), tree: pool(treeG, std, 1800), hill: pool(hillG, std, 220),
       mast: pool(mastG, std, 220), tube: pool(tubeG, std, 260), lamp: pool(unitBox(), glow, 400), water: pool(unitBox(), water, 160), win: pool(unitBox(), glow, 900),
+      office: pool(unitBox(), office, 900), house: pool(unitBox(), houseM, 1100), paddy: pool(unitBox(), paddyM, 300), round: pool(roundG, std, 1400),
     };
     // the track bed, rails and the far ground stay with the train (they look the same all the way)
     const bed = new THREE.Mesh(new THREE.BoxGeometry(12, 1, AHEAD + 600).translate(0, 0.5, -(AHEAD + 600) / 2 + 300), new THREE.MeshStandardMaterial({ color: '#8d8a84', roughness: 0.95 }));
@@ -89,6 +100,10 @@ export default function LineView() {
       const big = nearSt ? BIG.includes(nearSt.name) : L.stops.some((st) => BIG.includes(st.name) && Math.abs(st.s - s0) < 7000);
       // tunnels: the bore (lit), the mountain over it (a wooded lid and ridges either side)
       if (tun && q0 + C / 2 > tun.a && q0 + C / 2 < tun.b) {
+        const CON: Col = [0.62, 0.61, 0.58];
+        for (const [edge, isIn] of [[s0, q0 - C / 2 < tun.a], [s0 + C, q0 + C * 1.5 > tun.b]] as [number, boolean][]) if (isIn) {
+          const ze = z(edge); put(P.bldg, -14.5, 0, ze, 15, 16, 2, CON); put(P.bldg, 14.5, 0, ze, 15, 16, 2, CON); put(P.bldg, 0, 9, ze, 14.2, 7, 2, CON); put(P.bldg, 0, 8.6, ze, 15.6, 0.6, 2.4, [0.5, 0.49, 0.46]);
+        }
         for (let k = 0; k < 5; k++) { const zz = z(s0 + k * 20 + 10); put(P.tube, 0, 0, zz, 1, 1, 1, [0.32, 0.31, 0.3]); if (k % 2 === 0) for (const sd of [-1, 1]) put(P.lamp, sd * 5.9, 5.2, zz, 0.15, 0.25, 1.4, [1, 0.85, 0.6]); }
         if (q0 > tun.a + 20 && q0 + C < tun.b - 10) put(P.bldg, 0, 9, zc, 40, 34, C, [0.2, 0.32, 0.17]);
         for (const sd of [-1, 1]) hill(P.hill, sd * (70 + r(sd + 3) * 60), -10, zc, 110 + r(sd + 5) * 60, 55 + r(sd + 7) * 50, 90, [0.19, 0.31, 0.16]);
@@ -111,7 +126,7 @@ export default function LineView() {
       // a station it passes: platforms, canopies, the name boards
       if (nearSt) {
         for (const sd of [-1, 1]) { put(P.bldg, sd * 11, 0, zc, 7, 2.2, C, [0.7, 0.7, 0.68]); put(P.bldg, sd * 11.5, 6.2, zc, 8, 0.4, C, [0.62, 0.66, 0.7]); for (const zz of [zc - 25, zc + 25]) put(P.bldg, sd * 13, 2.2, zz, 0.4, 4, 0.4, [0.5, 0.52, 0.55]); for (const zz of [zc - 30, zc, zc + 30]) put(P.win, sd * 11.5, 6.0, zz, 0.5, 0.08, 8, [1, 0.95, 0.85]); }
-        if (Math.abs(nearSt.s - (s0 + C / 2)) < 60) for (const sd of [-1, 1]) signList.push({ name: nearSt.name, s: nearSt.s, side: sd });
+        if (Math.abs(nearSt.s - (s0 + C / 2)) < 60) for (const sd of [-1, 1]) { signList.push({ name: nearSt.name, s: nearSt.s, side: sd }); put(P.office, sd * 26, 0, zc, 16, shin ? 14 : 9, C * 1.2, [0.95, 0.95, 0.97]); put(P.bldg, sd * 26, shin ? 14 : 9, zc, 17, 0.6, C * 1.25, [0.5, 0.55, 0.62]); }
       }
       // what stands either side
       for (const sd of [-1, 1]) {
@@ -120,17 +135,17 @@ export default function LineView() {
         if (zn === 'city') {
           const n = big ? 7 : 5;
           for (let k = 0; k < n; k++) { const x = sd * (x0 + 6 + r(k * 7 + sd) * 220), w = 12 + r(k * 7 + 2 + sd) * 24, d = 12 + r(k * 7 + 3) * 26, h = (big ? 14 + r(k * 7 + 4) ** 2 * 120 : 9 + r(k * 7 + 4) * 30) * (Math.abs(x) < 40 ? 0.5 : 1), zz = zc + (r(k * 7 + 5) - 0.5) * (C - d);
-            if (riverHere) continue; const t = 0.5 + r(k * 7 + 6) * 0.4; put(P.bldg, x, 0, zz, w, h, d, [t, t * 1.01, t * 1.04]); if (h > 18) put(P.win, x - sd * (w / 2 + 0.05), h * 0.15, zz, 0.08, h * 0.7, d * 0.8, [0.5, 0.6, 0.7]); }
+            if (riverHere) continue; const t = 0.62 + r(k * 7 + 6) * 0.38; put(P.office, x, 0, zz, w, h, d, [t, t * (0.96 + r(k) * 0.08), t * (0.95 + r(k + 1) * 0.1)]); if (h > 18) put(P.win, x - sd * (w / 2 + 0.05), h * 0.15, zz, 0.08, h * 0.7, d * 0.8, [0.5, 0.6, 0.7]); }
         } else if (zn === 'suburb' || zn === 'coast') {
           for (let k = 0; k < 8; k++) { if (riverHere) break; const x = sd * (x0 + 4 + r(k * 5 + sd + 20) * 150), zz = zc + (r(k * 5 + 21) - 0.5) * (C - 12), apt = r(k * 5 + 22) < 0.15, w = apt ? 22 : 8 + r(k * 5 + 23) * 3, h = apt ? 12 + r(k) * 8 : 5.5;
-            const wc = 0.82 + r(k * 5 + 24) * 0.14; put(P.bldg, x, 0, zz, w, h, apt ? 11 : 8, [wc, wc * 0.97, wc * 0.92]); if (!apt) put(P.roof, x, h, zz, w * 1.1, 2.4, 9.6, [0.2 + r(k) * 0.12, 0.22, 0.26]); }
-          for (let k = 0; k < 4; k++) put(P.tree, sd * (x0 + r(k + 40 + sd) * 140), 0, zc + (r(k + 44) - 0.5) * C, 2, 2 + r(k + 48), 2, [0.22, 0.4, 0.2]);
+            const wc = 0.82 + r(k * 5 + 24) * 0.14; put(apt ? P.office : P.house, x, 0, zz, w, h, apt ? 11 : 8, [wc, wc * 0.97, wc * 0.92]); if (!apt) put(P.roof, x, h, zz, w * 1.1, 2.4, 9.6, [0.2 + r(k) * 0.12, 0.22, 0.26]); }
+          for (let k = 0; k < 4; k++) put(k % 2 ? P.round : P.tree, sd * (x0 + r(k + 40 + sd) * 140), 0, zc + (r(k + 44) - 0.5) * C, 2, 2 + r(k + 48), 2, [0.22, 0.4, 0.2]);
         } else if (zn === 'fields') {
-          for (let k = 0; k < 3; k++) { const x = sd * (x0 + 20 + r(k + 60 + sd) * 300), w = 30 + r(k + 64) * 50; put(P.ground, x, -0.05, zc + (r(k + 66) - 0.5) * 40, w, 0.06, 36, [0.3 + r(k + 68) * 0.12, 0.52 + r(k + 69) * 0.1, 0.24]); }
-          if (r(sd + 70) < 0.45) { const x = sd * (x0 + 30 + r(sd + 71) * 200), zz = zc + (r(sd + 72) - 0.5) * 60; put(P.bldg, x, 0, zz, 11, 5, 9, [0.86, 0.84, 0.78]); put(P.roof, x, 5, zz, 13, 3, 11, [0.24, 0.24, 0.26]); for (let k = 0; k < 3; k++) put(P.tree, x + sd * (8 + k * 3), 0, zz + k * 4, 2.4, 3, 2.4, [0.18, 0.34, 0.16]); }
-          for (let k = 0; k < 3; k++) put(P.tree, sd * (x0 + 50 + r(k + 80 + sd) * 400), 0, zc + (r(k + 84) - 0.5) * C, 3, 3, 3, [0.2, 0.36, 0.18]);
+          for (let k = 0; k < 3; k++) { const x = sd * (x0 + 20 + r(k + 60 + sd) * 300), w = 30 + r(k + 64) * 50; put(P.paddy, x, 0.0, zc + (r(k + 66) - 0.5) * 40, w, 0.08, 36, [0.9 + r(k + 68) * 0.2, 0.95 + r(k + 69) * 0.1, 0.85 + r(k + 70) * 0.2]); }
+          if (r(sd + 70) < 0.45) { const x = sd * (x0 + 30 + r(sd + 71) * 200), zz = zc + (r(sd + 72) - 0.5) * 60; put(P.house, x, 0, zz, 11, 5, 9, [0.92, 0.88, 0.8]); put(P.roof, x, 5, zz, 13, 3, 11, [0.24, 0.24, 0.26]); for (let k = 0; k < 3; k++) put(P.tree, x + sd * (8 + k * 3), 0, zz + k * 4, 2.4, 3, 2.4, [0.18, 0.34, 0.16]); }
+          for (let k = 0; k < 3; k++) put(k ? P.round : P.tree, sd * (x0 + 50 + r(k + 80 + sd) * 400), 0, zc + (r(k + 84) - 0.5) * C, 3, 3, 3, [0.2, 0.36, 0.18]);
         } else { // hills: woods and hillsides close to the line
-          for (let k = 0; k < 14; k++) put(P.tree, sd * (x0 + r(k * 3 + 90 + sd) * 90), 0, zc + (r(k * 3 + 91) - 0.5) * C, 2.6, 2.4 + r(k * 3 + 92) * 1.6, 2.6, [0.14 + r(k) * 0.06, 0.3 + r(k + 1) * 0.08, 0.14]);
+          for (let k = 0; k < 14; k++) put(k % 3 ? P.tree : P.round, sd * (x0 + r(k * 3 + 90 + sd) * 90), 0, zc + (r(k * 3 + 91) - 0.5) * C, 2.6, 2.4 + r(k * 3 + 92) * 1.6, 2.6, [0.14 + r(k) * 0.06, 0.3 + r(k + 1) * 0.08, 0.14]);
           if (ci % 2 === 0) hill(P.hill, sd * (90 + r(sd + 95) * 120), -8, zc, 70 + r(sd + 96) * 90, 40 + r(sd + 97) * 70, 120, [0.18, 0.3, 0.16]);
         }
         // hills on the horizon everywhere outside the cities
