@@ -340,3 +340,27 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .placeBack{align-self:flex-start}
 @media (max-height:500px){.placeList .placeRow:nth-child(n+3){display:none}}
 @media (max-height:500px){.mapZoom{grid-auto-flow:column;top:6px;right:6px}.mapZoom button{height:32px;min-width:38px;font-size:13px}}
+
+/* ---- eating scene ---- */
+.eatWrap{background:rgba(6,5,16,.55);display:grid;place-items:center;z-index:60}
+.eatCard{position:relative;width:min(340px,86vw);background:radial-gradient(ellipse at 50% 30%,#3a2a1e,#141226 70%);border-radius:22px;padding:10px 14px 14px;box-shadow:0 18px 50px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.12);text-align:center;color:#fff;animation:eatIn .25s ease-out}
+.eatSvg{width:100%;height:auto;display:block;max-height:46vh}
+.eatName{display:block;font-size:16px;margin-top:2px}
+.eatBar{height:6px;border-radius:3px;background:rgba(255,255,255,.15);margin:8px 10% 0;overflow:hidden}.eatBar i{display:block;height:100%;background:#ffd23a;border-radius:3px}
+.eatSay{position:absolute;right:18px;top:16px;font-weight:900;font-size:22px;color:#ffd23a;text-shadow:0 2px 0 #000;animation:eatSay .9s ease-out both}
+.eatDone{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%) rotate(-8deg);background:#e2304a;color:#fff;font-weight:900;font-size:20px;padding:8px 16px;border-radius:12px;border:3px solid #fff;animation:eatStamp .35s cubic-bezier(.2,1.6,.4,1) both;white-space:nowrap}
+.eatDone small{display:block;font-size:11px;font-weight:700}
+.eatSteam{fill:none;stroke:rgba(255,255,255,.75);stroke-width:4;stroke-linecap:round;animation:eatSteam 1.5s ease-out infinite;transform-box:fill-box}
+.eatBubble{animation:eatBubble 1s linear infinite;transform-box:fill-box}
+@keyframes eatIn{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
+@keyframes eatSay{0%{transform:scale(.6);opacity:0}30%{transform:scale(1.15);opacity:1}100%{transform:translateY(-14px);opacity:0}}
+@keyframes eatStamp{from{transform:translate(-50%,-50%) rotate(-8deg) scale(2.2);opacity:0}to{transform:translate(-50%,-50%) rotate(-8deg) scale(1);opacity:1}}
+@keyframes eatSteam{0%{transform:translateY(8px);opacity:0}30%{opacity:.9}100%{transform:translateY(-26px);opacity:0}}
+@keyframes eatBubble{from{transform:translateY(0);opacity:.9}to{transform:translateY(-60px);opacity:0}}
+/* ---- shop: the bag, and items flying into it ---- */
+.shopBag{position:relative;font-size:22px;margin-left:auto;margin-right:10px;display:inline-block}
+.shopBag i{position:absolute;right:-8px;bottom:-4px;font-style:normal;font-size:11px;font-weight:900;background:#2be4ff;color:#002430;border-radius:9px;padding:0 5px}
+.shopBag.hopA{animation:bagHopA .4s ease-out}.shopBag.hopB{animation:bagHopB .4s ease-out}
+@keyframes bagHopA{30%{transform:translateY(-6px) scale(1.2)}}@keyframes bagHopB{30%{transform:translateY(-6px) scale(1.2)}}
+.flyItem{position:fixed;z-index:70;font-size:30px;pointer-events:none;transform:translate(-50%,-50%);animation:flyItem .65s cubic-bezier(.4,0,.6,1) forwards}
+@keyframes flyItem{0%{transform:translate(-50%,-50%) scale(1)}45%{transform:translate(calc(-50% + var(--dx)*.5),calc(-50% + var(--dy)*.5 - 50px)) scale(1.35)}100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.4);opacity:.6}}

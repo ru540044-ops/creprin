@@ -11,6 +11,7 @@ import { REGION } from '../world/region';
 import { sfx, chime } from '../audio';
 import type { Near } from './crime';
 import { deerNear, feedDeer, bowToDeer } from '../ai/deer';
+import { startEat, dishFor } from '../ui/eat';
 import { line, startLine, canRide } from '../line/line';
 
 /**
@@ -71,7 +72,7 @@ export function japanAction(id: string) {
     if (best) { p.x = best.x; p.z = best.z; p.y = groundAt(p.x, p.z); p.vy = 0; game.fadeT = 0.5; sfx('door'); toast('岸に上がった', 1.4); }
   } else if (id === 'jp:vend') {
     if (!pay(2)) return; game.health = Math.min(100, game.health + 25); S.flags.vend = 1; sfx('buy', 0.5);
-    toast(`🥤 ${VEND_DRINKS[Math.floor(Math.random() * VEND_DRINKS.length)]}を買った（体力+25）`, 2);
+    const dr = VEND_DRINKS[Math.floor(Math.random() * VEND_DRINKS.length)]; toast(`🥤 ${dr}を買った（体力+25）`, 2); startEat(dr, dishFor(dr), '体力+25');
   } else if (id === 'jp:yamato') {
     const to: RegionId = REGION.id === 'osaka' ? 'nara' : 'osaka', why = blocker(); if (why) { toast(why, 2); return; }
     if (!pay(route(REGION.id, to).fare)) return; sfx('buy'); save(); startLine(to, 'seat');
@@ -85,7 +86,7 @@ export function japanAction(id: string) {
     toast(`🍘 鹿せんべいを買った（${game.items.senbei}枚）。持っていると鹿が寄ってくる`, 2.6);
   } else if (id.startsWith('jp:yatai:')) {
     const y = SIG.yatai[Number(id.slice(9))]; if (!y || !pay(y.price)) return;
-    game.health = 100; game.stamina = 100; S.flags.yatai = 1; sfx('buy'); toast(`🍜 ${y.food}を食べた。うまい！（体力全回復）`, 2.4);
+    game.health = 100; game.stamina = 100; S.flags.yatai = 1; sfx('buy'); toast(`🍜 ${y.food}を食べた。うまい！（体力全回復）`, 2.4); startEat(y.food, dishFor(y.food), '体力全回復・スタミナ全回復');
   } else if (id.startsWith('jp:omikuji:')) {
     const i = Number(id.slice(11)), s = SIG.shrines[i]; if (!s || !pay(1)) return;
     shrineCool[i] = game.clock;

@@ -8,6 +8,7 @@ import { game, toast, save, Quality } from '../state/store';
 import Phone from './Phone';
 import GunShop from './GunShop';
 import ShopPanel from './ShopPanel';
+import EatScene from './EatScene';
 import { ITEMS, ITEM_IDS, useItem, buffs } from '../crime/shops';
 import Customs from './Customs';
 import { taxi, startTaxi, stopTaxi } from '../crime/stunts';
@@ -347,6 +348,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
       {game.ui === 'arms' && <GunShop onClose={() => { game.ui = ''; }} />}
       {game.ui === 'customs' && <Customs onClose={() => { game.ui = ''; }} />}
       {game.ui.startsWith('shop:') && <ShopPanel kind={game.ui.slice(5)} onClose={() => { game.ui = ''; }} />}
+      <EatScene />
       {map && <FullMap onClose={() => setMap(false)} />}
       {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} mode={mode} setMode={setMode} />}
     </>
