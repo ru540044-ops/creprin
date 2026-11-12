@@ -366,3 +366,14 @@ button.armed{background:#ff4b4b !important;color:#fff}
 @keyframes flyItem{0%{transform:translate(-50%,-50%) scale(1)}45%{transform:translate(calc(-50% + var(--dx)*.5),calc(-50% + var(--dy)*.5 - 50px)) scale(1.35)}100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.4);opacity:.6}}
 
 .eatCrumb{animation:eatCrumb .7s ease-in both;transform-box:fill-box}@keyframes eatCrumb{from{transform:translateY(0);opacity:1}to{transform:translateY(46px);opacity:0}}
+
+/* ---- a decision in the street (events) ---- */
+.choiceWrap{background:linear-gradient(180deg,rgba(6,5,16,0) 0%,rgba(6,5,16,.55) 45%,rgba(6,5,16,.9) 100%);display:flex;align-items:flex-end;justify-content:center;z-index:55;padding:0 16px max(14px,env(safe-area-inset-bottom))}
+.choiceBox{width:min(640px,100%);color:#fff;animation:eatIn .2s ease-out}
+.choiceBox h3{margin:0 0 4px;font-size:15px;letter-spacing:.06em;color:#ffd23a}
+.choiceBox h3 small{color:#2be4ff;font-weight:700;margin-left:8px;font-size:12px}
+.choiceBox p{margin:0 0 10px;font-size:13px;line-height:1.55;text-shadow:0 1px 2px #000}
+.choiceOpts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.choiceOpts button{border:0;border-left:3px solid #ffd23a;border-radius:4px;background:rgba(14,11,32,.88);color:#fff;text-align:left;padding:9px 12px;font:inherit;font-weight:800;font-size:13px;min-height:46px}
+.choiceOpts button small{display:block;font-weight:600;font-size:11px;color:#aab;margin-top:2px}
+.choiceOpts button:active{background:#ffd23a;color:#1a1400}.choiceOpts button:active small{color:#3a3000}

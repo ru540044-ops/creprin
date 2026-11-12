@@ -2,6 +2,9 @@ import { game, toast, save, progress } from '../state/store';
 import { sfx } from '../audio';
 import { feedDeer } from '../ai/deer';
 import { startEat, dishFor } from '../ui/eat';
+import { discount } from './events';
+/** What you pay for it (10 % off once the neighbourhood trusts you). */
+export const priceOf = (g: { price: number }) => Math.max(1, Math.round(g.price * discount()));
 
 /**
  * Shops you can actually use: the convenience store, the solo-booth ramen shop (meal ticket, then a seat),
@@ -113,7 +116,7 @@ function consume(g: Goods) {
 }
 /** Why this cannot be bought right now ('' = it can). */
 export function cantBuy(g: Goods): string {
-  if (game.money < g.price) return 'お金が足りない';
+  if (game.money < priceOf(g)) return 'お金が足りない';
   if (g.carry && game.items[g.carry] >= ITEMS[g.carry].max) return `これ以上持てない（最大${ITEMS[g.carry].max}）`;
   if (g.ticket && meal.ticket) return '食券はもう持っている';
   return '';
@@ -121,7 +124,7 @@ export function cantBuy(g: Goods): string {
 /** Buy one. Returns the message to show (an error or what happened). */
 export function buyGoods(shop: string, g: Goods): string {
   const why = cantBuy(g); if (why) { sfx('ui'); return why; }
-  game.money -= g.price; sfx('buy', 0.6); progress.stats.flags['shop_' + shop] = 1;
+  game.money -= priceOf(g); sfx('buy', 0.6); progress.stats.flags['shop_' + shop] = 1;
   if (g.carry) { game.items[g.carry]++; save(); return `${ITEMS[g.carry].icon} ${g.name}を買った（所持 ${game.items[g.carry]}）`; }
   if (g.ticket) { meal.ticket = g; save(); return `🎫 食券「${g.name}」を買った。席に座ろう`; }
   consume(g); save(); startEat(g.name, dishFor(g.name), effectNote(g));

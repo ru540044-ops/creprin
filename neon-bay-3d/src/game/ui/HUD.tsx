@@ -9,6 +9,7 @@ import Phone from './Phone';
 import GunShop from './GunShop';
 import ShopPanel from './ShopPanel';
 import EatScene from './EatScene';
+import ChoicePanel from './ChoicePanel';
 import { eatFx } from './eat';
 import { viewMode } from '../world/Interiors';
 import { ITEMS, ITEM_IDS, useItem, buffs } from '../crime/shops';
@@ -351,6 +352,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
       {game.ui === 'customs' && <Customs onClose={() => { game.ui = ''; }} />}
       {game.ui.startsWith('shop:') && <ShopPanel kind={game.ui.slice(5)} onClose={() => { game.ui = ''; }} />}
       <EatScene />
+      <ChoicePanel />
       {map && <FullMap onClose={() => setMap(false)} />}
       {phone && <Phone onClose={() => setPhone(false)} openMap={() => setMap(true)} quality={quality} mode={mode} setMode={setMode} />}
     </>

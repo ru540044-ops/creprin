@@ -1,4 +1,5 @@
 import { Component, ReactNode, useEffect, useReducer, useState } from 'react';
+import { rep, repName } from '../crime/events';
 import { game, progress, save } from '../state/store';
 import { settings, saveSettings, QualityMode } from '../settings';
 import { applyVolumes, sfx } from '../audio';
@@ -96,7 +97,7 @@ export function StatsPanel() {
     ['プレイ時間', fmtTime(S.time)], ['ストーリー', `${Math.min(progress.story, MISSIONS.length)} / ${MISSIONS.length} 話`], ['実績', `${progress.ach.length} / ${total}`],
     ['所持金', '$' + game.money.toLocaleString('en-US')], ['累計で稼いだお金', '$' + Math.round(S.earned).toLocaleString('en-US')],
     ['歩いた距離', km(S.walk)], ['運転した距離', km(S.drive)], ['飛んだ距離', km(S.fly)], ['船で進んだ距離', km(S.sail)],
-    ['乗った乗り物', `${S.vehicles.length} / ${Object.keys(VDEFS).length} 種類`], ['最高速度（地上）', `${S.top} km/h`], ['最高手配度', '★'.repeat(S.maxWanted) || 'なし'],
+    ['乗った乗り物', `${S.vehicles.length} / ${Object.keys(VDEFS).length} 種類`], ['最高速度（地上）', `${S.top} km/h`], ['最高手配度', '★'.repeat(S.maxWanted) || 'なし'], ['街での評判', `${repName()}（${rep() > 0 ? '+' : ''}${rep()}）`],
     ['訪れた地区', `${S.districts.length} / ${DISTRICT_GOAL}`], [`ギフトボックス（${REGION.name}）`, `${boxesFound()} / ${giftBoxes().length}（全国 ${progress.gift.boxes.length}）`], ['持ち家', `${game.homes.length} 軒`],
   ];
   return <div className="stats2">{rows.map(([a, b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}</div>;

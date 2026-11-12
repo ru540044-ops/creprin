@@ -1,5 +1,6 @@
 import { japanNear, japanAction, shinNear } from './japan';
 import { hoursText } from '../world/hours';
+import { eventNear, eventAction } from './events';
 import { game, toast, save, progress } from '../state/store';
 import { vehicles, spawn, remove, playerCar, hooks, Veh } from '../vehicles/sim';
 import { VDEFS, VKind } from '../vehicles/defs';
@@ -271,6 +272,7 @@ export function jobNear(): Near | null {
   if (game.where !== 'out') return null;
   if (!me) {
     if (armored.v && (armored.state === 'stopped') && nearArmoredRear()) return { kind: 'job', id: 'pry', label: armored.pry > 0 ? 'こじ開け中…' : '後部ドアをこじ開ける', btn: 'こじ開け' };
+    { const e = eventNear(); if (e) return e; }
     return japanNear();
   }
   // in a car
@@ -304,6 +306,7 @@ export function jobAction(id: string) {
   } else if (id.startsWith('shop:')) { game.ui = id; sfx('ui');
   } else if (id === 'ramen:eat') { eatMeal();
   } else if (id === 'home:view') { viewMode.on = !viewMode.on; viewMode.t0 = performance.now(); sfx('ui'); toast(viewMode.on ? '🔭 街を眺めている（もう一度押すと戻る）' : 'いつもの視点に戻った', viewMode.on ? 2.4 : 1.4);
+  } else if (id.startsWith('ev:')) { eventAction(id);
   } else if (id.startsWith('shut:')) { toast(`シャッターが下りている。営業時間は ${hoursText(id.slice(5))}`, 2.2); sfx('ui');
   } else if (id === 'shopclosed') { toast('強盗の直後で店員が怯えている。時間をおこう', 2);
   } else if (id.startsWith('jp:') || id.startsWith('nara:')) { japanAction(id);

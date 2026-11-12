@@ -1,7 +1,8 @@
 import { useReducer, useRef, useState } from 'react';
 import { game } from '../state/store';
 import { INTERIORS } from '../world/Interiors';
-import { SHOP_DEFS, ITEMS, ITEM_IDS, buyGoods, cantBuy, meal } from '../crime/shops';
+import { SHOP_DEFS, ITEMS, ITEM_IDS, buyGoods, cantBuy, meal, priceOf } from '../crime/shops';
+import { discount } from '../crime/events';
 
 /** Counter of a shop you can use (convenience store, ticket machine, cafe, bar, pharmacy, diner): buy and eat or pocket things. */
 export default function ShopPanel({ kind, onClose }: { kind: string; onClose: () => void }) {
@@ -26,12 +27,13 @@ export default function ShopPanel({ kind, onClose }: { kind: string; onClose: ()
           return (
             <div className="shopRow" key={g.id}>
               <div><b>{g.name}</b><span>{g.sub}{g.carry ? `（所持 ${game.items[g.carry]}/${ITEMS[g.carry].max}）` : ''}</span></div>
-              <button type="button" disabled={!!why} title={why} onClick={(e) => { const btn = e.currentTarget, before = g.carry ? game.items[g.carry] : 0; const m = buyGoods(kind, g); setMsg(m); refresh(); if (g.carry && game.items[g.carry] > before) flyIn(ITEMS[g.carry].icon, btn); if (g.ticket && meal.ticket === g) { flyIn('🎫', btn); setTimeout(onClose, 900); } }}>{why && why !== 'お金が足りない' ? (g.ticket ? '購入済み' : '満杯') : '$' + g.price}</button>
+              <button type="button" disabled={!!why} title={why} onClick={(e) => { const btn = e.currentTarget, before = g.carry ? game.items[g.carry] : 0; const m = buyGoods(kind, g); setMsg(m); refresh(); if (g.carry && game.items[g.carry] > before) flyIn(ITEMS[g.carry].icon, btn); if (g.ticket && meal.ticket === g) { flyIn('🎫', btn); setTimeout(onClose, 900); } }}>{why && why !== 'お金が足りない' ? (g.ticket ? '購入済み' : '満杯') : '$' + priceOf(g)}</button>
             </div>
           );
         })}
         {msg && <p className="shopMsg" role="status">{msg}</p>}
         {fly.map((f) => <span key={f.k} className="flyItem" style={{ left: f.x, top: f.y, ['--dx' as string]: f.dx + 'px', ['--dy' as string]: f.dy + 'px' }}>{f.icon}</span>)}
+        {discount() < 1 && <p className="shopMsg">🤝 評判がいいので 10% 引き</p>}
         <p className="appNote">{S.note}</p>
         <button type="button" className="pHome" onClick={onClose}>閉じる</button>
       </div>

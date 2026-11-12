@@ -51,7 +51,7 @@ export const game = {
 
 /** Persistent progress: best time-trial times. */
 /** Lifetime play statistics (see progression.ts). */
-export interface Stats { time: number; walk: number; drive: number; fly: number; sail: number; earned: number; vehicles: string[]; top: number; maxWanted: number; districts: string[]; escapes: number; flags: Record<string, 1> }
+export interface Stats { time: number; walk: number; drive: number; fly: number; sail: number; earned: number; vehicles: string[]; top: number; maxWanted: number; districts: string[]; escapes: number; flags: Record<string, number> }
 export const newStats = (): Stats => ({ time: 0, walk: 0, drive: 0, fly: 0, sail: 0, earned: 0, vehicles: [], top: 0, maxWanted: 0, districts: [], escapes: 0, flags: {} });
 export const progress = {
   stats: newStats(), ach: [] as string[], look: { ...DEFAULT_LOOK }, wardrobe: [] as string[], trialBest: {} as Record<string, number>, stunts: {} as Record<string, number>, story: 0,
@@ -93,7 +93,7 @@ export function load(): boolean {
     if (s.stats && typeof s.stats === 'object') { const T = s.stats, S = progress.stats;
       for (const k of ['time', 'walk', 'drive', 'fly', 'sail', 'earned', 'top', 'maxWanted', 'escapes'] as const) if (typeof T[k] === 'number' && Number.isFinite(T[k])) S[k] = T[k];
       if (Array.isArray(T.vehicles)) S.vehicles = T.vehicles.filter((x: unknown) => typeof x === 'string'); if (Array.isArray(T.districts)) S.districts = T.districts.filter((x: unknown) => typeof x === 'string');
-      if (T.flags && typeof T.flags === 'object') for (const k of Object.keys(T.flags)) S.flags[k] = 1; }
+      if (T.flags && typeof T.flags === 'object') for (const k of Object.keys(T.flags)) S.flags[k] = typeof T.flags[k] === 'number' && Number.isFinite(T.flags[k]) ? T.flags[k] : 1; } // (rep is a number, the rest are 1)
     if (Array.isArray(s.ach)) progress.ach = s.ach.filter((x: unknown) => typeof x === 'string');
     if (Array.isArray(s.wardrobe)) progress.wardrobe = s.wardrobe.filter((x: unknown) => typeof x === 'string' && !!itemById(x as string));
     if (s.look) { const L = sanitizeLook(s.look); if (L.watch && !progress.wardrobe.includes(L.watch)) L.watch = ''; if (L.bag && !progress.wardrobe.includes(L.bag)) L.bag = ''; progress.look = L; }
