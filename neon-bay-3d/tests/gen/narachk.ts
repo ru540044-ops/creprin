@@ -15,11 +15,11 @@ console.log(JSON.stringify({ region: REGION.id, landmark: L, walkInBlocked: bloc
   insideFigure: G.pointBlocked(L.x, 5, L.z + D.bz), wallBack: G.pointBlocked(L.x, 5, L.z + D.hz0 + 0.5), pagoda: G.SIG.pagoda, stalls: G.SIG.yatai.filter((y) => y.senbei).length,
   stallsFree: G.SIG.yatai.filter((y) => y.senbei).map((y) => !G.pointBlocked(y.x, 1, y.z + 2.2)), lanterns: G.NARA_LANTERNS.length, machiya: G.MACHIYA_BLOCKS.size, deer: deer.length, deerBlocked: deer.filter((d) => G.pointBlocked(d.x, 0.6, d.z)).length, area: DEER_AREA,
   station: G.STATION && { x: G.STATION.x, z: G.STATION.z }, spawnBlocked: G.pointBlocked(G.SPAWN.x, 1, G.SPAWN.z), stationSpawnBlocked: G.STATION ? G.pointBlocked(G.STATION.spawn.x, 1, G.STATION.spawn.z) : null }));
-// Nara station (with the player's rule: a ledge up to 0.3 m is stepped onto, anything higher stops you): from the forecourt step up onto the platform, through a ticket gate, along the platform to the train door
+// Nara station (with the player's rule: a ledge up to about 0.24 m is stepped onto at low frame rates, anything higher stops you): from the forecourt step up onto the platform, through a ticket gate, along the platform to the train door
 {
   const T = G.NARA_ST, gx = T.px0 + 0.6 + 0.65; // the gap between the first two gate cabinets
   const path: [number, number][] = [[gx, T.z1 + 3.07], [gx, T.z1 - 1.03], [gx, T.gateZ], [gx, T.gateZ - 3], [T.door.x, T.gateZ - 3], [T.door.x, T.door.z]];
   let blocked = '', last = G.floorAt(path[0][0], path[0][1], 1), maxStep = 0; for (let k = 1; k < path.length; k++) { const [x0, z0] = path[k - 1], [x1, z1] = path[k], n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.25);
-    for (let i = 0; i <= n && !blocked; i++) { const x = x0 + (x1 - x0) * i / n, z = z0 + (z1 - z0) * i / n, f = G.floorAt(x, z, last - 0.3); maxStep = Math.max(maxStep, f - last); last = f; if (G.pointBlocked(x, f + 0.32, z) || G.pointBlocked(x, f + 0.9, z) || G.pointBlocked(x, f + 1.6, z)) blocked = `${x.toFixed(1)},${z.toFixed(1)}`; } }
+    for (let i = 0; i <= n && !blocked; i++) { const x = x0 + (x1 - x0) * i / n, z = z0 + (z1 - z0) * i / n, f = G.floorAt(x, z, last - 0.36); maxStep = Math.max(maxStep, f - last); last = f; if (G.pointBlocked(x, f + 0.26, z) || G.pointBlocked(x, f + 0.9, z) || G.pointBlocked(x, f + 1.6, z)) blocked = `${x.toFixed(1)},${z.toFixed(1)}`; } }
   console.log(JSON.stringify({ station: { on: T.on, platformTop: G.floorAt(T.door.x, T.door.z, 1), walkToTrain: blocked || 'clear', maxStep: +maxStep.toFixed(2), endFloor: last, trainSolid: G.pointBlocked(T.tx, 2, T.door.z), spawnFree: !G.pointBlocked(G.STATION!.spawn.x, G.floorAt(G.STATION!.spawn.x, G.STATION!.spawn.z, 1) + 1, G.STATION!.spawn.z), spawn: G.STATION!.spawn, door: T.door } }));
 }

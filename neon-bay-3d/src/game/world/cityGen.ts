@@ -522,7 +522,7 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     if (nara) { // the line to Osaka starts here: platform, track, the train, ticket gates (models in Signature)
       const T = NARA_ST; T.on = true; T.tx = ix0 + 62; T.px1 = T.tx - 1.75; T.px0 = T.px1 - 7; T.z0 = iz0 + 4; T.z1 = iz1 - 4; T.gateZ = iz1 - 13; T.tz0 = iz0 + 8; T.tz1 = iz0 + 8 + 3 * 20.6;
       const box = (x0: number, z0: number, x1: number, z1: number, y0: number, y1: number) => solids.push({ x0, z0, x1, z1, y0, y1 });
-      box(T.px0, T.z0, T.px1, T.z1, 0, T.y); box(T.px0, T.z1, T.px1, T.z1 + 1.2, 0, 0.25); // the platform, and a step along its south end (you climb about 0.3 m at a time)
+      box(T.px0, T.z0, T.px1, T.z1, 0, T.y); box(T.px0, T.z1, T.px1, T.z1 + 1.2, 0, 0.33); // the platform, and a step along its south end (a walker climbs a little under 0.25 m at a time)
       box(T.tx - 1.6, T.tz0, T.tx + 1.6, T.tz1, 0, 4.2); // the train at the platform
       box(T.px1, T.z0, T.tx + 2.6, T.tz0 - 0.4, 0, 1.2); // buffer stop at the north end of the track
       box(T.tx + 2.4, T.z0, T.tx + 2.6, T.z1, 0, 1.6); // fence on the far side of the track
