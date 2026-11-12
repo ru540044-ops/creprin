@@ -9,6 +9,8 @@ import Phone from './Phone';
 import GunShop from './GunShop';
 import ShopPanel from './ShopPanel';
 import EatScene from './EatScene';
+import { eatFx } from './eat';
+import { viewMode } from '../world/Interiors';
 import { ITEMS, ITEM_IDS, useItem, buffs } from '../crime/shops';
 import Customs from './Customs';
 import { taxi, startTaxi, stopTaxi } from '../crime/stunts';
@@ -292,7 +294,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
       {law.over && <div className={'over ' + law.over.kind}><b>{law.over.kind === 'busted' ? 'BUSTED' : 'WASTED'}</b><span>{law.over.kind === 'busted' ? '逮捕' : '死亡'}　-${law.over.fine.toLocaleString('en-US')}</span></div>}
       {showDistrict && <div className="district">{district.name}</div>}
       {game.toastT > 0 && <div className="toast">{game.toast}</div>}
-      {near && <div className="prompt">{game.isTouch ? '' : '[E] '}{near.label}</div>}
+      {near && !eatFx.on && !viewMode.on && <div className="prompt">{game.isTouch ? '' : '[E] '}{near.label}</div>}
       {driving && <Speedo />}
       {game.isTouch && driving ? (
         <>
