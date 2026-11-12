@@ -102,11 +102,13 @@ function Tray({ D, p }: { D: Dish; p: number; t: number }) {
   );
 }
 function Hand({ D, p }: { D: Dish; p: number; t: number }) {
-  const bites = Math.min(4, Math.floor(p * 5));
+  // bites taken out of the top-right corner (a mask, so the card shows through), crumbs falling after each bite
+  const bites = Math.min(5, Math.floor(p * 6)), id = 'bite' + bites;
   return (
     <g>
-      <text x="110" y="98" fontSize="96" textAnchor="middle" dominantBaseline="middle">{D.icon}</text>
-      {Array.from({ length: bites }, (_, k) => <circle key={k} cx={150 - k * 9} cy={52 + k * 16} r={15} fill="#141226" />)}
+      <defs><mask id={id}><rect x="0" y="0" width="220" height="170" fill="#fff" />{Array.from({ length: bites }, (_, k) => [0, 1].map((j) => <circle key={k + '-' + j} cx={152 - k * 12 + j * 9} cy={44 + k * 14 + j * 6} r={13} fill="#000" />))}</mask></defs>
+      <text x="110" y="98" fontSize="96" textAnchor="middle" dominantBaseline="middle" mask={`url(#${id})`}>{D.icon}</text>
+      {bites > 0 && [0, 1, 2].map((k) => <circle key={'c' + bites + k} className="eatCrumb" style={{ animationDelay: `${k * 0.08}s` }} cx={138 - bites * 6 + k * 7} cy={70 + bites * 8} r="2.2" fill="#e8dcc0" />)}
     </g>
   );
 }

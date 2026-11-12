@@ -364,3 +364,5 @@ button.armed{background:#ff4b4b !important;color:#fff}
 @keyframes bagHopA{30%{transform:translateY(-6px) scale(1.2)}}@keyframes bagHopB{30%{transform:translateY(-6px) scale(1.2)}}
 .flyItem{position:fixed;z-index:70;font-size:30px;pointer-events:none;transform:translate(-50%,-50%);animation:flyItem .65s cubic-bezier(.4,0,.6,1) forwards}
 @keyframes flyItem{0%{transform:translate(-50%,-50%) scale(1)}45%{transform:translate(calc(-50% + var(--dx)*.5),calc(-50% + var(--dy)*.5 - 50px)) scale(1.35)}100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.4);opacity:.6}}
+
+.eatCrumb{animation:eatCrumb .7s ease-in both;transform-box:fill-box}@keyframes eatCrumb{from{transform:translateY(0);opacity:1}to{transform:translateY(46px);opacity:0}}
