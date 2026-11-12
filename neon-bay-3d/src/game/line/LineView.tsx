@@ -118,7 +118,7 @@ export default function LineView() {
       // a river under a bridge
       const rv = g.rivers.find((q) => q.s >= q0 && q.s < q0 + C + q.w);
       if (rv) { const zs = z(L.off[li] + rv.s - rv.w / 2) - 0, ze = z(L.off[li] + rv.s + rv.w / 2); put(P.water, 0, 0, (zs + ze) / 2, 3000, 0.1, Math.abs(zs - ze), [0.2, 0.36, 0.42]);
-        for (let k = 0; k < Math.ceil(rv.w / 40); k++) { const zz = zs - k * 40 - 20; if (zz < zc - C / 2 || zz > zc + C / 2) continue; for (const sd of [-1, 1]) put(P.bldg, sd * 6.4, 1.2, zz, 0.5, 4.2, 40, [0.55, 0.32, 0.25]); put(P.bldg, 0, -6, zz + 19, 3, 7, 2, [0.6, 0.6, 0.62]); } }
+        for (let k = 0; k < Math.ceil(rv.w / 40); k++) { const zz = zs - k * 40 - 20; if (zz < zc - C / 2 || zz > zc + C / 2) continue; for (const sd of [-1, 1]) put(P.bldg, sd * 6.4, 1.0, zz, 0.4, 0.9, 40, [0.72, 0.72, 0.7]); put(P.bldg, 0, -2.8, zz, 11, 2.8, 40, [0.62, 0.6, 0.58]); /* a low parapet, the girder under the deck (the view from the window stays open) */ put(P.bldg, 0, -6, zz + 19, 3, 7, 2, [0.6, 0.6, 0.62]); } }
       const riverHere = !!rv;
       // catenary masts (bullet train: every 50 m), noise barriers through towns
       for (let k = 0; k < 2; k++) for (const sd of [-1, 1]) { const zz = z(s0 + k * 50); X.rotation.set(0, 0, 0); put(P.mast, sd * 7.2, 0, zz, sd, 1, 1, [0.55, 0.57, 0.6]); }

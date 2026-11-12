@@ -11,7 +11,7 @@ const shot=async(n,P,T,h)=>{await E(([P,T,h])=>{const G=window.__nb3d.game;G.hou
 const d=await E(()=>{const D=window.__nb3d.deerMod.deer;const q=D.find(x=>x.buck)||D[0];return {x:q.x,y:q.y,z:q.z}});
 await shot('deer',[d.x+3.2,1.4,d.z+2.4],[d.x,0.9,d.z],14);
 const L=await E(()=>{const C=window.__nb3d.cityMod;return {x:C.LANDMARK3D.x,z:C.LANDMARK3D.z,D:C.DAIBUTSU,g:C.SIG.southGate}});
-await shot('hall',[L.x+16,5,L.z+L.D.lantZ+22],[L.x,8,L.z],15);
+await shot('hall',[L.x+10,4,L.z+L.D.lantZ+14],[L.x,9,L.z-6],15);await shot('burner',[L.x+5,3,L.z+L.D.lantZ+15],[L.x,3,L.z+L.D.lantZ+8],15);
 await shot('gate',[L.g.x+18,4,L.g.z+34],[L.g.x,8,L.g.z],15);
 const mc=await E(()=>{const C=window.__nb3d.cityMod;const B=C.buildings.filter(b=>b.style==='machiya');const b=B[Math.floor(B.length/2)];return {x:(b.x0+b.x1)/2,z0:b.z0,z1:b.z1}});
 await shot('machi',[mc.x-8,1.8,mc.z0-6],[mc.x+6,1.9,mc.z0],16);
