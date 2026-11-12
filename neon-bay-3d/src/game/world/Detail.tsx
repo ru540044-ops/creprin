@@ -1,0 +1,257 @@
+import { useMemo } from 'react';
+import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
+import { HOURS, hoursPair } from './hours';
+import { buildings, Building, BlockInfo, topFoot, blockOfB, CANAL_BLOCKS, N } from './cityGen';
+import { SHOP_TYPES, shopCell, shopKey } from './bldgInteriors';
+import type { BDoor } from './bldgInteriors';
+import { KONBINI_BRANDS } from './shopFurn';
+import { game } from '../state/store';
+import { getTextures } from './textures';
+import { mulberry } from './rng';
+
+/**
+ * City detail layer, built per chunk by the city streamer (City.tsx) so only the area around the player exists:
+ *  - rooftops: parapets, AC units, stair huts, water tanks, antennas,
+ *  - street-level neon: wall signs facing the street + Japanese-style vertical blade signs (glow at night),
+ *  - shop awnings and entrance doors.
+ * The blinking red aircraft lights on tall towers are city-wide (they show the skyline from afar).
+ */
+const H_WORDS: [string, string][] = [['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['カラオケ', '#ffd23a'], ['焼肉', '#ff3a3a'], ['24H', '#3dffb0'], ['ゲーム', '#c07aff'], ['寿司', '#ff4a6a'], ['牛丼', '#ff8a2a'], ['CAFE', '#ff9ad5'], ['うどん', '#ffcf8a'], ['薬局', '#3dffb0'], ['書店', '#ffffff'], ['焼鳥', '#ff6a3a'], ['BAR', '#ff3f93'], ['中華', '#ff3a3a'], ['不動産', '#7ab8ff'], ['歯科', '#9de8ff'], ['美容室', '#ff6ad5'], ['ホテル', '#2be4ff'], ['そば', '#ffd23a'], ['定食', '#ffcf8a'], ['質屋', '#ffd23a'], ['とんかつ', '#ff8a2a'], ['天ぷら', '#ffd23a'], ['餃子', '#ff4a4a'], ['弁当', '#9dff3a'], ['CLUB', '#b07aff'], ['麻雀', '#3dffb0'], ['銭湯', '#7ab8ff'], ['古着', '#c07aff'], ['ジム', '#9dff3a'], ['LIVE', '#2be4ff']];
+const V_WORDS: [string, string][] = [['カラオケ', '#ffd23a'], ['ラーメン', '#ff4a4a'], ['居酒屋', '#ff6a3a'], ['ホテル', '#2be4ff'], ['薬局', '#3dffb0'], ['焼肉', '#ff3a3a'], ['寿司', '#ff4a6a'], ['喫茶', '#ffcf8a'], ['麻雀', '#3dffb0'], ['焼鳥', '#ff6a3a'], ['質', '#ffd23a'], ['歯科', '#9de8ff'], ['中華', '#ff3a3a'], ['うなぎ', '#ffcf8a'], ['スナック', '#ff6ad5'], ['ビデオ', '#c07aff']];
+/** Company names on the tower tops (all fictional). */
+const C_WORDS: [string, string][] = [['ミナトライフ', '#ffffff'], ['ホシノ電機', '#dff0ff'], ['アサギ銀行', '#bfe9ff'], ['ルリカ証券', '#ffffff'], ['カナデ製薬', '#d4ffe8'], ['ヒビキ建設', '#ffffff'], ['NEXUS', '#9fd8ff'], ['ORBIT', '#ffffff'], ['ソラノ物産', '#ffe9c4'], ['KAZE HOTEL', '#ffd9a0'], ['トワ不動産', '#ffffff'], ['ミライ通信', '#bfe9ff'], ['ハヤテ運輸', '#ffffff'], ['アカネ海上', '#ffd0d0'], ['SHIRO', '#ffffff'], ['ルミナ電力', '#fff3b0']];
+/** Tall blade signs that run up the side of mid-rise buildings in the shopping streets. */
+const T_WORDS: [string, string][] = [['カラオケ館', '#ffd23a'], ['ネットカフェ', '#2be4ff'], ['まんが喫茶', '#9dff3a'], ['焼肉食べ放題', '#ff3a3a'], ['ゲームセンター', '#c07aff'], ['居酒屋 鳥よし', '#ff6a3a'], ['中華料理 福', '#ff3a3a'], ['ビリヤード', '#3dffb0'], ['ホテル月光', '#2be4ff'], ['ラーメン大将', '#ff4a4a'], ['歯科クリニック', '#9de8ff'], ['英会話', '#ffffff'], ['すし 北海', '#ff4a6a'], ['ダーツバー', '#ff3f93'], ['整骨院', '#9dff3a'], ['学習塾', '#ffd23a']];
+
+function atlas(words: [string, string][], cols: number, rows: number, cw: number, ch: number, vertical: boolean) {
+  const cv = document.createElement('canvas'); cv.width = cols * cw; cv.height = rows * ch; const c = cv.getContext('2d')!;
+  c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
+  words.forEach(([t, col], i) => {
+    const x = (i % cols) * cw, y = Math.floor(i / cols) * ch;
+    c.fillStyle = '#0c0a14'; c.fillRect(x + 4, y + 4, cw - 8, ch - 8);
+    c.strokeStyle = col; c.lineWidth = 5; c.shadowColor = col; c.shadowBlur = 14; c.strokeRect(x + 10, y + 10, cw - 20, ch - 20);
+    c.fillStyle = col; c.textAlign = 'center'; c.textBaseline = 'middle';
+    if (vertical) { const n = t.length, fs = Math.min(cw * 0.62, (ch - 40) / n); c.font = `900 ${fs}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`; [...t].forEach((chr, k) => c.fillText(chr, x + cw / 2, y + 24 + fs * (k + 0.5))); }
+    else { const fs = Math.min(ch * 0.55, (cw - 40) / Math.max(2, t.length) * 1.7); c.font = `900 ${fs}px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif`; c.fillText(t, x + cw / 2, y + ch / 2 + 2); }
+    c.shadowBlur = 0;
+  });
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+}
+/** Storefront signs: one cell per shop name (row = shop type, column = name), each type in its own livery. All names are made up. */
+const FASCIA = { cw: 512, ch: 112, w: 5.2, h: 1.14 };
+function fasciaAtlas() {
+  const rows = SHOP_TYPES.length, cv = document.createElement('canvas'); cv.width = 4 * FASCIA.cw; cv.height = rows * FASCIA.ch; const c = cv.getContext('2d')!;
+  const FONT = '"Hiragino Sans","Noto Sans JP",system-ui,sans-serif';
+  SHOP_TYPES.forEach((T, row) => T.names.forEach((name, col) => {
+    const x = col * FASCIA.cw, y = row * FASCIA.ch, W = FASCIA.cw, H = FASCIA.ch;
+    const text = (t: string, col2: string, cx: number, size: number, font = `900 ${size}px ${FONT}`) => { c.font = font; c.fillStyle = col2; c.textAlign = 'center'; c.textBaseline = 'middle'; let s2 = size; while (c.measureText(t).width > W - 150 && s2 > 20) { s2 -= 3; c.font = font.replace(/\d+px/, s2 + 'px'); } c.fillText(t, cx, y + H / 2 + 3); };
+    if (T.key === 'konbini') { const B = KONBINI_BRANDS[col]; c.fillStyle = B[1]; c.fillRect(x, y, W, H); c.fillStyle = B[2]; c.fillRect(x, y + H - 16, W, 16); c.fillRect(x, y, W, 6); text(name, B[2] === '#ffffff' ? '#ffffff' : B[2], x + W / 2 - 34, 62); c.fillStyle = B[2]; c.beginPath(); c.arc(x + W - 58, y + H / 2 - 4, 34, 0, 7); c.fill(); c.font = `900 26px ${FONT}`; c.fillStyle = B[1]; c.fillText('24h', x + W - 58, y + H / 2 - 2); }
+    else if (T.key === 'ramen') { c.fillStyle = '#16110f'; c.fillRect(x, y, W, H); c.fillStyle = '#b3261e'; c.fillRect(x, y, 96, H); c.font = `900 60px ${FONT}`; c.fillStyle = '#fff6e6'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('麺', x + 48, y + H / 2 + 4); text(name, '#fff6e6', x + W / 2 + 48, 58, `900 58px "Hiragino Mincho ProN","Noto Serif JP",serif`); }
+    else if (T.key === 'cafe') { c.fillStyle = '#3d2a1c'; c.fillRect(x, y, W, H); c.strokeStyle = '#e9d5b0'; c.lineWidth = 3; c.strokeRect(x + 8, y + 8, W - 16, H - 16); text(name, '#f1e3c8', x + W / 2, 54, `700 54px Georgia,${FONT}`); }
+    else if (T.key === 'boutique') { c.fillStyle = '#f6f4f1'; c.fillRect(x, y, W, H); text(name, '#151515', x + W / 2, 50, `300 50px Georgia,${FONT}`); c.fillStyle = '#151515'; c.fillRect(x + 60, y + H - 20, W - 120, 2); }
+    else if (T.key === 'electronics') { c.fillStyle = '#d7191c'; c.fillRect(x, y, W, H); c.fillStyle = '#ffe14a'; c.fillRect(x, y + H - 22, W, 22); text(name, '#ffe14a', x + W / 2, 62); }
+    else if (T.key === 'bar') { c.fillStyle = '#140f1e'; c.fillRect(x, y, W, H); c.shadowColor = '#c08aff'; c.shadowBlur = 16; text(name, '#e2ccff', x + W / 2, 54, `700 54px Georgia,${FONT}`); c.shadowBlur = 0; }
+    else if (T.key === 'books') { c.fillStyle = '#1f5a3a'; c.fillRect(x, y, W, H); text(name, '#f4f1e6', x + W / 2, 56, `900 56px "Hiragino Mincho ProN","Noto Serif JP",serif`); }
+    else if (T.key === 'pharmacy') { c.fillStyle = '#ffffff'; c.fillRect(x, y, W, H); c.fillStyle = '#18a558'; c.fillRect(x, y + H - 18, W, 18); c.fillRect(x + 36, y + 22, 20, 60); c.fillRect(x + 16, y + 42, 60, 20); text(name, '#18a558', x + W / 2 + 40, 58); }
+    else { c.fillStyle = '#111111'; c.fillRect(x, y, W, H); c.fillStyle = '#ffd23a'; c.fillRect(x, y, 14, H); c.fillRect(x + W - 14, y, 14, H); text(name, '#ffd23a', x + W / 2, 58); }
+  }));
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+}
+/** Basic material whose instances each show one cell of the atlas (per-instance UV offset). */
+function atlasMaterial(tex: THREE.Texture, sx: number, sy: number) {
+  const m = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, side: THREE.DoubleSide });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'attribute vec2 uvOff;\n' + sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>\n  vMapUv = vMapUv * vec2(${sx.toFixed(4)}, ${sy.toFixed(4)}) + uvOff;`);
+  };
+  m.customProgramCacheKey = () => 'atlas' + sx + 'x' + sy;
+  return m;
+}
+
+/* ---------------- shared materials and geometries (created once) ---------------- */
+let SH: ReturnType<typeof makeShared> | null = null;
+/** The hour of day, for the shutters (set every frame by Detail). */
+export const shutterHour = { value: 12 };
+/** Roll-down shutter: grey slats. Each instance carries its shop's [opens, closes] hours; while the shop is open the panel is collapsed to nothing. */
+function shutterMaterial() {
+  const cv = document.createElement('canvas'); cv.width = 32; cv.height = 64; const c = cv.getContext('2d')!;
+  for (let y = 0; y < 64; y += 4) { c.fillStyle = y % 8 ? '#9a9da2' : '#b4b7bc'; c.fillRect(0, y, 32, 4); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, y + 3, 32, 1); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.55, metalness: 0.5 });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uHour = shutterHour;
+    sh.vertexShader = 'attribute vec2 aHours;\nuniform float uHour;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  float o = aHours.x, c = aHours.y;\n  float isOpen = o < c ? step(o, uHour) * step(uHour, c - 0.0001) : max(step(o, uHour), step(uHour, c - 0.0001));\n  transformed *= 1.0 - isOpen;');
+  };
+  return m;
+}
+function makeShared() {
+  const stripe = (() => { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 8; const c = cv.getContext('2d')!; for (let x = 0; x < 64; x += 16) { c.fillStyle = '#ffffff'; c.fillRect(x, 0, 8, 8); c.fillStyle = '#9a9a9a'; c.fillRect(x + 8, 0, 8, 8); } const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(6, 1); return t; })();
+  return {
+    box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(1, 1, 1, 10), plane: new THREE.PlaneGeometry(1, 1),
+    roofMat: new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.1 }),
+    hMat: atlasMaterial(atlas(H_WORDS, 4, 8, 256, 128, false), 0.25, 0.125), fMat: atlasMaterial(fasciaAtlas(), 0.25, 1 / SHOP_TYPES.length), cMat: atlasMaterial(atlas(C_WORDS, 4, 4, 512, 128, false), 0.25, 0.25), vMat: atlasMaterial(atlas(V_WORDS, 16, 1, 128, 512, true), 0.0625, 1), tMat: atlasMaterial(atlas(T_WORDS, 16, 1, 128, 896, true), 0.0625, 1),
+    awnMat: new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.85, side: THREE.DoubleSide }),
+    doorMat: new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.35 }),
+    doorGlassMat: new THREE.MeshBasicMaterial({ color: '#1c2632', toneMapped: false }), doorLampMat: new THREE.MeshBasicMaterial({ color: '#ffe0a8', toneMapped: false }),
+    beaconMat: new THREE.MeshBasicMaterial({ map: getTextures().glow, color: '#ff2020', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+    shutMat: shutterMaterial(),
+  };
+}
+const shared = () => (SH ||= makeShared());
+
+type Face = { nx: number; nz: number; cx: number; cz: number; len: number };
+/** Building faces that look onto a street. */
+function streetFaces(b: Building, k: BlockInfo): Face[] {
+  const f: Face[] = [], cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+  if (b.z0 - k.z0 < 8) f.push({ nx: 0, nz: -1, cx, cz: b.z0, len: b.x1 - b.x0 });
+  if (k.z1 - b.z1 < 8) f.push({ nx: 0, nz: 1, cx, cz: b.z1, len: b.x1 - b.x0 });
+  if (b.x0 - k.x0 < 8) f.push({ nx: -1, nz: 0, cx: b.x0, cz, len: b.z1 - b.z0 });
+  if (k.x1 - b.x1 < 8) f.push({ nx: 1, nz: 0, cx: b.x1, cz, len: b.z1 - b.z0 });
+  if (k.zone === 'canal') { const R = CANAL_BLOCKS.get(k.j * N + k.i); if (R && R.axis === 'x') { if (Math.abs(b.z1 - (R.z0 - 7)) < 3) f.push({ nx: 0, nz: 1, cx, cz: b.z1, len: b.x1 - b.x0 }); if (Math.abs(b.z0 - (R.z1 + 7)) < 3) f.push({ nx: 0, nz: -1, cx, cz: b.z0, len: b.x1 - b.x0 }); } else if (R && R.axis === 'z') { if (Math.abs(b.x1 - (R.x0 - 7)) < 3) f.push({ nx: 1, nz: 0, cx: b.x1, cz, len: b.z1 - b.z0 }); if (Math.abs(b.x0 - (R.x1 + 7)) < 3) f.push({ nx: -1, nz: 0, cx: b.x0, cz, len: b.z1 - b.z0 }); } } // the neon wall over the water
+  return f;
+}
+const seedOf = (b: Building) => ((Math.floor(b.x0 * 7.31) * 73856093) ^ (Math.floor(b.z0 * 13.7) * 19349663)) >>> 0;
+const GREYS = ['#8a8c90', '#9a958c', '#7d8186', '#a5a39d'], AWN = ['#c0392b', '#1e7a4a', '#1f4e8c', '#d4a017', '#6b2d5c', '#2b2b30', '#d35400', '#117a7a'];
+const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+
+/** Rooftop clutter of one building, deterministic per building (so the city-wide beacon list matches the chunk detail). */
+function roofPlan(b: Building, box: (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw?: number) => void, cyl: (x: number, y: number, z: number, rr: number, h: number, col: string) => void): THREE.Vector3 | null {
+  const r = mulberry(seedOf(b)), T = topFoot(b), top = b.y0 + b.h, w = T.x1 - T.x0, d = T.z1 - T.z0, grey = GREYS[Math.floor(r() * 4)];
+  if (b.shape) { if (b.h <= 70) return null; const x = T.x1 - 0.6, z = T.z1 - 0.6; cyl(x, top, z, 0.15, 9, '#c9ccd0'); return new THREE.Vector3(x, top + 9.2, z); }
+  const pt = 0.35, ph = 0.9;
+  if (!b.shape) { box((T.x0 + T.x1) / 2, top, T.z0 + pt / 2, w, ph, pt, grey); box((T.x0 + T.x1) / 2, top, T.z1 - pt / 2, w, ph, pt, grey);
+  box(T.x0 + pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); box(T.x1 - pt / 2, top, (T.z0 + T.z1) / 2, pt, ph, d, grey); } // round towers get their crown from the builder
+  const rx = () => T.x0 + 2 + r() * Math.max(0.1, w - 4), rz = () => T.z0 + 2 + r() * Math.max(0.1, d - 4);
+  let beacon: THREE.Vector3 | null = null;
+  if (w > 8 && d > 8) {
+    const n = 1 + Math.floor(r() * (w * d > 600 ? 5 : 3));
+    for (let k = 0; k < n; k++) box(rx(), top, rz(), 1.4, 1.0, 1.1, '#c9ccd0', r() * Math.PI);
+    if (r() < 0.65) box(rx(), top, rz(), 3.2, 2.6, 2.6, grey);
+    if ((b.type === 'brick' || b.type === 'office' || b.type === 'shop') && r() < 0.4) { const x = rx(), z = rz(); cyl(x, top + 1.2, z, 1.25, 2.4, '#8a6a4a'); box(x, top, z, 2.2, 1.2, 2.2, '#3a3a3e'); }
+    if (b.h > 70) { const x = rx(), z = rz(), ah = 8 + r() * 10; cyl(x, top, z, 0.12, ah, '#c9ccd0'); beacon = new THREE.Vector3(x, top + ah + 0.2, z); if (r() < 0.5) box((T.x0 + T.x1) / 2, top, (T.z0 + T.z1) / 2, w * 0.55, 3 + r() * 5, d * 0.55, '#2a3038'); }
+  }
+  return beacon;
+}
+const noop = () => {};
+
+/** Instanced detail meshes for the buildings and doors of one chunk (the caller disposes them). */
+export function buildDetail(list: Building[], doorList: BDoor[]): THREE.InstancedMesh[] {
+  const D = shared();
+  const boxes: { m: THREE.Matrix4; c: THREE.Color }[] = [], cyls: { m: THREE.Matrix4; c: THREE.Color }[] = [];
+  const hs: { m: THREE.Matrix4; o: [number, number] }[] = [], vs: { m: THREE.Matrix4; o: [number, number] }[] = [], ts: { m: THREE.Matrix4; o: [number, number] }[] = [], aw: { m: THREE.Matrix4; c: THREE.Color }[] = [], cs: { m: THREE.Matrix4; o: [number, number] }[] = [];
+  const box = (x: number, y: number, z: number, w: number, h: number, d: number, col: string, yaw = 0) => { Q.setFromAxisAngle(UP, yaw); P.set(x, y + h / 2, z); S.set(w, h, d); boxes.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
+  const cyl = (x: number, y: number, z: number, rr: number, h: number, col: string) => { Q.identity(); P.set(x, y + h / 2, z); S.set(rr, h, rr); cyls.push({ m: M.compose(P, Q, S).clone(), c: new THREE.Color(col) }); };
+  // every shop gets the sign of the business inside, over its door
+  const fs: { m: THREE.Matrix4; o: [number, number] }[] = [], doorOf = new Map<Building, BDoor>(), shut: { m: THREE.Matrix4; o: [number, number] }[] = [];
+  for (const dd of doorList) {
+    doorOf.set(buildings[dd.b], dd); if (dd.kind !== 'shop') continue;
+    const [col, row] = shopCell(dd), nx = Math.sin(dd.ang), nz = Math.cos(dd.ang);
+    Q.setFromAxisAngle(UP, dd.ang); P.set(dd.fx + nx * 0.34, dd.y + 4.0, dd.fz + nz * 0.34); S.set(FASCIA.w, FASCIA.h, 1);
+    fs.push({ m: M.compose(P, Q, S).clone(), o: [col * 0.25, 1 - (row + 1) / SHOP_TYPES.length] });
+    const key = shopKey(dd); if (HOURS[key]) { P.set(dd.fx + nx * 0.2, dd.y + 1.45, dd.fz + nz * 0.2); S.set(2.5, 2.9, 1); shut.push({ m: M.compose(P, Q, S).clone(), o: hoursPair(key) }); }
+  }
+  for (const b of list) {
+    if (b.gable || b.type === 'hangar' || b.shape === 'spiral') continue;
+    if (!b.up) roofPlan(b, box, cyl); // a podium's roof is mostly tower
+    if (b.h > 80 && b.type !== 'terminal') { // the company name near the top, on two opposite faces
+      const r0 = mulberry(seedOf(b) + 7), T = topFoot(b), top = b.y0 + b.h, cx0 = (T.x0 + T.x1) / 2, cz0 = (T.z0 + T.z1) / 2, cell = Math.floor(r0() * C_WORDS.length), o: [number, number] = [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.25];
+      const round = b.shape === 'round', Rr = Math.min(b.x1 - b.x0, b.z1 - b.z0) / 2, alongX = (T.x1 - T.x0) >= (T.z1 - T.z0);
+      const len = round ? Rr * 0.62 : Math.min(22, (alongX ? T.x1 - T.x0 : T.z1 - T.z0) * 0.62), y = top - (round ? 6.2 : 5.6);
+      for (const sgn of [-1, 1]) {
+        const fx = alongX ? cx0 : (round ? (b.x0 + b.x1) / 2 + sgn * (Rr + 0.2) : (sgn < 0 ? T.x0 : T.x1) + sgn * 0.12), fz = alongX ? (round ? (b.z0 + b.z1) / 2 + sgn * (Rr + 0.2) : (sgn < 0 ? T.z0 : T.z1) + sgn * 0.12) : cz0;
+        Q.setFromAxisAngle(UP, Math.atan2(alongX ? 0 : sgn, alongX ? sgn : 0)); P.set(fx, y, fz); S.set(len, len * 0.25, 1); cs.push({ m: M.compose(P, Q, S).clone(), o });
+      }
+    }
+    if (b.shape || b.y0 > 3) continue; // signs only on plain street-front walls
+    // street-level neon
+    const k = blockOfB(b); if (!k || (k.zone !== 'commercial' && k.zone !== 'downtown' && k.zone !== 'gas' && k.zone !== 'canal')) continue;
+    const r = mulberry(seedOf(b) + 1);
+    for (const f of streetFaces(b, k)) {
+      if (b.type === 'shop' && f.len > 6) { // striped shop awnings along the ground floor
+        const n = Math.max(1, Math.floor(f.len / 6.5)), seg = f.len / n, col = new THREE.Color(AWN[Math.floor(r() * AWN.length)]);
+        for (let j = 0; j < n; j++) {
+          if (r() < 0.2) continue;
+          const along = -f.len / 2 + seg * (j + 0.5), x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.8, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.8;
+          Q.setFromEuler(new THREE.Euler(0.38, Math.atan2(f.nx, f.nz), 0, 'YXZ')); P.set(x, b.y0 + 3.05, z); S.set(seg - 0.6, 0.06, 1.7);
+          aw.push({ m: M.compose(P, Q, S).clone(), c: col });
+        }
+      }
+      if ((k.zone === 'commercial' || k.zone === 'canal') && b.type !== 'shop' && b.h > 13 && f.len > 7 && f.len < 34 && r() < 0.85) { // a sign for every floor's tenant, stacked up the front
+        const floors = Math.min(7, Math.floor((b.h - 5) / 3.4)), pw = Math.min(f.len * 0.82, 12), side = r() < 0.5 ? -1 : 1, off = (f.len - pw) / 2 * 0.9 * side;
+        for (let q = 1; q < floors; q++) {
+          if (r() < 0.15) continue;
+          const x = f.cx + (f.nz !== 0 ? off : 0) + f.nx * 0.14, z = f.cz + (f.nx !== 0 ? off : 0) + f.nz * 0.14, y = b.y0 + 3.6 + q * 3.4;
+          Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz)); P.set(x, y, z); S.set(pw * (0.75 + r() * 0.25), 1.5, 1);
+          const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
+        }
+      }
+      { const dd = doorOf.get(b); if (dd && dd.kind === 'shop' && Math.abs(Math.sin(dd.ang) - f.nx) < 0.1 && Math.abs(Math.cos(dd.ang) - f.nz) < 0.1) continue; } // the shop's own sign is on this face
+      if (f.len < 8 || r() < 0.25) continue;
+      const n = f.len > 30 ? 2 : 1;
+      for (let j = 0; j < n; j++) {
+        const along = (j - (n - 1) / 2) * (f.len / n) + (r() - 0.5) * f.len * 0.2, sw = 3.5 + r() * 3, y = b.y0 + 3.4 + r() * 2.5;
+        const x = f.cx + (f.nz !== 0 ? along : 0) + f.nx * 0.12, z = f.cz + (f.nx !== 0 ? along : 0) + f.nz * 0.12;
+        Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz)); P.set(x, y, z); S.set(sw, sw / 2, 1);
+        const cell = Math.floor(r() * H_WORDS.length); hs.push({ m: M.compose(P, Q, S).clone(), o: [(cell % 4) * 0.25, 1 - (Math.floor(cell / 4) + 1) * 0.125] });
+        if (((k.zone === 'commercial' || k.zone === 'canal') && r() < 0.85) || (k.zone === 'downtown' && r() < 0.35)) { // vertical blade sign sticking out from the wall
+          const vx = f.cx + (f.nz !== 0 ? along + sw / 2 + 1.2 : 0) + f.nx * 0.9, vz = f.cz + (f.nx !== 0 ? along + sw / 2 + 1.2 : 0) + f.nz * 0.9;
+          Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, y + 2.6, vz); S.set(1.3, 5.2, 1);
+          const vc = Math.floor(r() * V_WORDS.length); vs.push({ m: M.compose(P, Q, S).clone(), o: [vc * 0.0625, 0] });
+        }
+        if ((k.zone === 'commercial' || k.zone === 'canal') && b.type !== 'shop' && b.h > 16 && r() < 0.7) { // tall blade sign up the corner of a multi-tenant building
+          const th = Math.min(13, b.h - 7), edge = f.len / 2 - 1.2, vx = f.cx + (f.nz !== 0 ? (j % 2 ? -edge : edge) : 0) + f.nx * 1.1, vz = f.cz + (f.nx !== 0 ? (j % 2 ? -edge : edge) : 0) + f.nz * 1.1;
+          Q.setFromAxisAngle(UP, Math.atan2(f.nx, f.nz) + Math.PI / 2); P.set(vx, b.y0 + 7 + th / 2, vz); S.set(th / 7, th, 1);
+          const tc = Math.floor(r() * T_WORDS.length); ts.push({ m: M.compose(P, Q, S).clone(), o: [tc * 0.0625, 0] });
+        }
+      }
+    }
+  }
+  const frameM: { m: THREE.Matrix4 }[] = [], glassM: { m: THREE.Matrix4 }[] = [], lampM: { m: THREE.Matrix4 }[] = [];
+  for (const dd of doorList) {
+    const nx = Math.sin(dd.ang), nz = Math.cos(dd.ang), wide = dd.kind === 'lobby' || dd.kind === 'terminal' ? 2.6 : dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 1.8, hh = dd.kind === 'warehouse' || dd.kind === 'hangar' ? 3.4 : 2.6;
+    Q.setFromAxisAngle(UP, dd.ang);
+    P.set(dd.fx + nx * 0.06, dd.y + hh / 2, dd.fz + nz * 0.06); S.set(wide + 0.3, hh + 0.2, 0.14); frameM.push({ m: M.compose(P, Q, S).clone() });
+    P.set(dd.fx + nx * 0.14, dd.y + hh / 2 - 0.05, dd.fz + nz * 0.14); S.set(wide, hh - 0.1, 1); glassM.push({ m: M.compose(P, Q, S).clone() });
+    P.set(dd.fx + nx * 0.4, dd.y + hh + 0.35, dd.fz + nz * 0.4); S.set(0.5, 0.12, 0.25); lampM.push({ m: M.compose(P, Q, S).clone() });
+  }
+  const out: THREE.InstancedMesh[] = [];
+  const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, list2: { m: THREE.Matrix4; c?: THREE.Color }[], receive = true) => {
+    if (!list2.length) return null;
+    const im = new THREE.InstancedMesh(geo, mat, list2.length); list2.forEach((it, i) => { im.setMatrixAt(i, it.m); if (it.c) im.setColorAt(i, it.c); });
+    im.receiveShadow = receive; im.computeBoundingSphere(); out.push(im); return im;
+  };
+  const withOff = (list2: { m: THREE.Matrix4; o: [number, number] }[], mat: THREE.Material) => {
+    if (!list2.length) return;
+    const g = D.plane.clone(); const a = new THREE.InstancedBufferAttribute(new Float32Array(list2.length * 2), 2); list2.forEach((it, i) => a.setXY(i, it.o[0], it.o[1])); g.setAttribute('uvOff', a);
+    const im = mk(g, mat, list2, false); if (im) im.userData.ownGeo = true;
+  };
+  mk(D.box, D.roofMat, boxes); mk(D.cyl, D.roofMat, cyls);
+  withOff(hs, D.hMat); withOff(vs, D.vMat); withOff(ts, D.tMat); withOff(cs, D.cMat); withOff(fs, D.fMat);
+  if (shut.length) { const g = D.plane.clone(), a = new THREE.InstancedBufferAttribute(new Float32Array(shut.length * 2), 2); shut.forEach((it, i) => a.setXY(i, it.o[0], it.o[1])); g.setAttribute('aHours', a); const im = mk(g, D.shutMat, shut, false); if (im) { im.userData.ownGeo = true; im.frustumCulled = false; } }
+  const awn = mk(D.box, D.awnMat, aw); if (awn) awn.castShadow = true;
+  mk(D.box, D.doorMat, frameM); mk(D.plane, D.doorGlassMat, glassM, false); mk(D.box, D.doorLampMat, lampM, false);
+  return out;
+}
+export function disposeDetail(list: THREE.InstancedMesh[]) { for (const im of list) { if (im.userData.ownGeo) im.geometry.dispose(); im.dispose(); } }
+
+/** City-wide: aircraft warning lights on tall towers, and the night glow of signs and doors. */
+export default function Detail() {
+  const D = useMemo(() => {
+    const beacons: THREE.Vector3[] = [];
+    for (const b of buildings) if (b.h > 70 && !b.gable && b.type !== 'hangar' && !b.up && b.shape !== 'spiral') { const v = roofPlan(b, noop, noop); if (v) beacons.push(v); }
+    const sh = shared();
+    const bl = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.6, 1.6), sh.beaconMat, Math.max(1, beacons.length)); bl.count = beacons.length; bl.frustumCulled = false;
+    return { bl, beacons, sh };
+  }, []);
+  const tmp = useMemo(() => ({ m: new THREE.Matrix4(), s: new THREE.Vector3(1, 1, 1) }), []);
+  useFrame(({ camera, clock }) => {
+    const h = game.hour, night = h > 18.4 || h < 6.4, dusk = !night && (h > 17.2 || h < 7.2), sh = D.sh; shutterHour.value = h;
+    const k = night ? 1.7 : dusk ? 1.1 : 0.55; sh.hMat.color.setScalar(k); sh.vMat.color.setScalar(k); sh.tMat.color.setScalar(k); sh.cMat.color.setScalar(night ? 1.5 : dusk ? 1.05 : 0.8); sh.fMat.color.setScalar(night ? 1.6 : dusk ? 1.15 : 0.92);
+    sh.doorGlassMat.color.set(night || dusk ? '#ffcf8a' : '#1c2632').multiplyScalar(night ? 1.3 : dusk ? 0.8 : 1); sh.doorLampMat.color.set('#ffe0a8').multiplyScalar(night ? 2.2 : dusk ? 1.2 : 0.5);
+    const blink = Math.sin(clock.elapsedTime * 3.2) > 0.2; sh.beaconMat.opacity = night || dusk ? (blink ? 1 : 0.12) : (blink ? 0.4 : 0.05);
+    let n = 0; const cx = camera.position.x, cz = camera.position.z;
+    for (const v of D.beacons) { if (Math.abs(v.x - cx) > 1600 || Math.abs(v.z - cz) > 1600) continue; tmp.m.compose(v, camera.quaternion, tmp.s); D.bl.setMatrixAt(n++, tmp.m); }
+    D.bl.count = n; D.bl.instanceMatrix.needsUpdate = true;
+  });
+  return <primitive object={D.bl} />;
+}

@@ -1,0 +1,115 @@
+import * as THREE from 'three';
+
+/** Accumulates triangles with world-space UVs and vertex colors, then builds one BufferGeometry. */
+export class Geo {
+  pos: number[] = []; nor: number[] = []; uv: number[] = []; col: number[] = [];
+  private built: THREE.BufferGeometry | null = null;
+  get empty() { return this.built ? this.built.attributes.position.count === 0 : this.pos.length === 0; }
+  private v(x: number, y: number, z: number, n: number[], u: number, w: number, c: number[]) {
+    this.pos.push(x, y, z); this.nor.push(n[0], n[1], n[2]); this.uv.push(u, w); this.col.push(c[0], c[1], c[2]);
+  }
+  /** Quad a,b,c,d counter-clockwise seen from the front. */
+  quad(a: number[], b: number[], c: number[], d: number[], n: number[], uvs: number[][], col: number[]) {
+    this.v(a[0], a[1], a[2], n, uvs[0][0], uvs[0][1], col); this.v(b[0], b[1], b[2], n, uvs[1][0], uvs[1][1], col); this.v(c[0], c[1], c[2], n, uvs[2][0], uvs[2][1], col);
+    this.v(a[0], a[1], a[2], n, uvs[0][0], uvs[0][1], col); this.v(c[0], c[1], c[2], n, uvs[2][0], uvs[2][1], col); this.v(d[0], d[1], d[2], n, uvs[3][0], uvs[3][1], col);
+  }
+  tri(a: number[], b: number[], c: number[], n: number[], uvs: number[][], col: number[]) {
+    this.v(a[0], a[1], a[2], n, uvs[0][0], uvs[0][1], col); this.v(b[0], b[1], b[2], n, uvs[1][0], uvs[1][1], col); this.v(c[0], c[1], c[2], n, uvs[2][0], uvs[2][1], col);
+  }
+  /** Axis-aligned box. su/sv: meters per texture repeat on the sides. top: optional separate Geo for the top face (roof). */
+  box(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col: number[], su = 4, sv = 4, top: Geo | null = this, topScale = 8, sides = true, yo = 0) {
+    if (sides) {
+      const U = (a: number) => a / su, V = (y: number) => (y - yo) / sv;
+      this.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], [[U(x0), V(y0)], [U(x1), V(y0)], [U(x1), V(y1)], [U(x0), V(y1)]], col);
+      this.quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], [[U(-x1), V(y0)], [U(-x0), V(y0)], [U(-x0), V(y1)], [U(-x1), V(y1)]], col);
+      this.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0], [[U(-z1), V(y0)], [U(-z0), V(y0)], [U(-z0), V(y1)], [U(-z1), V(y1)]], col);
+      this.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0], [[U(z0), V(y0)], [U(z1), V(y0)], [U(z1), V(y1)], [U(z0), V(y1)]], col);
+    }
+    if (top) { const T = (a: number) => a / topScale; top.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0], [[T(x0), T(-z1)], [T(x1), T(-z1)], [T(x1), T(-z0)], [T(x0), T(-z0)]], col); }
+  }
+  /** Closed box (sides, top and bottom) for protruding trim that can be seen from below. */
+  solid(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col: number[]) {
+    this.box(x0, y0, z0, x1, y1, z1, col, 4, 4, this, 8, true, 0);
+    this.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], col);
+  }
+  /** Flat horizontal quad. */
+  flat(x0: number, z0: number, x1: number, z1: number, y: number, col: number[], scale = 4) {
+    const T = (a: number) => a / scale;
+    this.quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], [0, 1, 0], [[T(x0), T(-z1)], [T(x1), T(-z1)], [T(x1), T(-z0)], [T(x0), T(-z0)]], col);
+  }
+  /** Gable roof over a box footprint, ridge along the longer side. */
+  /** Hip roof (yosemune): four sloping faces, a short ridge along the long side, overhanging eaves. */
+  hip(x0: number, z0: number, x1: number, z1: number, y: number, rise: number, col: number[], o = 0.6) {
+    const X0 = x0 - o, X1 = x1 + o, Z0 = z0 - o, Z1 = z1 + o, alongX = X1 - X0 >= Z1 - Z0;
+    if (alongX) {
+      const zm = (Z0 + Z1) / 2, inset = (Z1 - Z0) / 2, ra = X0 + inset, rb = X1 - inset, k = rise / inset;
+      this.quad([X0, y, Z0], [X1, y, Z0], [rb, y + rise, zm], [ra, y + rise, zm], norm([0, 1, -k]), [[X0 / 3, 0], [X1 / 3, 0], [rb / 3, 2], [ra / 3, 2]], col);
+      this.quad([X1, y, Z1], [X0, y, Z1], [ra, y + rise, zm], [rb, y + rise, zm], norm([0, 1, k]), [[X1 / 3, 0], [X0 / 3, 0], [ra / 3, 2], [rb / 3, 2]], col);
+      this.tri([X0, y, Z1], [X0, y, Z0], [ra, y + rise, zm], norm([-k, 1, 0]), [[0, 0], [1, 0], [0.5, 1]], col);
+      this.tri([X1, y, Z0], [X1, y, Z1], [rb, y + rise, zm], norm([k, 1, 0]), [[0, 0], [1, 0], [0.5, 1]], col);
+    } else {
+      const xm = (X0 + X1) / 2, inset = (X1 - X0) / 2, ra = Z0 + inset, rb = Z1 - inset, k = rise / inset;
+      this.quad([X0, y, Z1], [X0, y, Z0], [xm, y + rise, ra], [xm, y + rise, rb], norm([-k, 1, 0]), [[Z1 / 3, 0], [Z0 / 3, 0], [ra / 3, 2], [rb / 3, 2]], col);
+      this.quad([X1, y, Z0], [X1, y, Z1], [xm, y + rise, rb], [xm, y + rise, ra], norm([k, 1, 0]), [[Z0 / 3, 0], [Z1 / 3, 0], [rb / 3, 2], [ra / 3, 2]], col);
+      this.tri([X0, y, Z0], [X1, y, Z0], [xm, y + rise, ra], norm([0, 1, -k]), [[0, 0], [1, 0], [0.5, 1]], col);
+      this.tri([X1, y, Z1], [X0, y, Z1], [xm, y + rise, rb], norm([0, 1, k]), [[0, 0], [1, 0], [0.5, 1]], col);
+    }
+    // soffit under the eaves
+    this.quad([X0, y, Z1], [X1, y, Z1], [X1, y, Z0], [X0, y, Z0], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], [col[0] * 0.6, col[1] * 0.6, col[2] * 0.6]);
+  }
+  gable(x0: number, z0: number, x1: number, z1: number, y: number, rise: number, col: number[], ends: Geo, endCol: number[]) {
+    const o = 0.5, X0 = x0 - o, X1 = x1 + o, Z0 = z0 - o, Z1 = z1 + o, alongX = x1 - x0 >= z1 - z0;
+    if (alongX) {
+      const zm = (z0 + z1) / 2, k = rise / ((Z1 - Z0) / 2), n1 = norm([0, 1, -k]), n2 = norm([0, 1, k]);
+      this.quad([X0, y, Z0], [X1, y, Z0], [X1, y + rise, zm], [X0, y + rise, zm], n1, [[X0 / 3, 0], [X1 / 3, 0], [X1 / 3, 2], [X0 / 3, 2]], col);
+      this.quad([X1, y, Z1], [X0, y, Z1], [X0, y + rise, zm], [X1, y + rise, zm], n2, [[X1 / 3, 0], [X0 / 3, 0], [X0 / 3, 2], [X1 / 3, 2]], col);
+      ends.tri([x0, y, z1], [x0, y, z0], [x0, y + rise, zm], [-1, 0, 0], [[0, 0], [1, 0], [0.5, 0.4]], endCol);
+      ends.tri([x1, y, z0], [x1, y, z1], [x1, y + rise, zm], [1, 0, 0], [[0, 0], [1, 0], [0.5, 0.4]], endCol);
+    } else {
+      const xm = (x0 + x1) / 2, k = rise / ((X1 - X0) / 2), n1 = norm([-k, 1, 0]), n2 = norm([k, 1, 0]);
+      this.quad([X0, y, Z1], [X0, y, Z0], [xm, y + rise, Z0], [xm, y + rise, Z1], n1, [[Z1 / 3, 0], [Z0 / 3, 0], [Z0 / 3, 2], [Z1 / 3, 2]], col);
+      this.quad([X1, y, Z0], [X1, y, Z1], [xm, y + rise, Z1], [xm, y + rise, Z0], n2, [[Z0 / 3, 0], [Z1 / 3, 0], [Z1 / 3, 2], [Z0 / 3, 2]], col);
+      ends.tri([x0, y, z0], [x1, y, z0], [xm, y + rise, z0], [0, 0, -1], [[0, 0], [1, 0], [0.5, 0.4]], endCol);
+      ends.tri([x1, y, z1], [x0, y, z1], [xm, y + rise, z1], [0, 0, 1], [[0, 0], [1, 0], [0.5, 0.4]], endCol);
+    }
+  }
+  /** Typed GPU-ready geometry. Built once; the JS arrays are released afterwards (they are 2-3x the size of the typed ones). */
+  /** Quad with a normal per corner (smooth curved walls). */
+  quadN(a: number[], b: number[], c: number[], d: number[], na: number[], nb: number[], nc: number[], nd: number[], uvs: number[][], col: number[]) {
+    this.v(a[0], a[1], a[2], na, uvs[0][0], uvs[0][1], col); this.v(b[0], b[1], b[2], nb, uvs[1][0], uvs[1][1], col); this.v(c[0], c[1], c[2], nc, uvs[2][0], uvs[2][1], col);
+    this.v(a[0], a[1], a[2], na, uvs[0][0], uvs[0][1], col); this.v(c[0], c[1], c[2], nc, uvs[2][0], uvs[2][1], col); this.v(d[0], d[1], d[2], nd, uvs[3][0], uvs[3][1], col);
+  }
+  /**
+   * Vertical prism over a convex plan (x, z points in order): walls with the facade running round the perimeter
+   * (su / sv metres per texture repeat, v measured from yo so windows line up between tiers), and a flat roof on `top`.
+   * smooth: one normal per corner pointing away from the centre (a cylinder), else flat faces.
+   */
+  extrude(poly: number[][], y0: number, y1: number, col: number[], su: number, sv: number, top: Geo | null = this, smooth = false, yo = 0, roofScale = 8) {
+    const n = poly.length; let cx = 0, cz = 0; for (const q of poly) { cx += q[0] / n; cz += q[1] / n; }
+    const rad = (q: number[]) => { const dx = q[0] - cx, dz = q[1] - cz, l = Math.hypot(dx, dz) || 1; return [dx / l, 0, dz / l]; };
+    let u = 0;
+    for (let i = 0; i < n; i++) {
+      let p = poly[i], q = poly[(i + 1) % n]; const ex = q[0] - p[0], ez = q[1] - p[1], len = Math.hypot(ex, ez); if (len < 1e-4) continue;
+      let nx = ez / len, nz = -ex / len; if (nx * ((p[0] + q[0]) / 2 - cx) + nz * ((p[1] + q[1]) / 2 - cz) < 0) { nx = -nx; nz = -nz; } // outward
+      const rx = nz, rz = -nx; // the viewer's right, seen from outside
+      let ua = u, ub = u + len; if (ex * rx + ez * rz < 0) { const t = p; p = q; q = t; }
+      const V0 = (y0 - yo) / sv, V1 = (y1 - yo) / sv, fn = [nx, 0, nz];
+      if (smooth) this.quadN([p[0], y0, p[1]], [q[0], y0, q[1]], [q[0], y1, q[1]], [p[0], y1, p[1]], rad(p), rad(q), rad(q), rad(p), [[ua / su, V0], [ub / su, V0], [ub / su, V1], [ua / su, V1]], col);
+      else this.quad([p[0], y0, p[1]], [q[0], y0, q[1]], [q[0], y1, q[1]], [p[0], y1, p[1]], fn, [[ua / su, V0], [ub / su, V0], [ub / su, V1], [ua / su, V1]], col);
+      u += len; void ua; void ub;
+    }
+    if (top) { const T = (a: number) => a / roofScale; for (let i = 0; i < n; i++) { const p = poly[i], q = poly[(i + 1) % n], a = [cx, y1, cz], b = [p[0], y1, p[1]], c = [q[0], y1, q[1]]; const up = (b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0]) < 0; top.tri(a, up ? b : c, up ? c : b, [0, 1, 0], [[T(a[0]), T(-a[2])], [T((up ? b : c)[0]), T(-(up ? b : c)[2])], [T((up ? c : b)[0]), T(-(up ? c : b)[2])]], col); } }
+  }
+  build(): THREE.BufferGeometry {
+    if (this.built) return this.built;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
+    g.computeBoundingSphere(); g.computeBoundingBox();
+    this.built = g; this.pos = []; this.nor = []; this.uv = []; this.col = [];
+    return g;
+  }
+}
+export function norm(v: number[]) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
