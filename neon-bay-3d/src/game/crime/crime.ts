@@ -302,7 +302,7 @@ export function jobAction(id: string) {
     p.x = C.ox + C.spawn.x; p.z = C.oz + C.spawn.z; p.y = -50; p.vy = 0; game.fadeT = 0.6; sfx('door'); toast(C.name + '（出口で操舵席に戻る）', 2);
   } else if (id.startsWith('shop:')) { game.ui = id; sfx('ui');
   } else if (id === 'ramen:eat') { eatMeal();
-  } else if (id === 'home:view') { viewMode.on = !viewMode.on; viewMode.t0 = performance.now(); sfx('ui'); if (viewMode.on) toast('🔭 街を眺めている（もう一度押すと戻る）', 2.4);
+  } else if (id === 'home:view') { viewMode.on = !viewMode.on; viewMode.t0 = performance.now(); sfx('ui'); toast(viewMode.on ? '🔭 街を眺めている（もう一度押すと戻る）' : 'いつもの視点に戻った', viewMode.on ? 2.4 : 1.4);
   } else if (id === 'shopclosed') { toast('強盗の直後で店員が怯えている。時間をおこう', 2);
   } else if (id.startsWith('jp:') || id.startsWith('nara:')) { japanAction(id);
   } else if (id === 'style') { game.openStyle = true;

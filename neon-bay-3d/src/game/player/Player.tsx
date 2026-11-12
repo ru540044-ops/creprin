@@ -13,7 +13,7 @@ import { sfx } from '../audio';
 import { jobNear, jobAction, onEnterCar, law } from '../crime/crime';
 import { hooks } from '../vehicles/sim';
 import { collide, groundAt, floorAt, doors, pointBlocked, districtAt, isWater, TUN } from '../world/cityGen';
-import { INTERIORS, FLOOR, interiorCollide } from '../world/Interiors';
+import { INTERIORS, FLOOR, interiorCollide, viewMode } from '../world/Interiors';
 import { clamp, lerp } from '../world/rng';
 import { makeCharacter } from './character';
 import { nearBDoor, bdoorById, genInterior } from '../world/bldgInteriors';
@@ -302,7 +302,7 @@ export default function Player() {
         G.position.set(pl.x, pl.y, pl.z); G.rotation.set(0, pl.yaw, 0);
         if (me && rider(me.def.kind)) { G.position.y = me.y + (me.def.kind === 'jetski' ? 0.15 : 0); G.rotateX(-me.pitch); G.rotateZ(me.def.kind === 'bike' ? me.lean : me.roll); }
       }
-      G.visible = me ? game.cam.carMode !== 2 : game.cam.mode !== 2 || !game.started;
+      G.visible = (me ? game.cam.carMode !== 2 : game.cam.mode !== 2 || !game.started) && !viewMode.on; // looking out from the balcony: out of the way
     }
 
     // ----- camera -----

@@ -12,15 +12,15 @@ import { game } from '../state/store';
 const EYE = 200; // metres above the street
 let seed = 4711; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 function facade(night: boolean, cols: number, rows: number) {
-  const W = 64, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const c = cv.getContext('2d')!;
+  const W = 128, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const c = cv.getContext('2d')!;
   c.fillStyle = night ? '#0d1220' : '#8d98a8'; c.fillRect(0, 0, W, H);
   const cw = W / cols, rh = H / rows;
   for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
     const lit = night ? rnd() < 0.55 : false;
     c.fillStyle = night ? (lit ? (rnd() < 0.7 ? '#ffd9a0' : '#cfe6ff') : '#151b2a') : (rnd() < 0.5 ? '#5f7894' : '#6f88a2');
-    c.fillRect(k * cw + 1, r * rh + 1.5, cw - 2, rh - 3);
+    c.fillRect(k * cw + cw * 0.18, r * rh + rh * 0.22, cw * 0.64, rh * 0.56);
   }
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; return t;
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
 }
 function streets(night: boolean) {
   const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const c = cv.getContext('2d')!;
@@ -36,10 +36,10 @@ export default function HighView() {
     seed = 4711;
     const box = new THREE.BoxGeometry(1, 1, 1); box.translate(0, 0.5, 0);
     // three height classes, each with its own window repeat so the windows keep about the same size
-    const classes = [{ max: 60, cols: 3, rows: 5 }, { max: 140, cols: 4, rows: 12 }, { max: 999, cols: 5, rows: 24 }];
+    const classes = [{ max: 60, cols: 5, rows: 9 }, { max: 140, cols: 7, rows: 24 }, { max: 999, cols: 8, rows: 44 }];
     const day = classes.map((k) => facade(false, k.cols, k.rows)), night = classes.map((k) => facade(true, k.cols, k.rows));
-    const roof = new THREE.MeshBasicMaterial({ color: '#5a5e66' });
-    const mats = classes.map((_, i) => new THREE.MeshBasicMaterial({ map: day[i] }));
+    const roof = new THREE.MeshBasicMaterial({ color: '#5a5e66', fog: false });
+    const mats = classes.map((_, i) => new THREE.MeshBasicMaterial({ map: day[i], fog: false }));
     const lists: THREE.Matrix4[][] = [[], [], []]; const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3();
     for (let n = 0; n < 520; n++) {
       const th = (rnd() * 2 - 1) * 1.9, r = 45 + Math.pow(rnd(), 1.5) * 1500, x = Math.sin(th) * r, z = -Math.cos(th) * r;
@@ -49,11 +49,12 @@ export default function HighView() {
       Q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, (rnd() - 0.5) * 0.3); M.compose(V.set(x, -EYE, z), Q, S.set(w, h, d));
       lists[h < 60 ? 0 : h < 140 ? 1 : 2].push(M.clone());
     }
-    const meshes = lists.map((L, i) => { const m = new THREE.InstancedMesh(box, [mats[i], mats[i], roof, roof, mats[i], mats[i]], Math.max(1, L.length)); L.forEach((q, k) => m.setMatrixAt(k, q)); m.count = L.length; m.frustumCulled = false; return m; });
+    const tint = new THREE.Color(), TINTS = ['#ffffff', '#f2ece2', '#e2ecf6', '#dfe4ea', '#f6efe0', '#d8e2ec', '#ece6f2'];
+    const meshes = lists.map((L, i) => { const m = new THREE.InstancedMesh(box, [mats[i], mats[i], roof, roof, mats[i], mats[i]], Math.max(1, L.length)); L.forEach((q, k) => { m.setMatrixAt(k, q); m.setColorAt(k, tint.set(TINTS[Math.floor(rnd() * TINTS.length)]).multiplyScalar(0.82 + rnd() * 0.22)); }); m.count = L.length; m.frustumCulled = false; return m; });
     // street grid, the bay, mountains
-    const sDay = streets(false), sNight = streets(true), ground = new THREE.Mesh(new THREE.PlaneGeometry(4200, 4200).rotateX(-Math.PI / 2).translate(0, -EYE - 0.5, -800), new THREE.MeshBasicMaterial({ map: sDay }));
+    const sDay = streets(false), sNight = streets(true), ground = new THREE.Mesh(new THREE.PlaneGeometry(4200, 4200).rotateX(-Math.PI / 2).translate(0, -EYE - 0.5, -800), new THREE.MeshBasicMaterial({ map: sDay, fog: false }));
     const bayShape = new THREE.Shape(); bayShape.moveTo(0, 0); for (let a = -1.9; a <= -0.62; a += 0.05) bayShape.lineTo(Math.sin(a) * 2600, -Math.cos(a) * 2600); bayShape.lineTo(Math.sin(-0.62) * 420, -Math.cos(-0.62) * 420); for (let a = -0.62; a >= -1.9; a -= 0.05) bayShape.lineTo(Math.sin(a) * 420, -Math.cos(a) * 420);
-    const bay = new THREE.Mesh(new THREE.ShapeGeometry(bayShape).rotateX(Math.PI / 2).translate(0, -EYE + 0.3, 0), new THREE.MeshBasicMaterial({ color: '#2a5a7a', side: THREE.DoubleSide }));
+    const bay = new THREE.Mesh(new THREE.ShapeGeometry(bayShape).rotateX(Math.PI / 2).translate(0, -EYE + 0.3, 0), new THREE.MeshBasicMaterial({ color: '#2a5a7a', side: THREE.DoubleSide, fog: false }));
     const mtnG: THREE.BufferGeometry[] = []; for (let k = 0; k < 26; k++) { const a = -1.6 + k * 0.13, r = 2300 + rnd() * 200, h = 160 + rnd() * 260, g = new THREE.ConeGeometry(260 + rnd() * 240, h, 5); g.translate(Math.sin(a) * r, -EYE + h / 2, -Math.cos(a) * r); mtnG.push(g); }
     const mtnMat = new THREE.MeshBasicMaterial({ color: '#5d7488' });
     const mtns = mtnG.map((g) => new THREE.Mesh(g, mtnMat));
@@ -72,11 +73,11 @@ export default function HighView() {
   }, []);
   const M = useMemo(() => new THREE.Matrix4(), []), V = useMemo(() => new THREE.Vector3(), []), Q = useMemo(() => new THREE.Quaternion(), []), S = useMemo(() => new THREE.Vector3(1, 1, 1), []);
   useFrame(({ clock }) => {
-    const h = game.hour, night = h > 18.6 || h < 5.6, dusk = !night && (h > 16.8 || h < 7.2), k = night ? 0.55 : dusk ? 0.8 : 1;
-    R.mats.forEach((m, i) => { const t = night ? R.night[i] : R.day[i]; if (m.map !== t) { m.map = t; m.needsUpdate = true; } m.color.setRGB(k * (dusk ? 1.08 : 1), k, k * (dusk ? 0.9 : 1)); });
+    const h = game.hour, night = h > 18.6 || h < 5.6, dusk = !night && (h > 16.8 || h < 7.2), eve = dusk && h > 12, k = night ? 0.6 : eve ? 1.0 : dusk ? 0.85 : 1;
+    R.mats.forEach((m, i) => { const t = night || (eve && h > 17.6) ? R.night[i] : R.day[i]; if (m.map !== t) { m.map = t; m.needsUpdate = true; } m.color.setRGB(k * (dusk ? 1.12 : 1), k * (dusk ? 0.92 : 1), k * (dusk ? 0.8 : 1)); });
     const gm = R.ground.material as THREE.MeshBasicMaterial, gt = night ? R.sNight : R.sDay; if (gm.map !== gt) { gm.map = gt; gm.needsUpdate = true; }
     (R.bay.material as THREE.MeshBasicMaterial).color.set(night ? '#0a1626' : dusk ? '#4a5a7a' : '#2a6a92');
-    R.mtnMat.color.set(night ? '#0e1420' : dusk ? '#6a6a86' : '#6f8aa0'); R.roof.color.setScalar(night ? 0.12 : 0.36 * k);
+    R.mtnMat.color.set(night ? '#0e1420' : dusk ? '#6a6a86' : '#6f8aa0'); R.roof.color.setScalar(night ? 0.16 : 0.36 * k);
     R.steel.color.set(night ? '#2a2e36' : '#d8dce2'); R.bulbs.visible = night || dusk;
     R.cars.visible = night || dusk;
     if (R.cars.visible) { const t = clock.elapsedTime; for (let n = 0; n < 140; n++) { const lane = n % 4, ave = n < 70 ? 0 : 1, u = ((n * 37.3 + t * (lane < 2 ? 14 : -14)) % 1400 + 1400) % 1400 + 40, x = (lane % 2 ? 1.8 : -1.8) + (ave ? -u * 0.35 : 0), z = -u; M.compose(V.set(x, -EYE + 0.6, z), Q, S); R.cars.setMatrixAt(n, M); } R.cars.instanceMatrix.needsUpdate = true; }
