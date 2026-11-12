@@ -919,7 +919,7 @@ export const SIG = {
   };
   if (inTokyo()) { const b = blk((4 + O) * N + 9 + O); if (b && b.zone === 'park') shrineAt(b, true, '明治神宮'); }
   if (LANDMARK3D.kind === 'daibutsu') SIG.shrines.push({ x: LANDMARK3D.x, z: LANDMARK3D.z + DAIBUTSU.bz - 3.5, big: true, name: LANDMARK3D.label }); // pray in front of the great figure
-  { const parks = blocks.filter((b) => b.zone === 'park' && !SIG_BLOCKS.has(b.j * N + b.i) && !(b.i === LM_BLOCK.i && b.j === LM_BLOCK.j) && !(inTokyo() && b.i - O >= 9 && b.i - O <= 10 && b.j - O >= 3 && b.j - O <= 4));
+  { const parks = blocks.filter((b) => b.zone === 'park' && !SIG_BLOCKS.has(b.j * N + b.i) && !CANAL_BLOCKS.has(b.j * N + b.i) /* not a pond */ && !(b.i === LM_BLOCK.i && b.j === LM_BLOCK.j) && !(inTokyo() && b.i - O >= 9 && b.i - O <= 10 && b.j - O >= 3 && b.j - O <= 4));
     for (let k = 0; k < Math.min(5, parks.length); k++) { const b = parks[Math.floor(r() * parks.length)]; if (SIG.shrines.some((q) => Math.hypot(q.x - (b.x0 + b.x1) / 2, q.z - (b.z0 + b.z1) / 2) < 120)) continue; shrineAt(b, false, SHRINE_NAMES[k % SHRINE_NAMES.length]); } }
   // signature blocks
   for (const [k, tag] of SIG_BLOCKS) {

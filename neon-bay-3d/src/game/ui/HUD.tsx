@@ -22,6 +22,24 @@ import { law, jobStatus, armored, searchRadius } from '../crime/crime';
 import { input, releaseDrive } from '../input';
 import { mapImage, toMap, fromMap, POI, MAP, shinBadge } from './mapRender';
 import { SHIN } from '../world/cityGen';
+import { places, nearest, here, skipTo, CATS, Place, PlaceCat } from './places';
+
+/** A round badge with an emoji, drawn once per kind and then stamped onto the maps. */
+const badgeCache = new Map<string, HTMLCanvasElement>();
+function badge(icon: string, color: string) {
+  const k = icon + color; let cv = badgeCache.get(k); if (cv) return cv;
+  cv = document.createElement('canvas'); cv.width = cv.height = 48; const c = cv.getContext('2d')!;
+  c.fillStyle = color; c.strokeStyle = '#fff'; c.lineWidth = 4; c.beginPath(); c.arc(24, 24, 21, 0, Math.PI * 2); c.fill(); c.stroke();
+  c.font = '26px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, 24, 26);
+  badgeCache.set(k, cv); return cv;
+}
+const catColor = (id: PlaceCat) => CATS.find((c) => c.id === id)!.color;
+/** Which places a map shows: everything of the chosen kind, or (for "all") every stall / shrine / station and the nearest few shops. */
+function shownPlaces(cat: PlaceCat | 'all'): Place[] {
+  if (cat !== 'all') return places().filter((p) => p.cat === cat);
+  const P = here(), few = (id: PlaceCat) => nearest(id, P.x, P.z, 6);
+  return [...places().filter((p) => p.cat !== 'ramen' && p.cat !== 'konbini'), ...few('ramen'), ...few('konbini')];
+}
 import { INTERIORS } from '../world/Interiors';
 import { isBoat } from '../vehicles/defs';
 
@@ -61,6 +79,7 @@ function Minimap({ onOpen }: { onOpen: () => void }) {
       c.translate(S / 2, S / 2); c.rotate(game.cam.yaw); c.scale(zoom, zoom); c.translate(-px, -pz);
       c.drawImage(mapImage(), 0, 0);
       for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 3.6 / zoom * 1.4, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1 / zoom; c.stroke(); }
+      { const r = S / 2 / zoom / MAP.s + 10, sz = 15 / zoom; for (const q of places()) { if (Math.abs(q.x - p.x) > r || Math.abs(q.z - p.z) > r) continue; const [a, b] = toMap(q.x, q.z); c.save(); c.translate(a, b); c.rotate(-game.cam.yaw); c.drawImage(badge(q.icon, catColor(q.cat)), -sz / 2, -sz / 2, sz, sz); c.restore(); } }
       drawDynamic(c, 1 / zoom, t);
       c.restore();
       const rim = (wx: number, wz: number, pad: number) => { const [a, b] = toMap(wx, wz), dx = (a - px) * zoom, dz = (b - pz) * zoom, cs = Math.cos(game.cam.yaw), sn = Math.sin(game.cam.yaw); let rx = dx * cs - dz * sn, rz = dx * sn + dz * cs; const L = Math.hypot(rx, rz), m = S / 2 - pad, out = L > m; if (out) { rx *= m / L; rz *= m / L; } return [S / 2 + rx, S / 2 + rz, out ? 1 : 0] as const; };
@@ -84,13 +103,15 @@ function Minimap({ onOpen }: { onOpen: () => void }) {
 /** Full map with zoom and pan (drag, pinch, wheel, + / − buttons); a tap without dragging sets the waypoint. */
 function FullMap({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [cat, setCat] = useState<PlaceCat | 'all'>('all'), [sel, setSel] = useState<Place | null>(null);
+  const catR = useRef(cat), selR = useRef(sel), drawn = useRef<Place[]>([]); catR.current = cat; selR.current = sel;
   const view = useRef({ z: 0, cx: 0, cy: 0, W: 0, H: 0, fit: 1 });
   const ptrs = useRef(new Map<number, { x: number; y: number }>()), gest = useRef({ moved: 0, dist: 0 });
   const clampV = () => { const v = view.current, img = mapImage(); v.z = Math.max(v.fit, Math.min(4, v.z)); const hw = v.W / 2 / v.z, hh = v.H / 2 / v.z; v.cx = Math.max(Math.min(hw, img.width / 2), Math.min(img.width - Math.min(hw, img.width / 2), v.cx)); v.cy = Math.max(Math.min(hh, img.height / 2), Math.min(img.height - Math.min(hh, img.height / 2), v.cy)); };
   const centerOnPlayer = (z?: number) => { const v = view.current, p = game.where !== 'out' ? game.outsidePos : game.player, [a, b] = toMap(p.x, p.z); v.cx = a; v.cy = b; if (z) v.z = z; clampV(); };
   useEffect(() => {
     const cv = ref.current!, img = mapImage(), v = view.current, dpr = Math.min(2, devicePixelRatio || 1);
-    v.W = Math.max(200, innerWidth - 32); v.H = Math.max(160, innerHeight - 128); v.fit = Math.min(v.W / img.width, v.H / img.height);
+    v.W = Math.max(200, innerWidth - 32); v.H = Math.max(140, innerHeight - (innerHeight < 500 ? 240 : 300)); // room below for the places bar v.fit = Math.min(v.W / img.width, v.H / img.height);
     cv.style.width = v.W + 'px'; cv.style.height = v.H + 'px'; cv.width = v.W * dpr; cv.height = v.H * dpr;
     centerOnPlayer(Math.max(v.fit, v.W / (1600 * MAP.s))); // start at about 1.6 km across, around the player
     let raf = 0; const draw = () => {
@@ -99,6 +120,12 @@ function FullMap({ onClose }: { onClose: () => void }) {
       c.setTransform(k, 0, 0, k, (v.W / 2 - v.cx * v.z) * dpr, (v.H / 2 - v.cy * v.z) * dpr); c.imageSmoothingEnabled = v.z < 1.5; c.drawImage(img, 0, 0);
       const s = 1 / v.z; // marker sizes stay the same on screen whatever the zoom
       for (const q of POI()) { const [a, b] = toMap(q.x, q.z); c.fillStyle = q.c; c.beginPath(); c.arc(a, b, 6 * s, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1.5 * s; c.stroke(); }
+      { // places of the chosen kind, as badges; only those in view are drawn (and remembered for taps)
+        const hw = v.W / 2 / v.z, hh = v.H / 2 / v.z, list: Place[] = []; const sz = 22 * s;
+        for (const q of shownPlaces(catR.current)) { const [a, b] = toMap(q.x, q.z); if (Math.abs(a - v.cx) > hw + 20 || Math.abs(b - v.cy) > hh + 20) continue; list.push(q); if (list.length > 260) break; }
+        for (const q of list) { const [a, b] = toMap(q.x, q.z), on = selR.current && selR.current.x === q.x && selR.current.z === q.z, k = on ? 1.5 : 1; c.drawImage(badge(q.icon, catColor(q.cat)), a - (sz * k) / 2, b - (sz * k) / 2, sz * k, sz * k); }
+        drawn.current = list;
+      }
       drawDynamic(c, 1.6 * s, performance.now());
       if (SHIN.has) { const [a, b] = toMap(SHIN.gate.x, SHIN.gate.z); c.save(); c.translate(a, b); c.scale(s, s); shinBadge(c, 0, 0, 14); c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 3; c.font = '800 13px system-ui, sans-serif'; c.textAlign = 'center'; c.strokeText('新幹線のりば', 0, 28); c.fillText('新幹線のりば', 0, 28); c.restore(); }
       if (game.waypoint) { const [a, b] = toMap(game.waypoint.x, game.waypoint.z); c.fillStyle = '#ffd84a'; c.beginPath(); c.arc(a, b, 8 * s, 0, Math.PI * 2); c.fill(); c.stroke(); }
@@ -120,6 +147,9 @@ function FullMap({ onClose }: { onClose: () => void }) {
     const P = ptrs.current, single = P.size === 1; P.delete(e.pointerId); gest.current.dist = 0;
     if (!single || gest.current.moved > 8) return;
     const v = view.current, l = local(e), ix = v.cx + (l.x - v.W / 2) / v.z, iy = v.cy + (l.y - v.H / 2) / v.z, [x, z] = fromMap(ix, iy);
+    // a tap on a badge picks that place (then: guide or skip); anywhere else sets the destination as before
+    let best: Place | null = null, bd = 22 / v.z; for (const q of drawn.current) { const [a, b] = toMap(q.x, q.z), d = Math.hypot(a - ix, b - iy); if (d < bd) { bd = d; best = q; } }
+    if (best) { setSel(best); return; }
     game.waypoint = { x, z }; toast('目的地を設定しました'); save(); onClose();
   };
   return (
@@ -129,7 +159,18 @@ function FullMap({ onClose }: { onClose: () => void }) {
         <canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); }} onWheel={(e) => { const l = local(e); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, l.x, l.y); }} style={{ touchAction: 'none' }} />
         <div className="mapZoom"><button type="button" aria-label="拡大" onClick={() => zoomAt(1.4)}>＋</button><button type="button" aria-label="縮小" onClick={() => zoomAt(1 / 1.4)}>−</button><button type="button" onClick={() => centerOnPlayer()}>現在地</button><button type="button" onClick={() => { view.current.z = view.current.fit; const img = mapImage(); view.current.cx = img.width / 2; view.current.cy = img.height / 2; clampV(); }}>全体</button></div>
       </div>
-      <div className="row"><button type="button" onClick={() => { game.waypoint = null; save(); onClose(); }}>目的地を消す</button><button type="button" className="pri" onClick={onClose}>閉じる</button></div>
+      <div className="placeBar">
+        <div className="placeCats">{[{ id: 'all' as const, icon: '📍', name: 'すべて' }, ...CATS].map((k) => <button type="button" key={k.id} className={cat === k.id ? 'on' : ''} onClick={() => { setCat(k.id); setSel(null); }}>{k.icon} {k.name}</button>)}</div>
+        <div className="placeList">{(sel ? [{ ...sel, d: Math.hypot(sel.x - here().x, sel.z - here().z) }] : nearest(cat, here().x, here().z, cat === 'all' ? 3 : 4)).map((q) => (
+          <div key={q.name + q.x + q.z} className={'placeRow' + (sel ? ' sel' : '')}>
+            <span className="pi">{q.icon}</span><b>{q.name}</b><small>{q.d < 1000 ? Math.round(q.d) + 'm' : (q.d / 1000).toFixed(1) + 'km'}</small>
+            <button type="button" onClick={() => { game.waypoint = { x: q.tx, z: q.tz }; save(); toast(`${q.name}を目的地に設定`, 1.8); onClose(); }}>📍 案内</button>
+            <button type="button" className="pri" onClick={() => { if (skipTo(q)) onClose(); }}>⏭ スキップ</button>
+          </div>))}
+          {sel && <button type="button" className="placeBack" onClick={() => setSel(null)}>← 一覧に戻る</button>}
+        </div>
+      </div>
+      <div className="row"><button type="button" onClick={() => { game.waypoint = null; save(); onClose(); }}>目的地を消す</button>{game.waypoint && <button type="button" onClick={() => { const w = game.waypoint!; if (skipTo({ cat: 'station', name: '目的地', icon: '📍', x: w.x, z: w.z, tx: w.x, tz: w.z })) onClose(); }}>⏭ 目的地へスキップ</button>}<button type="button" className="pri" onClick={onClose}>閉じる</button></div>
       <div className="legend">{POI().filter((q, i, a) => a.findIndex((o) => o.t === q.t) === i).map((q) => <span key={q.t}><i style={{ background: q.c }} />{q.t}</span>)}<span><i style={{ background: '#3dffb0' }} />$ 現金輸送車</span><span><i style={{ background: '#ffd84a' }} />目的地</span>{SHIN.has && <span><i style={{ background: '#1e5bd8' }} />🚄 新幹線のりば</span>}</div>
     </div>
   );

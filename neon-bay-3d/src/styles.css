@@ -325,3 +325,17 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .lineBtns { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; width: min(640px, calc(100% - 32px)); pointer-events: auto; }
 .lineBtns button { background: rgba(8, 12, 22, .82); color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 18px; padding: 8px 12px; font: inherit; font-size: 12px; font-weight: 700; min-height: 36px; }
 .lineBtns button.on { border-color: #2be4ff; color: #2be4ff; }
+
+/* ---- map: places by kind, nearest list with guide / skip ---- */
+.placeBar{display:flex;flex-direction:column;gap:6px;width:min(720px,calc(100vw - 32px));margin:0 auto}
+.placeCats{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.placeCats button{flex:0 0 auto;border:0;border-radius:16px;padding:7px 11px;background:rgba(14,11,32,.85);color:var(--ink);font-weight:800;font-size:12px;box-shadow:inset 0 0 0 1px var(--edge);min-height:34px}
+.placeCats button.on{background:#ffd23a;color:#1a1400}
+.placeList{display:flex;flex-direction:column;gap:4px}
+.placeRow{display:flex;align-items:center;gap:8px;background:rgba(14,11,32,.85);border-radius:10px;padding:5px 8px;box-shadow:inset 0 0 0 1px var(--edge);font-size:12px}
+.placeRow.sel{box-shadow:inset 0 0 0 2px #ffd23a}
+.placeRow .pi{font-size:18px}.placeRow b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.placeRow small{color:var(--dim);flex:0 0 auto}
+.placeRow button,.placeBack{flex:0 0 auto;border:0;border-radius:9px;padding:7px 10px;background:rgba(255,255,255,.1);color:var(--ink);font-weight:800;font-size:12px;min-height:34px}
+.placeRow button.pri{background:#2be4ff;color:#002430}
+.placeBack{align-self:flex-start}
+@media (max-height:500px){.placeList .placeRow:nth-child(n+3){display:none}}
