@@ -130,6 +130,18 @@ function buildDaibutsu() {
   solid.push(frustum(W / 2 + 4.5, W / 2 - 7, 15, H, TILE, 1, (dep + 9) / (W + 9)));
   solid.push(box(W / 2 + 4, 1.8, 2.4, 0, H + 15, cz, TILE));
   for (const s of [-1, 1]) solid.push(box(1.4, 3.4, 2.6, s * (W / 4 + 1.6), H + 16.4, cz, GOLD));
+  // bracket sets (dark timber) in a row under the great roof and the lower roof, rafter ends along the eaves
+  for (const [y, inset, n] of [[H - 0.2, 0.4, 14], [11.0, 0.3, 14]] as [number, number, number][]) {
+    for (let k = 0; k <= n; k++) { const x = D.hx0 + (W * k) / n; solid.push(box(1.1, 0.8, 1.6, x, y, D.hz1 + inset + 0.6, WOOD), box(1.1, 0.8, 1.6, x, y, D.hz0 - inset - 0.6, WOOD)); }
+    for (let k = 0; k <= 8; k++) { const z = D.hz0 + (dep * k) / 8; for (const s of [-1, 1]) solid.push(box(1.6, 0.8, 1.1, s * (D.hx1 + inset + 0.6), y, z, WOOD)); }
+  }
+  for (let x = D.hx0 - 3; x <= D.hx1 + 3; x += 1.1) solid.push(box(0.25, 0.25, 0.9, x, H + 0.3, D.hz1 + 4.2, [0.86, 0.84, 0.78]), box(0.25, 0.25, 0.9, x, 11.6, D.hz1 + 3.6, [0.86, 0.84, 0.78]));
+  // lattice windows on the side bays of the front, between the posts
+  for (const s of [-1, 1]) for (let b2 = 0; b2 < 2; b2++) { const cx = s * (D.door + 4 + b2 * 7); solid.push(box(4.6, 3.2, 0.12, cx, 4.2, D.hz1 + 0.1, [0.16, 0.11, 0.08])); for (let k = 0; k < 7; k++) solid.push(box(0.12, 3.2, 0.16, cx - 2.1 + k * 0.7, 4.2, D.hz1 + 0.16, WOOD)); }
+  // the bronze incense burner in the forecourt (the smoke rises from it, see below)
+  solid.push(cylY(1.8, 1.6, 0.7, 0, 0.2, D.lantZ + 8, STONE, 12), cylY(1.6, 2.0, 1.3, 0, 0.9, D.lantZ + 8, BRZ, 14), cylY(2.2, 2.2, 0.25, 0, 2.2, D.lantZ + 8, BRZ, 14));
+  for (const s of [-1, 1]) solid.push(cylY(0.12, 0.12, 1.5, s * 1.3, 2.45, D.lantZ + 8, BRZ, 6));
+  solid.push(frustum(2.2, 0.4, 1.1, 3.9, BRZ)); solid.at(-1)!.translate(0, 0, D.lantZ + 8);
   // the arched gable over the front and its viewing window (lit at night)
   solid.push(frustum(8, 1, 4.4, 15.6, TILE, 1, 0.55)); solid.at(-1)!.translate(0, 0, D.hz1 + 2.2);
   glow.push(box(11, 3.4, 0.2, 0, 16.4, D.hz1 + 0.08, [1, 0.82, 0.5]));
@@ -171,6 +183,13 @@ function buildSeaTower() {
   return { lat: [], solid, glow, glass, beacons: [new THREE.Vector3(0, 170.5, 0)] };
 }
 
+/** Incense smoke curling up from the burner in front of the great hall. */
+function Smoke({ x, y, z }: { x: number; y: number; z: number }) {
+  const N = 26, g = useMemo(() => { const b = new THREE.BufferGeometry(); b.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3)); return b; }, []);
+  const mat = useMemo(() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d')!, gr = c.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(235,235,240,.55)'); gr.addColorStop(1, 'rgba(235,235,240,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); return new THREE.PointsMaterial({ map: new THREE.CanvasTexture(cv), size: 2.6, transparent: true, depthWrite: false }); }, []);
+  useFrame(({ clock }) => { const a = g.attributes.position as THREE.BufferAttribute, t = clock.elapsedTime; for (let k = 0; k < N; k++) { const u = ((t * 0.25 + k / N) % 1); a.setXYZ(k, x + Math.sin(u * 7 + k) * (0.2 + u * 1.4), y + u * 9, z + Math.cos(u * 5 + k) * (0.2 + u * 1.0)); } a.needsUpdate = true; });
+  return <points geometry={g} material={mat} />;
+}
 export default function Landmarks() {
   const L = LANDMARK3D;
   const D = useMemo(() => {
@@ -200,6 +219,7 @@ export default function Landmarks() {
       {D.glow && <mesh geometry={D.glow} material={D.glowMat} />}
       {D.glass && <mesh geometry={D.glass} material={D.glassMat} castShadow />}
       {D.beacons.map((v, i) => <mesh key={i} position={v} material={D.beaconMat}><sphereGeometry args={[0.7, 8, 6]} /></mesh>)}
+      {L.kind === 'daibutsu' && <Smoke x={0} y={4.2} z={DAIBUTSU.lantZ + 8} />}
     </group>
   );
 }

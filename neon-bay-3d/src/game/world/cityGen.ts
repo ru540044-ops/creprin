@@ -777,7 +777,7 @@ export const LANDMARK3D = (() => {
     box(D.hx0, D.hz1 - 1.2, -D.door, D.hz1, 0, D.wallH); box(D.door, D.hz1 - 1.2, D.hx1, D.hz1, 0, D.wallH); box(-D.door, D.hz1 - 1.2, D.door, D.hz1, D.doorH, D.wallH);
     box(D.hx0 - 3, D.hz0 - 3, D.hx1 + 3, D.hz1 + 3, D.wallH, D.wallH + 16);
     box(-7, D.bz - 7, 7, D.bz + 7, 0, 18); // the seated figure on its lotus
-    box(-1.3, D.lantZ - 1.3, 1.3, D.lantZ + 1.3, 0, 4.8);
+    box(-1.3, D.lantZ - 1.3, 1.3, D.lantZ + 1.3, 0, 4.8); box(-2, D.lantZ + 6, 2, D.lantZ + 10, 0, 2.5); // bronze lantern, incense burner
     const C = D.clo; box(-C, -C + 4, -C + 1.2, C, 0, 6); box(C - 1.2, -C + 4, C, C, 0, 6); box(-C, -C + 4, C, -C + 5.2, 0, 6);
     box(-C, C - 1.2, -D.gate, C, 0, 6); box(D.gate, C - 1.2, C, C, 0, 6); for (const s of [-1, 1]) box(s * D.gate - 0.6, C - 2.2, s * D.gate + 0.6, C + 0.6, 0, 9);
   }
@@ -898,6 +898,7 @@ export const SIG = {
   yatai: [] as { x: number; z: number; a: number; food: string; price: number; /** Nara: sells crackers for the deer, carried in your pocket */ senbei?: boolean }[],
   /** Nara: the five-storey pagoda (x, z of its centre) and the hall beside it */
   pagoda: null as null | { x: number; z: number; hx: number; hz: number },
+  /** Nara: the great south gate on the approach */ southGate: null as null | { x: number; z: number },
   gates: [] as { x: number; z: number; st: number; name: string }[],
   /** police boxes on street corners (ask for directions), red post boxes */
   koban: [] as { x: number; z: number; a: number }[],
@@ -943,6 +944,10 @@ export const SIG = {
       SIG.yatai.push({ x: cx, z: b.z1 - 9, a: 0, food: '鹿せんべい', price: 2, senbei: true }); solid(cx - 1.3, b.z1 - 10, cx + 1.3, b.z1 - 8, 0, 2.6);
     }
   }
+  // Nara: the great south gate on the approach to the hall (the park block south of it): five bays, two roofs, guardian niches
+  if (LANDMARK3D.kind === 'daibutsu') { const b = blk((LM_BLOCK.j + 1) * N + LM_BLOCK.i); if (b && b.zone === 'park') { const gx = (b.x0 + b.x1) / 2, gz = b.z0 + 16; SIG.southGate = { x: gx, z: gz }; clearIn(gx - 18, gz - 8, gx + 18, gz + 8);
+    for (const px of [-14, -8.4, -2.8, 2.8, 8.4, 14]) for (const dz of [-3.6, 3.6]) solid(gx + px - 0.55, gz + dz - 0.55, gx + px + 0.55, gz + dz + 0.55, 0, 13);
+    for (const s of [-1, 1]) solid(gx + s * 11.2 - 2.4, gz - 1.6, gx + s * 11.2 + 2.4, gz + 1.6, 0, 6); } }
   // Nara: two more cracker stalls in the deer park (by the station end and on the way to the great hall)
   if (REGION.id === 'nara') for (const [i, j] of [[NARA.park.i0, 13], [LM_BLOCK.i, LM_BLOCK.j + 1]]) { const b = blk(j * N + i); if (!b || b.zone !== 'park') continue; const x = (b.x0 + b.x1) / 2 - 12, z = b.z1 - 9; clearIn(x - 3, z - 3, x + 3, z + 3); SIG.yatai.push({ x, z, a: 0, food: '鹿せんべい', price: 2, senbei: true }); solid(x - 1.3, z - 1, x + 1.3, z + 1, 0, 2.6); }
   // station hall

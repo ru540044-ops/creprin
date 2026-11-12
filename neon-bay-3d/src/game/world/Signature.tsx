@@ -2,7 +2,9 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { SIG, buildings, roadC, O, ROAD, RAIL, ROTARY, NARA_LANTERNS, NARA_ST } from './cityGen';
+import { SIG, buildings, roadC, O, ROAD, RAIL, ROTARY, NARA_LANTERNS, NARA_ST, blockOfB } from './cityGen';
+/** Naramachi details collected while building (drawn as instances): noren curtains, red cloth monkeys. */
+const NOREN: { x: number; z: number; ry: number }[] = [], MONKEYS: THREE.Vector3[] = [];
 import { REGION } from './region';
 import { labelTexture } from './textures';
 import { game } from '../state/store';
@@ -77,6 +79,23 @@ export default function Signature() {
       S.push(cyl(0.5, 0.25, 13, px, 38.6, pz, [0.36, 0.3, 0.2], 8)); for (let n = 0; n < 9; n++) S.push(cyl(1.0 - n * 0.05, 1.0 - n * 0.05, 0.22, px, 40 + n * 0.95, pz, GOLD, 10));
       hall(S, G, hx, hz, 22, 14, 7.5, [0.2, 0.21, 0.23], false);
       for (let z = hz + 9; z < pz + 40; z += 2) S.push(box(3, 0.04, 1.6, hx, 0.17, z, [0.8, 0.77, 0.7]));
+    }
+    // Nara: the great south gate (two-tier roof over five bays, vermilion posts, guardian niches either side of the middle)
+    if (SIG.southGate) {
+      const { x: gx, z: gz } = SIG.southGate, TIM: Col = [0.42, 0.24, 0.16], TILE: Col = [0.17, 0.18, 0.2];
+      S.push(box(32, 0.5, 10, gx, 0, gz, STONE));
+      for (const px of [-14, -8.4, -2.8, 2.8, 8.4, 14]) for (const dz of [-3.6, 3.6]) S.push(cyl(0.55, 0.5, 13, gx + px, 0.5, gz + dz, TIM, 10));
+      for (const y of [6.4, 11.6]) S.push(box(30, 0.7, 8.4, gx, y, gz, TIM));
+      S.push(frus(17, 13.5, 1.6, gx, 7.1, gz, TILE, 1, 0.45), frus(17.5, 6, 5.5, gx, 12.4, gz, TILE, 1, 0.45), box(13, 0.8, 1.2, gx, 17.9, gz, TILE));
+      for (const s of [-1, 1]) { S.push(box(4.8, 6, 3.2, gx + s * 11.2, 0.5, gz, [0.86, 0.82, 0.74]), box(4, 4.6, 0.2, gx + s * 11.2, 0.9, gz + 1.65, [0.18, 0.13, 0.1])); }
+      for (let x = -16; x <= 16; x += 1.2) S.push(box(0.22, 0.22, 0.7, gx + x, 12.25, gz + 4.6, [0.86, 0.84, 0.78]));
+    }
+    // Naramachi: indigo noren in the machiya doorways and strings of red cloth monkeys (migawari-zaru) under the eaves
+    if (REGION.id === 'nara') for (const bd of buildings) {
+      if (bd.style !== 'machiya') continue; const k = blockOfB(bd); if (!k) continue;
+      const north = bd.z0 - k.z0 < k.z1 - bd.z1, fz = north ? bd.z0 - 0.06 : bd.z1 + 0.06, sgn = north ? -1 : 1, mx = (bd.x0 + bd.x1) / 2;
+      NOREN.push({ x: mx - 0.6, z: fz, ry: north ? Math.PI : 0 });
+      for (let n = 0; n < 4; n++) MONKEYS.push(new THREE.Vector3(mx + 1.2, 2.55 - n * 0.24, fz + sgn * 0.25));
     }
     // Nara's park: stone lanterns along the paths
     for (const l of NARA_LANTERNS) { S.push(box(0.9, 0.4, 0.9, l.x, 0.15, l.z, STONE), cyl(0.18, 0.18, 0.9, l.x, 0.55, l.z, STONE, 6), box(0.85, 0.2, 0.85, l.x, 1.45, l.z, STONE), box(0.6, 0.45, 0.6, l.x, 1.65, l.z, STONE), frus(0.7, 0.1, 0.35, l.x, 2.1, l.z, STONE)); G.push(box(0.62, 0.3, 0.62, l.x, 1.72, l.z, [1, 0.8, 0.5])); }
@@ -210,8 +229,28 @@ export default function Signature() {
       {D.bigLantern && <primitive object={D.bigLantern} />}
       {D.signs.map((s, i) => <mesh key={i} position={[s.x, s.y, s.z]} rotation-y={s.ry} material={s.mat}><planeGeometry args={[s.w, s.h]} /></mesh>)}
       <Screens />
+      {(NOREN.length > 0 || MONKEYS.length > 0) && <Naramachi />}
     </group>
   );
+}
+/** Naramachi: a noren in every machiya doorway (indigo with a white crest) and strings of red cloth monkeys under the eaves. */
+function Naramachi() {
+  const R = useMemo(() => {
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 80; const c = cv.getContext('2d')!;
+    c.fillStyle = '#1e2c5a'; c.fillRect(0, 0, 128, 80); c.fillStyle = '#0e1530'; for (const x of [42, 85]) c.fillRect(x, 18, 2, 62);
+    c.strokeStyle = '#f2efe6'; c.lineWidth = 4; c.beginPath(); c.arc(64, 40, 14, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.moveTo(56, 40); c.lineTo(72, 40); c.stroke();
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const noren = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.5, 0.95), new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.9 }), Math.max(1, NOREN.length));
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3(1, 1, 1);
+    NOREN.forEach((n, i) => noren.setMatrixAt(i, M.compose(V.set(n.x, 1.95, n.z), Q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, n.ry), S)));
+    noren.count = NOREN.length;
+    const ball = new THREE.SphereGeometry(0.1, 8, 6); ball.scale(1, 1.15, 1);
+    const monk = new THREE.InstancedMesh(ball, new THREE.MeshStandardMaterial({ color: '#d8261e', roughness: 0.8 }), Math.max(1, MONKEYS.length));
+    MONKEYS.forEach((v, i) => monk.setMatrixAt(i, M.compose(v, Q.identity(), S)));
+    monk.count = MONKEYS.length;
+    return { noren, monk };
+  }, []);
+  return <><primitive object={R.noren} /><primitive object={R.monk} /></>;
 }
 
 /** Lantern paper: red with big black characters, top and bottom bands. */

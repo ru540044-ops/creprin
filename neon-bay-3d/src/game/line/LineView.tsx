@@ -141,8 +141,12 @@ export default function LineView() {
             const wc = 0.82 + r(k * 5 + 24) * 0.14; put(apt ? P.office : P.house, x, 0, zz, w, h, apt ? 11 : 8, [wc, wc * 0.97, wc * 0.92]); if (!apt) put(P.roof, x, h, zz, w * 1.1, 2.4, 9.6, [0.2 + r(k) * 0.12, 0.22, 0.26]); }
           for (let k = 0; k < 4; k++) put(k % 2 ? P.round : P.tree, sd * (x0 + r(k + 40 + sd) * 140), 0, zc + (r(k + 44) - 0.5) * C, 2, 2 + r(k + 48), 2, [0.22, 0.4, 0.2]);
         } else if (zn === 'fields') {
-          for (let k = 0; k < 3; k++) { const x = sd * (x0 + 20 + r(k + 60 + sd) * 300), w = 30 + r(k + 64) * 50; put(P.paddy, x, 0.0, zc + (r(k + 66) - 0.5) * 40, w, 0.08, 36, [0.9 + r(k + 68) * 0.2, 0.95 + r(k + 69) * 0.1, 0.85 + r(k + 70) * 0.2]); }
-          if (r(sd + 70) < 0.45) { const x = sd * (x0 + 30 + r(sd + 71) * 200), zz = zc + (r(sd + 72) - 0.5) * 60; put(P.house, x, 0, zz, 11, 5, 9, [0.92, 0.88, 0.8]); put(P.roof, x, 5, zz, 13, 3, 11, [0.24, 0.24, 0.26]); for (let k = 0; k < 3; k++) put(P.tree, x + sd * (8 + k * 3), 0, zz + k * 4, 2.4, 3, 2.4, [0.18, 0.34, 0.16]); }
+          // a patchwork of rice paddies right across the plain (two rows per chunk, each paddy a little different), a farm road with utility poles
+          for (let row = 0; row < 2; row++) for (let k = 0; k < 9; k++) { const w = 34 + r(k * 5 + row + 60 + sd) * 18, x = sd * (x0 + 6 + k * 46 + r(k + 61) * 6); put(P.paddy, x, 0.0, zc - 25 + row * 50, w, 0.08, 46, [0.86 + r(k + 68 + row) * 0.24, 0.92 + r(k + 69) * 0.12, 0.8 + r(k + 70 + row) * 0.3]); }
+          put(P.bldg, sd * 40, 0.02, zc, 4, 0.06, C, [0.58, 0.56, 0.5]);
+          for (const zz of [zc - 25, zc + 25]) { put(P.bldg, sd * 43, 0, zz, 0.3, 8, 0.3, [0.45, 0.42, 0.38]); put(P.bldg, sd * 43, 7.4, zz, 1.6, 0.15, 0.15, [0.35, 0.33, 0.3]); }
+          put(P.bldg, sd * 43.6, 7.2, zc, 0.04, 0.04, C, [0.15, 0.15, 0.15]); put(P.bldg, sd * 42.4, 7.2, zc, 0.04, 0.04, C, [0.15, 0.15, 0.15]);
+          if (r(sd + 70) < 0.55) for (let hh = 0; hh < (r(sd + 73) < 0.4 ? 3 : 1); hh++) { const x = sd * (x0 + 60 + r(sd + 71 + hh) * 260), zz = zc + (r(sd + 72 + hh) - 0.5) * 70; /* a farmhouse, sometimes a little hamlet */ put(P.house, x, 0, zz, 11, 5, 9, [0.92, 0.88, 0.8]); put(P.roof, x, 5, zz, 13, 3, 11, [0.24, 0.24, 0.26]); for (let k = 0; k < 3; k++) put(P.tree, x + sd * (8 + k * 3), 0, zz + k * 4, 2.4, 3, 2.4, [0.18, 0.34, 0.16]); }
           for (let k = 0; k < 3; k++) put(k ? P.round : P.tree, sd * (x0 + 50 + r(k + 80 + sd) * 400), 0, zc + (r(k + 84) - 0.5) * C, 3, 3, 3, [0.2, 0.36, 0.18]);
         } else { // hills: woods and hillsides close to the line
           for (let k = 0; k < 14; k++) put(k % 3 ? P.tree : P.round, sd * (x0 + r(k * 3 + 90 + sd) * 90), 0, zc + (r(k * 3 + 91) - 0.5) * C, 2.6, 2.4 + r(k * 3 + 92) * 1.6, 2.6, [0.14 + r(k) * 0.06, 0.3 + r(k + 1) * 0.08, 0.14]);
