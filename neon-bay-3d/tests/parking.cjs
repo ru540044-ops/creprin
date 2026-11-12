@@ -29,7 +29,7 @@ if(lot){
   for(let k=0;k<70;k++){await W(1000);if(!(await E(()=>!!window.__nb3d.vehicles.find(q=>q.id===window.__other))))break;}
   console.log('far away',JSON.stringify(await E(()=>{const N=window.__nb3d;return {parkedCarStillThere:!!N.vehicles.find(q=>q.id===window.__car),abandonedCarStillThere:!!N.vehicles.find(q=>q.id===window.__other),parkedList:N.parkingMod.parkedCars().length}})));
   // back, drive out of the bay: no longer parked
-  await E(()=>{const N=window.__nb3d,G=N.game,v=N.vehicles.find(q=>q.id===window.__car);G.player.x=v.x;G.player.z=v.z;G.inCar=v.id;v.z+=6;});await W(2500);
+  await E(()=>{const N=window.__nb3d,G=N.game,v=N.vehicles.find(q=>q.id===window.__car);G.player.x=v.x;G.player.z=v.z;G.inCar=v.id;v.z+=6;});for(let k=0;k<60&&(await E(()=>window.__nb3d.vehicles.find(q=>q.id===window.__car).parked));k++)await W(1000);
   console.log('drove out',JSON.stringify(await E(()=>{const N=window.__nb3d,v=N.vehicles.find(q=>q.id===window.__car);return {parked:v.parked,toast:N.game.toast}})));
   // no money: refused
   await E(([bay])=>{const N=window.__nb3d,G=N.game,v=N.vehicles.find(q=>q.id===window.__car);v.x=bay.x;v.z=bay.z;v.vx=v.vz=0;G.money=1;},[bay]);console.log('poor',await waitNear('coin:park'));await act();console.log(' ->',JSON.stringify(await E(()=>{const N=window.__nb3d,v=N.vehicles.find(q=>q.id===window.__car);return {parked:!!v.parked,toast:N.game.toast}})));

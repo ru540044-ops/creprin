@@ -40,7 +40,7 @@ console.log('wallet 2',await E(()=>window.__nb3d.eventsMod.forceEvent('wallet'))
 // ---- 3. lost tourist: the right direction, then a wrong one ----
 for(const right of [true,false]){
   console.log('tourist start',await E(()=>window.__nb3d.eventsMod.forceEvent('tourist')));
-  const T=await E(()=>{const N=window.__nb3d,e=N.eventsMod.ev,G=N.game;G.player.x=e.ped.x+1.2;G.player.z=e.ped.z;return {target:e.target,dir:e.dir}});
+  const T=await E(()=>{const N=window.__nb3d,e=N.eventsMod.ev,G=N.game;G.player.x=e.ped.x+1.6;G.player.z=e.ped.z;return {target:e.target,dir:e.dir}});
   console.log('tourist near',await waitNear('ev:tourist'),JSON.stringify(T));await act();console.log('choice',await waitChoice());
   const names=['北','東','南','西'];console.log('pick',right?'right':'wrong',await pick(names[right?T.dir:(T.dir+2)%4]+'のほう'));await W(600);console.log(' ->',JSON.stringify(await S()));}
 // ---- reputation: discount at 5+, and it survives a save / load ----

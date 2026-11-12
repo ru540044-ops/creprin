@@ -33,13 +33,15 @@ Run them one at a time: in parallel, taps time out.
 | script | covers |
 |---|---|
 | `spd.cjs` | admin speed multipliers (guest refused, UI, car top speed / braking / no wall tunnelling, train ATC, persistence) |
-| `shop.cjs` | convenience store, ramen ticket + seat, cafe / bar / pharmacy / boutique counters, pocket items, save |
+| `shop.cjs` | opening hours (ramen shut at 3:00 with its shutter down, the convenience store open), eating scenes, convenience store, ramen ticket + seat, cafe / bar / pharmacy / boutique counters, pocket items, save |
 | `life3.cjs` | pedestrians entering / leaving doors, station rotary taxi + airport bus, footbridge walk, diner / store counters |
 | `tun.cjs` | Shinkansen: board, tunnel, trip to the next city, arrival, stop judging |
 | `tun3.cjs` | tunnel camera stays in the bore, train sound levels, mountain views |
 | `sky.cjs` | skyline screenshots (station twin towers, spiral tower, aerial day / night, shopping street) |
 | `nara.cjs` | Nara: buy deer crackers, deer come over and bow, feeding; walk into the great hall and pray; pagoda / Naramachi shots; the commuter train to Osaka (ride, fast-forward, arrival) |
 | `places.cjs` | map: kind chips, the nearest list, skip to each kind (the right prompt is there on arrival), guide, skip to the destination, refused while wanted |
+| `events.cjs` | street events: purse snatcher (runs, knocked down, give back / keep), lost wallet (police box / keep), lost tourist (right / wrong direction), reputation, shop discount, saved reputation, an event starting by itself |
+| `parking.cjs` | coin parking (pay in a bay, the car survives going 700 m away while an abandoned one is cleared, leaving the bay ends it, refused when broke), road-sign counts and screenshots |
 | `line.cjs` | the real-distance line: travel-app ride Tokyo → Osaka (515 km; Fuji, tunnel, Lake Hamana, Nagoya views), clock, fast-forward, arrival; driving the bullet train out of the tunnel onto the line to Fukuoka (ATC, brakes) and arriving in the cab |
 
 ```sh
