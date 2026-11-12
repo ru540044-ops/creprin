@@ -47,7 +47,7 @@ export default function LineView() {
     const water = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, color: '#ffffff' });
     const roofG = new THREE.ConeGeometry(0.75, 1, 4); roofG.rotateY(Math.PI / 4); roofG.translate(0, 0.5, 0);
     const treeG = mergeGeometries([new THREE.CylinderGeometry(0.12, 0.16, 1.2, 5).translate(0, 0.6, 0), new THREE.ConeGeometry(0.9, 2.6, 6).translate(0, 2.3, 0)])!;
-    const roundG = mergeGeometries([new THREE.CylinderGeometry(0.12, 0.16, 1.4, 5).translate(0, 0.7, 0), new THREE.IcosahedronGeometry(1.1, 1).translate(0, 2.2, 0)])!; // broadleaf
+    const roundG = mergeGeometries([new THREE.CylinderGeometry(0.12, 0.16, 1.4, 5).translate(0, 0.7, 0).toNonIndexed(), new THREE.IcosahedronGeometry(1.1, 1).translate(0, 2.2, 0)])!; // (both non-indexed, or the merge fails) // broadleaf
     const office = new THREE.MeshStandardMaterial({ map: officeTex(), roughness: 0.6, metalness: 0.15 }), houseM = new THREE.MeshStandardMaterial({ map: houseTex(), roughness: 0.85 }), paddyM = new THREE.MeshStandardMaterial({ map: paddyTex(), roughness: 0.6, metalness: 0.05 });
     const hillG = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     const mastG = mergeGeometries([new THREE.BoxGeometry(0.35, 7.6, 0.35).translate(0, 3.8, 0), new THREE.BoxGeometry(4.6, 0.25, 0.25).translate(-2.1, 7.2, 0)])!;
