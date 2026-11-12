@@ -76,7 +76,7 @@ export const shutterHour = { value: 12 };
 function shutterMaterial() {
   const cv = document.createElement('canvas'); cv.width = 32; cv.height = 64; const c = cv.getContext('2d')!;
   for (let y = 0; y < 64; y += 4) { c.fillStyle = y % 8 ? '#9a9da2' : '#b4b7bc'; c.fillRect(0, y, 32, 4); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, y + 3, 32, 1); }
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 2);
   const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.55, metalness: 0.5 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uHour = shutterHour;
@@ -148,7 +148,9 @@ export function buildDetail(list: Building[], doorList: BDoor[]): THREE.Instance
     const [col, row] = shopCell(dd), nx = Math.sin(dd.ang), nz = Math.cos(dd.ang);
     Q.setFromAxisAngle(UP, dd.ang); P.set(dd.fx + nx * 0.34, dd.y + 4.0, dd.fz + nz * 0.34); S.set(FASCIA.w, FASCIA.h, 1);
     fs.push({ m: M.compose(P, Q, S).clone(), o: [col * 0.25, 1 - (row + 1) / SHOP_TYPES.length] });
-    const key = shopKey(dd); if (HOURS[key]) { P.set(dd.fx + nx * 0.2, dd.y + 1.45, dd.fz + nz * 0.2); S.set(2.5, 2.9, 1); shut.push({ m: M.compose(P, Q, S).clone(), o: hoursPair(key) }); }
+    const key = shopKey(dd); if (HOURS[key]) { // the shutter covers the whole shop front (up to 16 m), so the lit windows go dark with it
+      const bb = buildings[dd.b], fw = Math.min(16, (nz ? bb.x1 - bb.x0 : bb.z1 - bb.z0) - 0.5), mx = nz ? (bb.x0 + bb.x1) / 2 : dd.fx, mz = nz ? dd.fz : (bb.z0 + bb.z1) / 2;
+      P.set(mx + nx * 0.2, dd.y + 1.75, mz + nz * 0.2); S.set(fw, 3.5, 1); shut.push({ m: M.compose(P, Q, S).clone(), o: hoursPair(key) }); }
   }
   for (const b of list) {
     if (b.gable || b.type === 'hangar' || b.shape === 'spiral') continue;
