@@ -5,6 +5,9 @@ const {chromium}=require('playwright');
 const b=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
 const p=await (await b.newContext({viewport:{width:844,height:390},hasTouch:true})).newPage();const errs=[];p.on('pageerror',e=>{errs.push('PAGEERR '+e.message);console.log('PAGEERR',e.message,(e.stack||'').slice(0,400))});p.on('console',m=>{if(m.type()==='error')errs.push('CONSOLE '+m.text().slice(0,200))});
 await p.addInitScript(()=>{try{if(!localStorage.getItem('nb3d.testinit')){localStorage.clear();localStorage.setItem('nb3d.testinit','1');localStorage.setItem('nb3d.debug','1');localStorage.setItem('neonbay3d.settings.v1',JSON.stringify({quality:'low',tutorialDone:true}));localStorage.setItem('neonbay3d.region','nara');}}catch(e){}});
+// log anything that clears storage, and page unloads (the arrival is a reload)
+await p.addInitScript(()=>{const L=Storage.prototype,c=L.clear,r=L.removeItem;L.clear=function(){console.log('LSCLEAR',new Error().stack.slice(0,300));return c.call(this)};L.removeItem=function(k){if(k!=='neonbay3d.arrive')console.log('LSREMOVE',k);return r.call(this,k)};addEventListener('beforeunload',()=>console.log('UNLOAD'))});
+p.on('console',m=>{const t=m.text();if(/LSCLEAR|LSREMOVE|UNLOAD/.test(t))console.log(t.slice(0,300))});
 await p.goto('file://'+html);await p.waitForSelector('.ttl .mbtn.primary:not([disabled])',{timeout:600000});await p.click('.ttl .mbtn.primary');await p.waitForTimeout(2500);
 const E=(f,a)=>p.evaluate(f,a),W=(ms)=>p.waitForTimeout(ms);
 const near=()=>E(()=>{const n=window.__nb3d.game.near;return n?n.id+'|'+n.label:'none'});
@@ -69,7 +72,7 @@ await p.locator('.lineBtns button',{hasText:'終点'}).tap();await W(1500);conso
 // run in to the end: the trip finishes and Osaka loads
 await E(()=>{const M=window.__nb3d.lineMod;for(let k=0;k<4000&&M.line.on&&!M.line.done;k++)M.stepLine(0,0,0.05);});
 console.log('done',await E(()=>window.__nb3d.lineMod.line.done));
-await p.waitForSelector('.arriveCard',{timeout:600000});console.log('arrival card',await p.locator('.arriveCard h2').innerText());
+await p.waitForSelector('.arriveCard',{timeout:900000}).catch(async(e)=>{console.log('NO ARRIVAL CARD',await p.evaluate(()=>JSON.stringify({url:location.href,keys:Object.keys(localStorage),region:localStorage.getItem('neonbay3d.region'),title:!!document.querySelector('.ttl'),hud:!!document.querySelector('.hud,.chip'),fatal:!!document.querySelector('.fatal'),started:window.__nb3d&&window.__nb3d.game.started})).catch(x=>'eval failed: '+x.message));throw e;});console.log('arrival card',await p.locator('.arriveCard h2').innerText());
 console.log('region now',await E(()=>localStorage.getItem('neonbay3d.region')));
 await p.waitForSelector('.arriveCard .mbtn.primary:not([disabled])',{timeout:600000});await p.click('.arriveCard .mbtn.primary');await W(3000);
 console.log('in osaka',JSON.stringify(await E(()=>{const N=window.__nb3d,G=N.game,S=N.cityMod.STATION;return {region:N.REGION.id,d:Math.round(Math.hypot(G.player.x-S.spawn.x,G.player.z-S.spawn.z))}})));
