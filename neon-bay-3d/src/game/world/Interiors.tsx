@@ -5,6 +5,7 @@ import { game } from '../state/store';
 import { rob, CLERK, BAG, recentlyRobbed } from '../crime/crime';
 import * as THREE from 'three';
 import { getTextures, labelTexture } from './textures';
+import HighView from './HighView';
 import { HOME_DEFS } from './homes';
 import { SHIP_DEFS } from './shipInteriors';
 import { KONBINI, konbiniFurn, konbiniLights } from './shopFurn';
@@ -12,7 +13,7 @@ import { KONBINI, konbiniFurn, konbiniLights } from './shopFurn';
 /** Interiors live underground (y = FLOOR) so they never overlap the city. */
 export const FLOOR = -50;
 export interface Box2 { x0: number; z0: number; x1: number; z1: number; h: number }
-export type Furn = Box2 & { c: string; glow?: boolean; y0?: number; rough?: number; metal?: number; walk?: boolean; /** painted goods on the long faces */ tex?: FurnTex; /** paint only the faces across this axis */ texFaces?: 'x' | 'z' };
+export type Furn = Box2 & { c: string; glow?: boolean; y0?: number; rough?: number; metal?: number; walk?: boolean; /** a pane of glass */ glass?: boolean; /** round: a cylinder or a ball filling the box */ shape?: 'cyl' | 'ball'; /** painted goods on the long faces */ tex?: FurnTex; /** paint only the faces across this axis */ texFaces?: 'x' | 'z' };
 /** Something to do at a spot in the room (a counter, a machine, a seat): shows a prompt within r metres. */
 export interface Act { x: number; z: number; r?: number; id: string; label: string; btn: string }
 export interface View { wall: 'n' | 'e' | 'w'; a0: number; a1: number; y0: number; y1: number; style: 'danchi' | 'suburb' | 'city-high' | 'sea' }
@@ -23,6 +24,9 @@ export interface InteriorDef {
   npcs?: { x: number; z: number; yaw: number; look: Look }[]; roofSpot?: { x: number; z: number }; roof?: { x: number; z: number; y: number }; noSign?: boolean; ownLights?: boolean;
   roofLabel?: string; links?: { x: number; z: number; to: string; label: string }[];
   acts?: Act[]; /** a convenience store: the till can be held up (clerk, counter and bag at the fixed spots) */ rob?: boolean;
+  /** a balcony outside the north wall (which is then glass, with a door at x door[0]..door[1]): x a0..a1, depth metres out */
+  balcony?: { a0: number; a1: number; depth: number; door: [number, number] };
+  /** the real view down onto the city from a tower (3D, see HighView) */ pano?: 'city';
 }
 
 const mk = (id: string, name: string, ox: number, w: number, d: number, wall: string, floor: string, f: InteriorDef['furniture']): InteriorDef => ({
@@ -250,6 +254,32 @@ function ViewPlane({ v, def }: { v: View; def: InteriorDef }) {
     </group>
   );
 }
+/** The balcony outside the glass wall: a wooden deck, the slab edge, a glass balustrade with a steel handrail, side screens. */
+function Balcony({ def }: { def: InteriorDef }) {
+  const B = def.balcony!, z0 = -def.d / 2, z1 = z0 - B.depth, w = B.a1 - B.a0, cx = (B.a0 + B.a1) / 2, zc = (z0 + z1) / 2;
+  const deck = useMemo(() => { const t = floorTexture('wood')!.clone(); t.needsUpdate = true; t.repeat.set(w / 2, B.depth / 2); return t; }, [w, B.depth]);
+  return (
+    <group>
+      <mesh rotation-x={-Math.PI / 2} position={[cx, 0.005, zc]} receiveShadow><planeGeometry args={[w, B.depth]} /><meshStandardMaterial map={deck} color="#c8a47a" roughness={0.8} /></mesh>
+      <mesh position={[cx, -0.35, z1 + 0.1]}><boxGeometry args={[w + 0.4, 0.7, 0.3]} /><meshStandardMaterial color="#d8d6d0" roughness={0.7} /></mesh>
+      <mesh position={[cx, 0.55, z1 + 0.06]}><boxGeometry args={[w, 1.1, 0.04]} /><meshStandardMaterial color="#cfe4f2" transparent opacity={0.22} metalness={0.8} roughness={0.05} depthWrite={false} /></mesh>
+      <mesh position={[cx, 1.12, z1 + 0.06]}><boxGeometry args={[w, 0.06, 0.1]} /><meshStandardMaterial color="#b8bcc4" metalness={0.9} roughness={0.25} /></mesh>
+      {[B.a0, B.a1].map((x) => <mesh key={x} position={[x, 1.2, zc]}><boxGeometry args={[0.08, 2.4, B.depth]} /><meshStandardMaterial color="#e8e6e2" roughness={0.6} /></mesh>)}
+      {Array.from({ length: Math.floor(w / 1.5) + 1 }, (_, k) => <mesh key={k} position={[B.a0 + k * 1.5, 0.55, z1 + 0.06]}><boxGeometry args={[0.05, 1.1, 0.08]} /><meshStandardMaterial color="#9aa0a8" metalness={0.8} roughness={0.3} /></mesh>)}
+    </group>
+  );
+}
+/** "Take in the view": the camera drifts slowly along the balcony rail, looking out over the city. Any action ends it. */
+export const viewMode = { on: false, t0: 0 };
+function ViewCam({ def }: { def: InteriorDef }) {
+  useFrame(({ camera }) => {
+    if (!viewMode.on || !def.balcony) return;
+    const t = (performance.now() - viewMode.t0) / 1000, B = def.balcony, z1 = -def.d / 2 - B.depth, u = (Math.sin(t * 0.12) + 1) / 2, x = def.ox + B.a0 + 1 + u * (B.a1 - B.a0 - 2);
+    camera.position.set(x, FLOOR + 1.7, z1 + 0.9); camera.lookAt(x - 60 + Math.sin(t * 0.07) * 120, FLOOR - 70, z1 - 400);
+    if (t > 40 || game.where !== def.id) viewMode.on = false;
+  }, 1);
+  return null;
+}
 function FlickerLight({ l }: { l: NonNullable<InteriorDef['lights']>[number] }) {
   const ref = useRef<THREE.PointLight>(null!);
   useFrame(({ clock }) => { if (ref.current) { const t = clock.elapsedTime; ref.current.intensity = l.i * (Math.sin(t * 23) > 0.97 || (t % 7 > 6.85) ? 0.35 : 1); } });
@@ -265,17 +295,20 @@ function Room({ def }: { def: InteriorDef }) {
     <group position={[ox, FLOOR, 0]}>
       <mesh rotation-x={-Math.PI / 2} receiveShadow><planeGeometry args={[w, d]} /><meshStandardMaterial map={floorTex} color={def.floorTex === 'wood' || def.floorTex === 'marble' || def.floorTex === 'tatami' ? '#ffffff' : def.floor} roughness={def.floorTex === 'marble' ? 0.12 : def.floorTex === 'wood' ? 0.45 : 0.6} metalness={def.floorTex === 'marble' ? 0.05 : 0} envMapIntensity={def.floorTex === 'marble' ? 0.3 : 0.6} /></mesh>
       <mesh rotation-x={Math.PI / 2} position={[0, h, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={def.ceil || '#f4f4f2'} roughness={0.9} /></mesh>
-      {[[0, -d / 2, 0], [0, d / 2, Math.PI], [-w / 2, 0, Math.PI / 2], [w / 2, 0, -Math.PI / 2]].map(([x, z, r], i) => (
+      {def.balcony && <Balcony def={def} />}
+      {def.pano === 'city' && <HighView />}
+      {[[0, -d / 2, 0], [0, d / 2, Math.PI], [-w / 2, 0, Math.PI / 2], [w / 2, 0, -Math.PI / 2]].filter((_, i) => !(i === 0 && def.balcony)).map(([x, z, r], i) => (
         <mesh key={i} position={[x, h / 2, z]} rotation-y={r} receiveShadow><planeGeometry args={[i < 2 ? w : d, h]} /><meshStandardMaterial color={def.wall} roughness={0.85} /></mesh>
       ))}
       {def.furniture.map((f, i) => f.tex ? <TexturedFurn key={def.name + i} f={f} /> : (
-        <mesh key={i} position={[(f.x0 + f.x1) / 2, (f.y0 || 0) + f.h / 2, (f.z0 + f.z1) / 2]} castShadow={!f.walk && !f.glow} receiveShadow>
-          <boxGeometry args={[f.x1 - f.x0, f.h, f.z1 - f.z0]} />
-          {f.glow ? <meshBasicMaterial color={f.c} toneMapped={false} /> : <meshStandardMaterial color={f.c} roughness={f.rough ?? 0.6} metalness={f.metal ?? 0} />}
+        <mesh key={i} position={[(f.x0 + f.x1) / 2, (f.y0 || 0) + f.h / 2, (f.z0 + f.z1) / 2]} scale={f.shape === 'ball' ? [f.x1 - f.x0, f.h, f.z1 - f.z0] : 1} castShadow={!f.walk && !f.glow && !f.glass} receiveShadow={!f.glass}>
+          {f.shape === 'cyl' ? <cylinderGeometry args={[Math.min(f.x1 - f.x0, f.z1 - f.z0) / 2, Math.min(f.x1 - f.x0, f.z1 - f.z0) / 2, f.h, 20]} /> : f.shape === 'ball' ? <sphereGeometry args={[0.5, 18, 12]} /> : <boxGeometry args={[f.x1 - f.x0, f.h, f.z1 - f.z0]} />}
+          {f.glass ? <meshStandardMaterial color="#b8d4ea" transparent opacity={0.14} metalness={0.9} roughness={0.04} depthWrite={false} /> : f.glow ? <meshBasicMaterial color={f.c} toneMapped={false} /> : <meshStandardMaterial color={f.c} roughness={f.rough ?? 0.6} metalness={f.metal ?? 0} />}
         </mesh>
       ))}
       {!def.home && !def.noSign && <mesh position={[0, Math.min(3.3, h - 0.75), -d / 2 + 0.05]}><planeGeometry args={[5, 1.25]} /><meshBasicMaterial map={sign} toneMapped={false} /></mesh>}
       {def.views?.map((v, i) => <ViewPlane key={i} v={v} def={def} />)}
+      {def.balcony && <ViewCam def={def} />}
       {def.lights?.map((l, i) => def.flicker && i === 0 ? <FlickerLight key={i} l={l} /> : <pointLight key={i} position={[l.x, l.y, l.z]} intensity={l.i} distance={l.d} decay={1.6} color={l.c} />)}
       {def.npcs?.map((n, i) => <Clerk key={def.name + i} x={n.x} z={n.z} yaw={n.yaw} shop={false} look={n.look} />)}
       {def.links?.map((l, i) => <mesh key={'lk' + i} rotation-x={-Math.PI / 2} position={[l.x, 0.02, l.z]}><ringGeometry args={[0.55, 0.75, 32]} /><meshBasicMaterial color="#2be4ff" toneMapped={false} /></mesh>)}
@@ -300,8 +333,11 @@ export default function Interiors({ where }: { where: string }) {
 
 /** Keep a point inside the room and out of furniture. */
 export function interiorCollide(def: InteriorDef, p: { x: number; z: number }, r: number) {
-  const lx = p.x - def.ox, lz = p.z - def.oz;
-  let x = Math.min(def.w / 2 - r, Math.max(-def.w / 2 + r, lx)), z = Math.min(def.d / 2 - r, Math.max(-def.d / 2 + r, lz));
+  const lx = p.x - def.ox, lz = p.z - def.oz, B = def.balcony;
+  // out on the balcony the room reaches further north, between its side screens
+  const onB = !!B && lz < -def.d / 2 + r && lx > B.a0 + r - 0.3 && lx < B.a1 - r + 0.3;
+  let x = onB ? Math.min(B!.a1 - r, Math.max(B!.a0 + r, lx)) : Math.min(def.w / 2 - r, Math.max(-def.w / 2 + r, lx));
+  let z = Math.min(def.d / 2 - r, Math.max((onB ? -def.d / 2 - B!.depth : -def.d / 2) + r, lz));
   for (const f of def.furniture) {
     if (f.walk) continue;
     const cx = Math.min(f.x1, Math.max(f.x0, x)), cz = Math.min(f.z1, Math.max(f.z0, z)), ex = x - cx, ez = z - cz, d2 = ex * ex + ez * ez;

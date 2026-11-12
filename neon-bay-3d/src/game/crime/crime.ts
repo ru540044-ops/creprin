@@ -4,7 +4,7 @@ import { vehicles, spawn, remove, playerCar, hooks, Veh } from '../vehicles/sim'
 import { VDEFS, VKind } from '../vehicles/defs';
 import { newAI, steer, clearLine, nodeIdx } from '../ai/driver';
 import { nodeOpen, CUSTOMS, roadC, N, POLICE_HQ, HOSPITAL, EXPORT_DOCK, TRIALS, Trial, HALF, groundAt } from '../world/cityGen';
-import { INTERIORS } from '../world/Interiors';
+import { INTERIORS, viewMode } from '../world/Interiors';
 import { releaseDrive } from '../input';
 import { sfx, siren } from '../audio';
 import { cruise, panic } from '../ai/traffic';
@@ -302,6 +302,7 @@ export function jobAction(id: string) {
     p.x = C.ox + C.spawn.x; p.z = C.oz + C.spawn.z; p.y = -50; p.vy = 0; game.fadeT = 0.6; sfx('door'); toast(C.name + '（出口で操舵席に戻る）', 2);
   } else if (id.startsWith('shop:')) { game.ui = id; sfx('ui');
   } else if (id === 'ramen:eat') { eatMeal();
+  } else if (id === 'home:view') { viewMode.on = !viewMode.on; viewMode.t0 = performance.now(); sfx('ui'); if (viewMode.on) toast('🔭 街を眺めている（もう一度押すと戻る）', 2.4);
   } else if (id === 'shopclosed') { toast('強盗の直後で店員が怯えている。時間をおこう', 2);
   } else if (id.startsWith('jp:') || id.startsWith('nara:')) { japanAction(id);
   } else if (id === 'style') { game.openStyle = true;
