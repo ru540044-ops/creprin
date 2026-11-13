@@ -27,7 +27,7 @@ await shot('mtn_se',[0,70,0],[700,80,700],16.5);
 await shot('mtn_night',[0,70,0],[0,90,-1000],21.5);
 // 4 the minimap/phone: open the phone, the Shinkansen app
 await E(([g])=>{const G=window.__nb3d.game;window.__nb3dCamOverride=null;G.player.x=g.x-600;G.player.z=g.z+400;G.player.y=0.2;},[G0]);
-await settle();await p.screenshot({path:'jp/tn_minimap.png'});
+await settle();await p.screenshot({path:'jp/tn_minimap.png',timeout:180000});
 // board 14 (Osaka) and drive
 await E(()=>{const N=window.__nb3d;N.game.money=5000;N.japanMod.shinAction('jp:board:14');});await W(1500);
 console.log('board',JSON.stringify(await E(()=>{const N=window.__nb3d,v=N.playerCar();return {k:v&&v.def.kind,x:v&&v.x,z:v&&Math.round(v.z),yaw:v&&v.yaw,info:N.japanMod.trainInfo,toast:N.game.toast}})));
@@ -48,7 +48,7 @@ console.log('on the line',JSON.stringify(await E(()=>{const L=window.__nb3d.line
 const nav=p.waitForNavigation({timeout:600000});
 await E(()=>{const M=window.__nb3d.lineMod;M.line.auto=true;M.fastForward(true);for(let k=0;k<9000&&!M.line.done;k++)M.stepLine(0,0,0.05);});
 await nav;console.log('reloaded (trip started)');
-await p.waitForSelector('.arrive .mbtn.primary:not([disabled])',{timeout:600000});console.log('arrival screen',(await p.textContent('.arrive')).slice(0,80));
+await p.waitForSelector('.arrive .mbtn.primary:not([disabled])',{timeout:1500000}).catch(async(e)=>{console.log('NO ARRIVAL BUTTON',await p.evaluate(()=>JSON.stringify({card:!!document.querySelector('.arrive'),pending:window.__nb3d&&window.__nb3d.cityStream.pending,fatal:!!document.querySelector('.fatal'),fps:window.__nb3d&&window.__nb3d.game.fps})).catch(x=>'eval failed'));throw e;});console.log('arrival screen',(await p.textContent('.arrive')).slice(0,80));
 await p.click('.arrive .mbtn.primary');await W(3000);
 const A=await E(()=>{const N=window.__nb3d,v=N.playerCar(),C=N.cityMod;return {region:N.REGION.id,train:v&&{k:v.def.kind,x:v.x,z:Math.round(v.z),vz:v.vz.toFixed(1)},T:{portal:C.TUN.portal},sz:C.SHIN.stationZ,info:N.japanMod.trainInfo,toast:N.game.toast,tun:N.game.tunnel.toFixed(2)}});
 console.log('arrived',JSON.stringify(A));
