@@ -46,7 +46,7 @@ export function addCabin(def: VDef, P: { lower: number[][]; glass: number[][]; r
     add(box(gx1 - gx0 - 1.6, 0.02, 0.06, (gx0 + sx) / 2 - 0.4, P.roofY - 0.06, 0), glowM('#7ab8ff'));
     add(box(0.06, belt - floorY + 0.25, W * 0.86, sx - 0.55, (belt + floorY) / 2 + 0.1, 0), dark);
   }
-  add(box(0.6, 0.3, W * 0.88, gx1 - 0.12, belt - 0.07, 0), dark); // dashboard
+  add(box(0.44, 0.3, W * 0.86, gx1 - 0.25, belt - 0.07, 0), dark); // dashboard (it stops at the foot of the windscreen)
   add(box(0.2, 0.03, W * 0.6, gx1 - 0.38, belt + 0.075, 0), trimM); // dash trim
   const clu = new THREE.PlaneGeometry(0.34, 0.12).rotateY(-Math.PI / 2); clu.translate(gx1 - 0.43, belt + 0.03, W * 0.22); // right-hand drive add(clu, glowM(sport ? '#ff5a3a' : '#7ad8ff'));
   const scr = new THREE.PlaneGeometry(0.24, 0.15).rotateY(-Math.PI / 2); scr.translate(gx1 - 0.43, belt - 0.03, 0); add(scr, glowM('#9fd8ff'));
@@ -195,7 +195,7 @@ export function buildFormula(def: VDef, color: string): Inner {
   add(box(0.8, 0.1, 0.4, -0.35, 0.52, 0), ds('#0b0b0d')); // cockpit
   const steering = steeringWheel(0.12, 0.08, 0.72, 0, 0.9, body);
   const wheels: THREE.Group[] = [];
-  for (const x of [def.wheelbase / 2, -def.wheelbase / 2]) for (const s of [-1, 1]) { const wg = wheel(def.wheelR, 0.38); wg.position.set(x, def.wheelR, s * 0.85); root.add(wg); wheels.push(wg); add(box(0.6, 0.04, 0.06, x, def.wheelR, s * 0.45), carbon); }
+  for (const x of [def.wheelbase / 2, -def.wheelbase / 2]) for (const s of [-1, 1]) { const wg = wheel(def.wheelR, 0.38, undefined, s, true); wg.position.set(x, def.wheelR, s * 0.85); root.add(wg); wheels.push(wg); add(box(0.6, 0.04, 0.06, x, def.wheelR, s * 0.45), carbon); }
   add(box(0.06, 0.08, 0.3, -L - 0.02, 0.5, 0), tail, false); add(box(0.04, 0.04, 0.2, L, 0.25, 0), head, false);
   return { root, body, wheels, paint, lights: { head, tail }, eye: new THREE.Vector3(-0.2, 1.0, 0), steering };
 }

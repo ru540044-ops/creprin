@@ -136,23 +136,35 @@ function GarageSign() {
 function VehicleView({ v }: { v: Veh }) {
   const m = useMemo(() => { const mm = buildCarModel(v.def, v.color); models.set(v.id, mm); return mm; }, [v]);
   useEffect(() => () => disposeCarModel(m), [m]); // free the car's GPU memory when it leaves the world
-  useFrame(({ camera }) => {
+  useFrame(({ camera }, fdt) => {
     m.root.visible = Math.abs(v.x - camera.position.x) < 220 && Math.abs(v.z - camera.position.z) < 220;
     if (!m.root.visible) return;
     { const dx = v.x - camera.position.x, dz = v.z - camera.position.z, d2 = dx * dx + dz * dz, mine = v.id === game.inCar; // interior and small parts only close up
       if (m.cabin && m.cabin.length) { const show = d2 < 1225 || mine; if (m.cabin[0].visible !== show) for (const c of m.cabin) c.visible = show; }
       if (m.small && m.small.length) { const show = d2 < 4900 || mine; if (m.small[0].visible !== show) for (const c of m.small) c.visible = show; } }
     m.root.position.set(v.x, v.y, v.z); m.root.rotation.y = v.yaw;
-    m.tilt.rotation.x = -v.pitch - v.squat; m.tilt.rotation.z = v.def.kind === 'bike' ? v.lean : v.roll;
+    // road cars ride on springs: the slope turns the whole car, braking / cornering only the body, so the wheels stay flat on the road
+    if (m.sprung) {
+      // the body is a mass on springs: it leans into corners, dives under braking, squats under power and bobs over kerbs, then settles
+      const s = (m.sus ||= { r: 0, rv: 0, q: 0, qv: 0, h: 0, hv: 0, y: v.y, gv: 0 }), dt = Math.min(0.05, fdt), lim = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
+      const gv = (v.y - s.y) / Math.max(dt, 1e-3), ga = lim((gv - s.gv) / Math.max(dt, 1e-3), -50, 50); s.y = v.y; s.gv = gv;
+      s.rv += ((v.roll * 0.8 - s.r) * 90 - s.rv * 8) * dt; s.r = lim(s.r + s.rv * dt, -0.12, 0.12);
+      s.qv += ((v.squat * 0.8 - s.q) * 110 - s.qv * 9) * dt; s.q = lim(s.q + s.qv * dt, -0.07, 0.07);
+      s.hv += (-s.h * 130 - s.hv * 9 - (v.air ? 0 : ga) * 0.55) * dt; s.h = lim(s.h + s.hv * dt, -0.055, 0.05);
+      m.tilt.rotation.x = -v.pitch; m.tilt.rotation.z = 0; m.body.rotation.x = s.r;
+    }
+    else { m.tilt.rotation.x = -v.pitch - v.squat; m.tilt.rotation.z = v.def.kind === 'bike' ? v.lean : v.roll; }
     const key = v.color + JSON.stringify(v.mods) + v.exploded;
     if (m.modKey !== key) { m.modKey = key; m.paint.color.set(v.exploded ? '#141210' : v.color); applyMods(m, v.mods); if (v.exploded && m.neon) m.neon.visible = false; }
     const dmg = 1 - v.hp / v.def.hp, bm = m.paint.userData.metal ?? 0.55, br = m.paint.userData.rough ?? 0.28; m.paint.roughness = v.exploded ? 0.95 : br + dmg * 0.45; m.paint.metalness = v.exploded ? 0.2 : bm * (1 - dmg * 0.6);
     if (m.rotors) { m.rotors.main.rotation.y = v.spin; m.rotors.tail.rotation.z = v.spin * 1.7; }
     if (m.neon && m.neon.visible) (m.neon.material as THREE.MeshBasicMaterial).opacity = 0.75 + Math.sin(performance.now() / 300) * 0.1;
-    m.body.position.y = v.dead ? -0.08 : 0; m.body.rotation.z = v.dead ? 0.03 : 0;
+    m.body.position.y = (v.dead ? -0.08 : 0) + (m.sus ? m.sus.h : 0); m.body.rotation.z = (v.dead ? 0.03 : 0) + (m.sus ? m.sus.q : 0);
+    if (m.damage) { m.damage.soot.visible = dmg > 0.45 && !v.exploded; m.damage.crack.visible = dmg > 0.28; }
     const nightK = game.hour > 18.6 || game.hour < 6.2 ? 1 : 0, mine = v.id === game.inCar;
-    m.lights.head.emissiveIntensity = v.dead ? 0 : mine ? 0.6 + nightK * 2.2 : 0.15;
-    m.lights.tail.emissiveIntensity = v.dead ? 0 : v.braking ? 3 : mine ? 0.6 + nightK * 0.9 : 0.25;
+    const lit = mine || !!v.ai; // someone is driving it: lamps on after dark
+    m.lights.head.emissiveIntensity = v.dead ? 0 : lit ? 0.5 + nightK * 2.3 : 0.15;
+    m.lights.tail.emissiveIntensity = v.dead ? 0 : v.braking ? 3.2 : lit ? 0.45 + nightK * 1.0 : 0.25;
     if (m.lights.bar) { const on = !v.dead && !!v.ai && v.ai.mode === 'chase' && game.wanted > 0, ph = Math.floor(performance.now() / 160) % 2; m.lights.bar[0].emissiveIntensity = on ? (ph ? 5 : 0.3) : 0.15; m.lights.bar[1].emissiveIntensity = on ? (ph ? 0.3 : 5) : 0.15; }
     if (m.door) m.door.rotation.y = 1.15 * v.door; // right-hand door swings out to the right
     if (m.steering) m.steering.rotation.x = -v.steer * 4.5;
@@ -160,7 +172,7 @@ function VehicleView({ v }: { v: Veh }) {
     if (m.gear) m.gear.visible = !v.air;
     const blinkOn = Math.floor(performance.now() / 360) % 2 === 0;
     if (m.lights.blinkL) { m.lights.blinkL.emissiveIntensity = (v.blink === 1 || v.blink === 2) && blinkOn ? 3.5 : 0; m.lights.blinkR!.emissiveIntensity = (v.blink === -1 || v.blink === 2) && blinkOn ? 3.5 : 0; m.lights.rev!.emissiveIntensity = v.reversing && !v.dead ? 2.5 : 0; }
-    m.wheels.forEach((w, i) => { w.rotation.z = -v.spin; const front = v.def.kind === 'bike' ? i === 0 : w.position.x > 0; w.rotation.y = front ? v.steer : 0; });
+    m.wheels.forEach((w, i) => { ((w.userData.spin as THREE.Object3D) || w).rotation.z = -v.spin; const front = v.def.kind === 'bike' ? i === 0 : w.position.x > 0; w.rotation.y = front ? v.steer : 0; });
   });
   return <primitive object={m.root} />;
 }

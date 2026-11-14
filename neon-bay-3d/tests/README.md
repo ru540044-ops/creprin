@@ -20,6 +20,7 @@ for r in tokyo osaka fukuoka naha nara; do RG=$r node /tmp/lanechk.cjs; done
 | `gen/skychk.ts` | towers on podiums sit inside them (`floating` and `doorsUp: 2` only count the two warehouses on the raised port quay) |
 | `gen/tunchk.ts` | `minCover` > 5 m over the tunnel crown, `maxCut` ≤ 12.4 (ground under the viaduct deck) |
 | `gen/placechk.ts` | places on the map by kind (deer crackers, stalls, shrines/temples, stations, ramen, convenience stores); `landingBlocked: 0` (where "skip" puts you is free ground) |
+| `gen/carchk.ts` | every shaped road car (9 models): `bad: 0` — all parts built, no broken numbers, body length / width match the model, 7–10 cm between tyre and arch, tyres inside the flanks; triangles per car (≈ 4,700–5,900) |
 | `gen/routechk.ts` (no RG) | lines between the cities: Tokyo–Shin-Osaka 515.4 km, Shin-Osaka–Hakata 553.7 km, Osaka–Nara 32.8 km; the reversed trip has the same station gaps (`mirror: true`) |
 | `gen/narachk.ts` (RG=nara) | zone map; the walk from the cloister gate into the great hall is clear (`walkInBlocked: no`), the prayer spot is free, deer spawn on free ground (`deerBlocked: 0`), cracker stalls reachable |
 
@@ -43,6 +44,7 @@ Run them one at a time: in parallel, taps time out.
 | `events.cjs` | street events: purse snatcher (runs, knocked down, give back / keep), lost wallet (police box / keep), lost tourist (right / wrong direction), reputation, shop discount, saved reputation, an event starting by itself |
 | `parking.cjs` | coin parking (pay in a bay, the car survives going 700 m away while an abandoned one is cleared, leaving the bay ends it, refused when broke), road-sign counts and screenshots |
 | `story2.cjs` | story chapter 2 (missions 6–13), run once per city (`tokyo` 6, 12, 13 · `osaka` 7, 8 · `nara` 9 · `fukuoka` 10 · `naha` 11): a mission of another city is not offered, each mission starts at its marker and is played to its reward (eating, getting in a car, coin parking, the three collections, feeding a deer, the chases, a time-out failure and restart). Travel between places is teleported and the wanted level is cleared by the script |
+| `carlook.cjs` | car models close up (screenshots `jp/<tag>_*.png`): front and rear quarters, side, wheel, from above, at night (lamps lit), from the driver's seat, the body leaning on its springs, a damaged car (soot, cracked windscreen, smoke) |
 | `line.cjs` | the real-distance line: travel-app ride Tokyo → Osaka (515 km; Fuji, tunnel, Lake Hamana, Nagoya views), clock, fast-forward, arrival; driving the bullet train out of the tunnel onto the line to Fukuoka (ATC, brakes) and arriving in the cab |
 
 ```sh

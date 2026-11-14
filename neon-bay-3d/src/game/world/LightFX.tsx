@@ -33,7 +33,7 @@ export default function LightFX() {
   useFrame(({ camera }) => {
     const h = game.hour, night = 1 - smooth(5.6, 7.2, h) + smooth(17.6, 19.2, h), nk = Math.min(1, Math.max(0, night)) * (game.where === 'out' ? 1 : 0);
     const dusk = Math.max(nk, game.weather.cloud * 0.6), q = camera.quaternion;
-    (L.beam.material as THREE.MeshBasicMaterial).opacity = 0.32 * nk; (L.head.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.75 * dusk;
+    (L.beam.material as THREE.MeshBasicMaterial).opacity = 0.32 * nk; (L.head.material as THREE.MeshBasicMaterial).opacity = 0.05 + 0.95 * dusk; // by day only a glint: the lamps themselves are modelled
     let si = 0, hi = 0, ti = 0, bi = 0;
     for (const v of vehicles) {
       if (Math.abs(v.x - camera.position.x) > 180 || Math.abs(v.z - camera.position.z) > 180) continue;
@@ -42,10 +42,11 @@ export default function LightFX() {
       if (si < MAXV + MAXP) { const gy = v.air ? v.y - Math.max(0, v.vy) * 0 : v.y, lift = v.def.kind === 'heli' ? Math.max(0, v.y - 0.2) : 0; Q.setFromAxisAngle(UP, v.yaw); V.set(v.x, gy - lift + 0.04, v.z); const k = 1 / (1 + lift * 0.08); S.set(W * 1.7 * k, 1, v.def.len * 1.25 * k); M.compose(V, Q, S); L.shadow.setMatrixAt(si++, M); }
       if (v.dead || v.def.kind === 'heli') continue;
       const hy = v.y + (v.def.kind === 'truck' || v.def.kind === 'armored' ? 1.0 : v.def.kind === 'suv' || v.def.kind === 'pickup' ? 0.9 : v.def.kind === 'bike' ? 0.9 : 0.62);
-      const on = v.id === game.inCar || !!v.ai || v.touched;
+      const on = v.id === game.inCar || !!v.ai; // someone is driving it
+      const near = Math.min(1, Math.max(0.3, Math.hypot(v.x - camera.position.x, v.z - camera.position.z) / 16)); // close up the glare shrinks, so it does not swallow the car
       for (const sd of v.def.kind === 'bike' ? [0] : [-1, 1]) {
-        if (on && hi < MAXV * 2) { V.set(v.x + fx * (L2 + 0.05) + lx * sd * W * 0.33, hy, v.z + fz * (L2 + 0.05) + lz * sd * W * 0.33); S.setScalar((0.55 + 0.9 * dusk) * (v.def.kind === 'bike' ? 0.8 : 1)); M.compose(V, q, S); L.head.setMatrixAt(hi++, M); }
-        if (ti < MAXV * 2) { const br = v.braking; V.set(v.x - fx * (L2 + 0.05) + lx * sd * W * 0.32, hy + 0.05, v.z - fz * (L2 + 0.05) + lz * sd * W * 0.32); S.setScalar(br ? 0.95 : 0.35 + 0.35 * dusk); M.compose(V, q, S); L.tail.setMatrixAt(ti, M); L.tail.setColorAt(ti++, br ? red.brake : red.dim); }
+        if (on && hi < MAXV * 2) { V.set(v.x + fx * (L2 + 0.05) + lx * sd * W * 0.33, hy, v.z + fz * (L2 + 0.05) + lz * sd * W * 0.33); S.setScalar((0.55 + 0.9 * dusk) * near * (v.def.kind === 'bike' ? 0.8 : 1)); M.compose(V, q, S); L.head.setMatrixAt(hi++, M); }
+        if (ti < MAXV * 2) { const br = v.braking; V.set(v.x - fx * (L2 + 0.05) + lx * sd * W * 0.32, hy + 0.05, v.z - fz * (L2 + 0.05) + lz * sd * W * 0.32); S.setScalar((br ? 0.95 : 0.35 + 0.35 * dusk) * near); M.compose(V, q, S); L.tail.setMatrixAt(ti, M); L.tail.setColorAt(ti++, br ? red.brake : red.dim); }
       }
       if (nk > 0.05 && on && bi < MAXV) { Q.setFromAxisAngle(UP, v.yaw); V.set(v.x + fx * L2, v.y + 0.06, v.z + fz * L2); S.set(W * 2.6, 1, 16); M.compose(V, Q, S); L.beam.setMatrixAt(bi++, M); }
     }

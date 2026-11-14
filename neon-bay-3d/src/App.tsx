@@ -12,7 +12,7 @@ import Environment from './game/world/Environment';
 import Interiors from './game/world/Interiors';
 import Player from './game/player/Player';
 import HUD from './game/ui/HUD';
-import Vehicles from './game/vehicles/Vehicles';
+import Vehicles, { models as carModels } from './game/vehicles/Vehicles';
 import CrimeView from './game/crime/CrimeView';
 import GiftView from './game/crime/GiftView';
 import { initNetGifts } from './game/crime/gifts';
@@ -76,7 +76,7 @@ import * as deerMod from './game/ai/deer';
 import * as scheduleMod from './game/ai/schedule';
 import type { RegionId } from './game/world/region';
 import { REGION } from './game/world/region'; // after the game modules (import cycles resolve in the old order)
-try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, deerMod, lineMod, hoursMod, eventsMod, parkingMod, ear, hear, saveNow: save, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
+try { if (localStorage.getItem('nb3d.debug') === '1') (window as any).__nb3d = { REGION, carModels, deerMod, lineMod, hoursMod, eventsMod, parkingMod, ear, hear, saveNow: save, japanMod, shopsMod, scheduleMod, trainAudioState, cityStream, appearanceMod, playerMod, progressionMod, settingsMod, ambientMod, giftsMod, cityMod, progress, ownedCars, story, floorAt, solids, BDOORS, look, raceMod, explodeMod, stuntsMod, RAMPS, HELIPADS, CUSTOMS, adminMod, peds, pedsMod, traffic, weapons, crime, steer, newAI, TRIALS, LANDMARKS, EXPORT_DOCK, POLICE_HQ, INTERIORS, game, input, doors, buildings, SPAWN, groundAt, vehicles, playerCar, owned, spawn, remove, drive, collisions }; } catch { /* storage blocked */ } // test hook, off by default
 
 const Q: Record<Quality, { dpr: number; shadows: boolean; size: number }> = {
   low: { dpr: 1, shadows: false, size: 512 }, medium: { dpr: 1.5, shadows: true, size: 1024 }, high: { dpr: 2, shadows: true, size: 2048 },
