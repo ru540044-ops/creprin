@@ -144,9 +144,9 @@ export function fuse(list: THREE.BufferGeometry[]) {
 /** Stations along the length: even steps, closer together at the ends and through the wheel arches, and exactly at the listed places. */
 function stations(a: number, b: number, step: number, exact: number[], dense: [number, number][]) {
   const fixed = [a, b, ...exact.filter((x) => x > a + 0.02 && x < b - 0.02)], xs: number[] = [...fixed];
-  for (const d of [0.03, 0.075, 0.14, 0.23, 0.34]) xs.push(a + d, b - d);
+  for (const d of [0.03, 0.08, 0.16, 0.28]) xs.push(a + d, b - d);
   for (let x = a + 0.45; x < b - 0.45; x += step) xs.push(x);
-  for (const [d0, d1] of dense) for (let k = 0; k <= 9; k++) { const x = d0 + ((d1 - d0) * k) / 9; if (x > a && x < b) xs.push(x); }
+  for (const [d0, d1] of dense) for (let k = 0; k <= 8; k++) { const x = d0 + ((d1 - d0) * k) / 8; if (x > a && x < b) xs.push(x); }
   // the fixed ones always stay; the others only where they are not crowding a neighbour
   const free = xs.filter((x) => !fixed.includes(x) && fixed.every((f) => Math.abs(f - x) > 0.025)).sort((p, q) => p - q), out: number[] = [...fixed];
   let last = -1e9; for (const x of free) if (x - last > 0.025) { out.push(x); last = x; }
@@ -155,7 +155,7 @@ function stations(a: number, b: number, step: number, exact: number[], dense: [n
 
 /** The painted lower body: closed over the bonnet and boot, an open tub (walls, floor, sills) where the cabin is. */
 export function lowerBody(S: Shape) {
-  const m = new MB(), xs = stations(S.x0 + 0.004, S.x1 - 0.004, 0.25, [S.gx0, S.gx1], [[S.wx - S.R, S.wx + S.R], [-S.wx - S.R, -S.wx + S.R]]);
+  const m = new MB(), xs = stations(S.x0 + 0.004, S.x1 - 0.004, 0.3, [S.gx0, S.gx1], [[S.wx - S.R, S.wx + S.R], [-S.wx - S.R, -S.wx + S.R]]);
   const C: number[][] = [], U: (number[] | null)[] = [], O: (number[] | null)[] = [];
   const open = (a: number, b: number) => (a + b) / 2 > S.gx0 && (a + b) / 2 < S.gx1;
   xs.forEach((x, i) => {
@@ -163,7 +163,7 @@ export function lowerBody(S: Shape) {
     const zb = S.zs(x, bs + rb), zw = Math.max(0.02, zb - WELL), c: number[] = [];
     c.push(m.v(x, bc, 0), m.v(x, bc, zw * 0.6), m.v(x, bc, zw - 0.004), m.v(x, Math.max(bc, bs), zw), m.v(x, bs, Math.max(zw, zb - rb)));
     for (const a of [Math.PI / 4, Math.PI / 2]) c.push(m.v(x, bs + rb * (1 - Math.cos(a)), zb - rb + rb * Math.sin(a)));
-    for (const f of [1 / 3, 2 / 3, 1]) { const y = bs + rb + (ts - rt - bs - rb) * f; c.push(m.v(x, y, S.zs(x, y))); }
+    for (const f of [0.5, 1]) { const y = bs + rb + (ts - rt - bs - rb) * f; c.push(m.v(x, y, S.zs(x, y))); }
     C.push(c);
     const last = c[c.length - 1], zt = S.zs(x, ts - rt), isO = (i > 0 && open(xs[i - 1], x)) || (i < xs.length - 1 && open(x, xs[i + 1])), isC = (i > 0 && !open(xs[i - 1], x)) || (i < xs.length - 1 && !open(x, xs[i + 1]));
     if (isC) { const u = [last]; u.push(m.v(x, ts - rt + rt * Math.sin(Math.PI / 4), zt - rt + rt * Math.cos(Math.PI / 4))); for (const f of [1, 0.72, 0.4, 0]) { const z = (zt - rt) * f; u.push(m.v(x, S.topY(x, z), z)); } void tc; U.push(u); } else U.push(null);

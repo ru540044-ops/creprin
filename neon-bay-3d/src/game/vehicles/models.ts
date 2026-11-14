@@ -49,16 +49,16 @@ export function wheel(r: number, w: number, rimMat?: THREE.Material, side = 1, s
   const key = r + '|' + w + '|' + sporty; let G = WHEELS.get(key);
   if (!G) {
     const thin = w < 0.2, zf = thin ? 0 : w / 2 - 0.045, V = (a: number, b: number) => new THREE.Vector2(a * r, b * w);
-    const tire = new THREE.LatheGeometry([V(0.64, -0.5), V(0.9, -0.5), V(0.975, -0.42), V(1, -0.26), V(1, 0.26), V(0.975, 0.42), V(0.9, 0.5), V(0.64, 0.5)], 20).rotateX(Math.PI / 2);
+    const tire = new THREE.LatheGeometry([V(0.64, -0.5), V(0.9, -0.5), V(0.975, -0.42), V(1, -0.26), V(1, 0.26), V(0.975, 0.42), V(0.9, 0.5), V(0.64, 0.5)], 16).rotateX(Math.PI / 2);
     const rim: THREE.BufferGeometry[] = [];
-    rim.push(thin ? new THREE.CylinderGeometry(0.645 * r, 0.645 * r, w * 0.9, 20, 1, true).rotateX(Math.PI / 2) : new THREE.LatheGeometry([V(0.645, 0.5), V(0.61, 0.42), V(0.6, -0.1)], 20).rotateX(Math.PI / 2));
-    rim.push(new THREE.TorusGeometry(0.645 * r, 0.011, 4, 20).translate(0, 0, w / 2 - 0.004));
+    rim.push(thin ? new THREE.CylinderGeometry(0.645 * r, 0.645 * r, w * 0.9, 16, 1, true).rotateX(Math.PI / 2) : new THREE.LatheGeometry([V(0.645, 0.5), V(0.61, 0.42), V(0.6, -0.1)], 16).rotateX(Math.PI / 2));
+    rim.push(new THREE.TorusGeometry(0.645 * r, 0.011, 3, 16).translate(0, 0, w / 2 - 0.004));
     const n = sporty ? 10 : 5, sw = sporty ? 0.07 : 0.2;
     for (let k = 0; k < n; k++) rim.push(new THREE.BoxGeometry(0.5 * r, sw * r, 0.03).translate(0.37 * r, 0, 0).rotateZ((k / n) * Math.PI * 2 + (sporty && k % 2 ? 0.16 : 0)).translate(0, 0, zf));
-    rim.push(new THREE.CylinderGeometry(0.17 * r, 0.2 * r, 0.05, 12).rotateX(Math.PI / 2).translate(0, 0, zf + 0.012));
-    if (thin) rim.push(new THREE.CylinderGeometry(0.17 * r, 0.2 * r, 0.05, 12).rotateX(-Math.PI / 2).translate(0, 0, -0.012));
-    const zb = thin ? 0.035 : w / 2 - 0.115, brake = [tinted(new THREE.CylinderGeometry(0.5 * r, 0.5 * r, 0.022, 20).rotateX(Math.PI / 2).translate(0, 0, zb), '#8b8f96'), tinted(new THREE.BoxGeometry(0.2 * r, 0.44 * r, 0.075).translate(0.42 * r, 0, zb).rotateZ(0.5), sporty ? '#d1121c' : '#3b3d42')];
-    if (!thin) brake.push(tinted(new THREE.CircleGeometry(0.6 * r, 20).translate(0, 0, -w * 0.1 + 0.004), '#0c0c0e'));
+    rim.push(new THREE.CylinderGeometry(0.17 * r, 0.2 * r, 0.05, 8).rotateX(Math.PI / 2).translate(0, 0, zf + 0.012));
+    if (thin) rim.push(new THREE.CylinderGeometry(0.17 * r, 0.2 * r, 0.05, 8).rotateX(-Math.PI / 2).translate(0, 0, -0.012));
+    const zb = thin ? 0.035 : w / 2 - 0.115, brake = [tinted(new THREE.CylinderGeometry(0.5 * r, 0.5 * r, 0.022, 14).rotateX(Math.PI / 2).translate(0, 0, zb), '#8b8f96'), tinted(new THREE.BoxGeometry(0.2 * r, 0.44 * r, 0.075).translate(0.42 * r, 0, zb).rotateZ(0.5), sporty ? '#d1121c' : '#3b3d42')];
+    if (!thin) brake.push(tinted(new THREE.CircleGeometry(0.6 * r, 14).translate(0, 0, -w * 0.1 + 0.004), '#0c0c0e'));
     G = { tire, rim: mergeGeometries(rim.map((q) => (q.index ? q.toNonIndexed() : q)))!, brake: mergeGeometries(brake)! };
     for (const q of Object.values(G)) q.userData.keep = true;
     WHEELS.set(key, G);
