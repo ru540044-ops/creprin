@@ -31,5 +31,6 @@ await shot('roll',[ox,y+0.9,oz+7],[ox,y+0.6,oz]);
 // ---- damage ----
 await E(()=>{const N=window.__nb3d;for(const id of window.__cars.slice(0,3)){const v=N.vehicles.find(q=>q.id===id);v.roll=0;v.squat=0;v.hp=v.def.hp*0.3;}});
 await shot('damage',[ox-3.2,y+1.5,oz+6.2],[ox+5,y+0.7,oz]);
-console.log('draw',JSON.stringify(await E(()=>{const N=window.__nb3d;return window.__nb3dInfo?window.__nb3dInfo():null})));
+// what each model costs to draw: meshes (draw calls) and triangles, close up and with the small parts and the cabin hidden (far away)
+console.log('cost',JSON.stringify(await E((KINDS)=>{const N=window.__nb3d,out={};window.__cars.forEach((id,i)=>{const m=N.carModels.get(id);if(!m)return;let calls=0,tris=0,farCalls=0,farTris=0;m.root.traverse(o=>{if(!o.isMesh)return;let far=true,vis=true;for(let q=o;q;q=q.parent){if(q.userData.small||q.userData.cabin)far=false;}if(o===m.neon||(m.damage&&(o===m.damage.soot||o===m.damage.crack)))return;const t=o.geometry.getAttribute('position').count/(o.geometry.index?1:3);const n=o.geometry.index?o.geometry.index.count/3:t;calls++;tris+=n;if(far){farCalls++;farTris+=n;}});out[KINDS[i]]=[calls,Math.round(tris),farCalls,Math.round(farTris)];});return out},KINDS)));
 console.log('errors',JSON.stringify(errs.slice(0,10)));await b.close();})();
