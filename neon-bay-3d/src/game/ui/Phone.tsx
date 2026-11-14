@@ -14,7 +14,7 @@ import { hasRoom, capOf, usedOf, homeName, dailyState, unclaimed } from '../crim
 import { GARAGE, doors, EXPORT_DOCK, TRIALS, RAMPS, CUSTOMS, AIRPORT, SHIN } from '../world/cityGen';
 import { robCooldown, armored, exportJob, newExport, EXPORT_PAY, fmt, trial } from '../crime/crime';
 import { RACES, PRIZES } from '../crime/race';
-import { MISSIONS, nextMission, mission as storyMission } from '../crime/story';
+import { MISSIONS, nextMission, mission as storyMission, missionElsewhere } from '../crime/story';
 import { progress } from '../state/store';
 import AdminApp from './AdminApp';
 import { PROPERTIES } from '../world/homes';
@@ -161,11 +161,11 @@ function Jobs({ close, refresh }: { close: () => void; refresh: () => void }) {
         ); })}
       </div>
       <div className="jobCard story">
-        <b>📞 ストーリー（レイからの仕事）　{Math.min(progress.story, MISSIONS.length)}/{MISSIONS.length}</b>
+        <b>📞 ストーリー（全{MISSIONS.length}話・第2章は日本一周）　{Math.min(progress.story, MISSIONS.length)}/{MISSIONS.length}</b>
         {nextMission() ? (<>
-          <p>次：<b>「{nextMission()!.title}」</b>　{nextMission()!.blurb}<br />地図の黄色い <b>R</b> マークへ行って「開始」。</p>
+          <p>次：<b>「{nextMission()!.title}」</b>　{nextMission()!.blurb}<br />{missionElsewhere() ? <>このミッションは <b>{missionElsewhere()}</b> で始まります。新幹線か「旅行」アプリで移動しよう。</> : <>地図の黄色い <b>R</b> マークへ行って「開始」。</>}</p>
           <span className="pay">報酬 ${nextMission()!.reward.toLocaleString('en-US')}</span>
-          <div className="jobBtns"><button type="button" disabled={storyMission.id >= 0} onClick={() => { const s = nextMission()!.start(); go(s.x, s.z, 'ミッションの場所を目的地に設定'); }}>{storyMission.id >= 0 ? 'ミッション中' : 'R マークへ案内'}</button></div>
+          <div className="jobBtns"><button type="button" disabled={storyMission.id >= 0 || !!missionElsewhere()} onClick={() => { const s = nextMission()!.start(); go(s.x, s.z, 'ミッションの場所を目的地に設定'); }}>{storyMission.id >= 0 ? 'ミッション中' : missionElsewhere() ? missionElsewhere() + 'へ移動しよう' : 'R マークへ案内'}</button></div>
         </>) : <p>全ミッションクリア！ この国の夜はあなたのものだ。</p>}
       </div>
       <div className="jobCard">

@@ -1,8 +1,10 @@
-import { REGION } from '../world/region';
+import { REGION, RegionId, REGIONS } from '../world/region';
+import { eatFx } from '../ui/eat';
+import { deerFed } from '../ai/deer';
 import { game, toast, save, progress } from '../state/store';
 import { vehicles, spawn, remove, playerCar, Veh } from '../vehicles/sim';
-import { doors, buildings, topFoot, GARAGE, EXPORT_DOCK, AIRPORT, PORT, groundAt, floorAt, roadC, N, nodeOpen } from '../world/cityGen';
-import { BDOORS } from '../world/bldgInteriors';
+import { doors, buildings, topFoot, GARAGE, EXPORT_DOCK, AIRPORT, PORT, groundAt, floorAt, roadC, N, nodeOpen, STATION, SHIN, AIRPORT_ARRIVAL, LANDMARK3D, DAIBUTSU, SIG, blocks } from '../world/cityGen';
+import { BDOORS, shopKey } from '../world/bldgInteriors';
 import { INTERIORS } from '../world/Interiors';
 import { ejectPed } from '../ai/peds';
 import { steer, newAI, nodeIdx } from '../ai/driver';
@@ -12,7 +14,9 @@ import { clamp } from '../world/rng';
 import { showBanner } from '../progression';
 
 /**
- * Story missions: five jobs for RAY, an old friend who runs a chop shop. Each mission is a list of steps;
+ * Story missions: five jobs for RAY, an old friend who runs a chop shop, then chapter 2: eight more that take you
+ * round the country (Osaka, Nara, Fukuoka, Naha and back) against the Black Tide syndicate. A mission with a region
+ * can only be started in that city. Each mission is a list of steps;
  * a step shows an objective, may play phone-call dialogue, and finishes when its check passes.
  */
 export type Line = { who: string; text: string };
@@ -32,7 +36,53 @@ const hangarPos = () => ({ x: AIRPORT.x0 + 150, z: 250 });
 const RAY = 'レイ', VINCE = 'ヴィンス';
 
 interface Step { goal: () => string; enter?: () => void; check: (dt: number) => boolean; marker?: () => { x: number; y: number; z: number } | null }
-interface Mission { title: string; blurb: string; reward: number; start: () => { x: number; z: number }; intro: Line[]; outro: Line[]; steps: Step[] }
+/* ---------- step builders for chapter 2 ---------- */
+const TATSU = 'タツ', MONK = '住職', TAISHO = '大将', CAPT = '船長';
+/** In front of the main station (where a chapter starts in each city). */
+const front = () => (STATION ? { x: STATION.x - 6, z: STATION.z } : { x: AIRPORT_ARRIVAL.x, z: AIRPORT_ARRIVAL.z + 10 });
+/** Go to a place. */
+function go(text: string, pos: () => { x: number; z: number }, r = 8, lines?: Line[]): Step {
+  return { goal: () => text, enter: lines ? () => say(lines) : undefined, marker: () => { const q = pos(); return { x: q.x, y: groundAt(q.x, q.z), z: q.z }; }, check: () => { const q = pos(); return at(q.x, q.z, r); } };
+}
+/** Get into a car. */
+const inCar = (text: string, lines?: Line[]): Step => ({ goal: () => text, enter: lines ? () => say(lines) : undefined, check: () => !!playerCar() && playerCar()!.def.kind !== 'heli' && playerCar()!.def.kind !== 'shinkansen' });
+/** Eat or drink something whose name matches. */
+const ate = (text: string, re: RegExp): Step => ({ goal: () => text, enter: () => { mission.data.eat = eatFx.ver; }, check: () => eatFx.ver !== mission.data.eat && eatFx.on && re.test(eatFx.name) });
+/** The police are called: lose them. */
+const lose = (stars: number, why: string, text: string): Step => ({ goal: () => `${text}（手配 ${'★'.repeat(game.wanted)}）`, enter: () => { setWanted(stars, why); }, check: () => game.wanted === 0 });
+/** The nearest coin-parking lot. */
+const lot = () => { const p = P(); let b: typeof blocks[number] | null = null, bd = 1e9; for (const k of blocks) { if (k.zone !== 'parking') continue; const d = Math.hypot((k.x0 + k.x1) / 2 - p.x, (k.z0 + k.z1) / 2 - p.z); if (d < bd) { bd = d; b = k; } } return b; };
+/** The n nearest convenience stores (the pavement in front of their doors), each at least 60 m from the others. */
+function konbini(n: number) {
+  const p = P(), out: { x: number; z: number }[] = [];
+  const all = BDOORS.filter((d) => d.kind === 'shop' && shopKey(d) === 'konbini').map((d) => ({ x: d.x + Math.sin(d.ang) * 2.5, z: d.z + Math.cos(d.ang) * 2.5 })).sort((a, c) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(c.x - p.x, c.z - p.z));
+  for (const d of all) { if (out.length >= n) break; if (out.every((q) => Math.hypot(q.x - d.x, q.z - d.z) > 60)) out.push(d); }
+  while (out.length < n) out.push(all[out.length] || { x: p.x + 30 * (out.length + 1), z: p.z });
+  return out;
+}
+/** A car to run down: ram it until it stops, then pick up what it was carrying. */
+function chase(who: string, kind: 'sedan' | 'sport' | 'super', color: string, cruise: number, flee: number, item: string): Step[] {
+  return [
+    { goal: () => mission.target ? `${who}の車に体当たりして止めろ　ダメージ ${Math.min(100, Math.round((1 - mission.target.hp / mission.target.def.hp) * 100 / 0.55))}%` : `${who}を追え`,
+      enter: () => {
+        const p = P(), pi = nodeIdx(p.x), pj = nodeIdx(p.z);
+        for (let k = 0; k < 60 && !mission.target; k++) { const i = clamp(pi + Math.round((Math.random() - 0.5) * 4), 0, N), j = clamp(pj + Math.round((Math.random() - 0.5) * 4), 0, N), x = roadC(i), z = roadC(j); if (Math.hypot(x - p.x, z - p.z) < 70 || Math.hypot(x - p.x, z - p.z) > 190 || !nodeOpen(i, j)) continue; const v = spawn(kind, x, z, 0, color); v.touched = true; v.ai = newAI(x, z, { mode: 'flee' }); mission.target = v; }
+      },
+      marker: () => mission.target ? { x: mission.target.x, y: mission.target.y + 2, z: mission.target.z } : null,
+      check: (dt) => {
+        const v = mission.target; if (!v || !vehicles.includes(v)) { mission.fail = `${who}を見失った`; return false; }
+        const me = playerCar(), d = me ? Math.hypot(me.x - v.x, me.z - v.z) : Math.hypot(P().x - v.x, P().z - v.z);
+        if (d > 400) { mission.fail = `${who}に逃げられた`; return false; }
+        if (v.hp <= v.def.hp * 0.45 || v.dead) { v.ai!.ctl = { thr: 0, brake: 1, steer: 0, hb: false }; return Math.hypot(v.vx, v.vz) < 1.5; }
+        const away = me ? { x: v.x + (v.x - me.x), z: v.z + (v.z - me.z) } : null;
+        v.ai!.ctl = steer(v, d < 60 ? away : null, dt, { speed: d < 60 ? flee : cruise, lane: 3.3 });
+        return false;
+      } },
+    { goal: () => `${item}を拾え（車の横に落ちている）`, enter: () => { const v = mission.target!; const q = ejectPed(v.x + Math.cos(v.yaw) * 2.4, v.z - Math.sin(v.yaw) * 2.4, v.x, v.z); q.callT = 0; mission.data.book = { x: v.x - Math.sin(v.yaw) * 4, z: v.z - Math.cos(v.yaw) * 4 }; v.ai = null; mission.target = null; },
+      marker: () => ({ x: mission.data.book.x, y: groundAt(mission.data.book.x, mission.data.book.z), z: mission.data.book.z }), check: () => at(mission.data.book.x, mission.data.book.z, 3.5) },
+  ];
+}
+interface Mission { title: string; blurb: string; reward: number; /** the city it takes place in (none: wherever you are) */ region?: RegionId; start: () => { x: number; z: number }; intro: Line[]; outro: Line[]; steps: Step[] }
 
 export const MISSIONS: Mission[] = [
   {
@@ -54,7 +104,7 @@ export const MISSIONS: Mission[] = [
       { goal: () => 'QWIK 24の前の荷物を拾え', marker: () => { const d = door('store'); return { x: d.x + Math.sin(d.ang) * 4 + 3, y: 0, z: d.z + Math.cos(d.ang) * 4 }; }, check: () => { const d = door('store'); return at(d.x + Math.sin(d.ang) * 4 + 3, d.z + Math.cos(d.ang) * 4, 4.5); } },
       { goal: () => `港の倉庫へ届けろ　残り ${Math.max(0, Math.ceil(mission.timer))} 秒`, enter: () => { mission.timer = 150; sfx('buy'); toast('荷物を手に入れた', 1.4); },
         marker: () => ({ x: PORT.x0 + 90, y: 1.2, z: PORT.z0 + 12 }),
-        check: (dt) => { mission.timer -= dt; if (mission.timer < 85 && !mission.data.tip) { mission.data.tip = 1; setWanted(1, '誰かが密告したらしい'); } if (mission.timer <= 0) mission.fail = '時間切れ…荷物は届かなかった'; return at(PORT.x0 + 90, PORT.z0 + 12, 10); } },
+        check: (dt) => { mission.timer -= dt; if (mission.timer < 85 && !mission.data.tip) { mission.data.tip = 1; setWanted(1, '誰かが密告したらしい'); } if (mission.timer <= 0) { mission.fail = '時間切れ…荷物は届かなかった'; return false; } return at(PORT.x0 + 90, PORT.z0 + 12, 10); } },
     ],
   },
   {
@@ -115,13 +165,101 @@ export const MISSIONS: Mission[] = [
         check: () => { const me = playerCar(); if (me && !mission.data.cops && Math.hypot(me.x, me.z) > 500) { mission.data.cops = 1; setWanted(3, '警察に追跡されている'); } const h = hangarPos(); return !!me && Math.hypot(me.x - h.x, me.z - h.z + 70) < 45 && !me.air; } },
     ],
   },
+  /* ============================ chapter 2: the black tide (Tokyo -> Osaka -> Nara -> Fukuoka -> Naha -> Tokyo) ============================ */
+  {
+    title: '西へ', blurb: '黒潮会が動いた。新幹線で大阪へ向かえ。', reward: 3000, region: 'tokyo',
+    start: () => ({ x: GARAGE.x, z: GARAGE.z + 3 }),
+    intro: [{ who: RAY, text: 'まずい。ヴィンスの帳簿、あれは黒潮会の裏金の記録だった。連中が取り返しに来る。' }, { who: RAY, text: '帳簿の写しが西にある。大阪のタツを頼れ。東京駅の新幹線のりばへ行け。' }],
+    outro: [{ who: RAY, text: 'そこから新幹線に乗れ。運転席に乗ってもいいし、スマホの「旅行」で切符を買ってもいい。大阪で会おう、とタツに伝えてある。' }],
+    steps: [go('東京駅の新幹線のりかえ口へ行け', () => SHIN.gate, 7)],
+  },
+  {
+    title: 'ナニワの流儀', blurb: '大阪の顔役タツに挨拶だ。まずは腹ごしらえ。', reward: 6000, region: 'osaka',
+    start: () => front(),
+    intro: [{ who: TATSU, text: 'あんたがNOVAか。レイから聞いとる。まあまあ、話の前に何か食うてき。腹が減っては戦はできん。' }],
+    outro: [{ who: TATSU, text: 'ええ度胸や。車はそこに置いとき。黒潮会の連中に見つからんようにな。' }],
+    steps: [
+      ate('屋台か店で何か食べろ（たこ焼き・串カツ・ラーメン…なんでもいい）', /./),
+      inCar('車に乗れ'),
+      { goal: () => `コインパーキングに車を隠せ（枠に停めて「駐車」）　残り ${Math.max(0, Math.ceil(mission.timer))} 秒`, enter: () => { mission.timer = 180; say([{ who: TATSU, text: 'ええ食いっぷりや。ほな仕事や。その車、目立つからコインパーキングに入れとき。3分以内やで。' }]); },
+        marker: () => { const b = lot(); return b ? { x: b.x0 + 9 + 3.2 * 3 + 1.6, y: 0, z: b.z0 + 12.6 } : null; },
+        check: (dt) => { mission.timer -= dt; if (mission.timer <= 0) { mission.fail = '時間切れ…黒潮会に車を見られた'; return false; } return !!playerCar()?.parked; } },
+    ],
+  },
+  {
+    title: '取り立て', blurb: 'タツの縄張りの店を3軒まわって、みかじめを集めろ。', reward: 9000, region: 'osaka',
+    start: () => front(),
+    intro: [{ who: TATSU, text: '黒潮会がうちの縄張りの店を脅しとる。先にうちが回って、今月分を預かってきてくれ。3軒や。' }],
+    outro: [{ who: TATSU, text: 'ようやった。これで連中に渡る金はない。…奈良の住職が帳簿の写しの在りかを知っとるらしい。行ってみ。' }],
+    steps: [
+      ...[0, 1, 2].map((k): Step => ({ goal: () => `コンビニを回って集金しろ（${k + 1}/3）　残り ${Math.max(0, Math.ceil(mission.timer))} 秒`, enter: () => { if (k === 0) { mission.timer = 240; mission.data.shops = konbini(3); } else { sfx('buy'); toast(`集金した（${k}/3）`, 1.4); } },
+        marker: () => { const d = mission.data.shops[k]; return { x: d.x, y: 0, z: d.z }; },
+        check: (dt) => { mission.timer -= dt; if (mission.timer <= 0) { mission.fail = '時間切れ…黒潮会に先を越された'; return false; } const d = mission.data.shops[k]; return at(d.x, d.z, 5); } })),
+      lose(2, '店主のひとりが通報した', '集金は終わった。警察をまけ'),
+    ],
+  },
+  {
+    title: '古都の密会', blurb: '奈良の住職に会え。まずは礼儀から。', reward: 7000, region: 'nara',
+    start: () => front(),
+    intro: [{ who: MONK, text: 'ようお越し。話の前に、鹿に挨拶をしていきなさい。この町では鹿が先輩じゃ。' }],
+    outro: [{ who: MONK, text: '帳簿の写しは博多の屋台の大将が預かっておる。ラーメン屋で「替え玉、硬め」と言いなさい。それが合言葉じゃ。' }],
+    steps: [
+      { goal: () => '鹿せんべいを買って、鹿にあげろ（公園の屋台で買える）', enter: () => { mission.data.n = deerFed.n; }, marker: () => { const y = SIG.yatai.find((q) => q.senbei); return y ? { x: y.x, y: 0, z: y.z + 2.2 } : null; }, check: () => deerFed.n > mission.data.n },
+      go('大仏殿に入って、大仏の前へ', () => ({ x: LANDMARK3D.x, z: LANDMARK3D.z + DAIBUTSU.bz + 9 }), 4, [{ who: MONK, text: 'よろしい。では大仏殿の中へ。大仏さまの前で待っておる。' }]),
+      go('五重塔の下へ行け', () => ({ x: SIG.pagoda!.x, z: SIG.pagoda!.z + 12 }), 6, [{ who: MONK, text: '黒潮会の者が境内をうろついておる。話の続きは五重塔の下で。' }]),
+    ],
+  },
+  {
+    title: '博多の夜', blurb: '合言葉は「替え玉、硬め」。そして運び屋を止めろ。', reward: 12000, region: 'fukuoka',
+    start: () => front(),
+    intro: [{ who: TAISHO, text: '住職から聞いとるばい。まずはラーメン屋で一杯食べてきんしゃい。話はそれからたい。' }],
+    outro: [{ who: TAISHO, text: '写しは無事ばい。ばってん原本は那覇の船長が沖に沈めたげな。飛行機で行ってきんしゃい。' }],
+    steps: [
+      ate('ラーメン屋でラーメンを食べろ（券売機で食券→席）', /ラーメン|つけ麺|替え玉/),
+      inCar('車に乗れ', [{ who: TAISHO, text: 'しもうた！ 黒潮会の運び屋が写しを持って逃げよった。白い車たい、ぶつけて止めんしゃい！' }]),
+      ...chase('運び屋', 'sedan', '#f2f2f2', 22, 31, '帳簿の写し'),
+    ],
+  },
+  {
+    title: '南の島', blurb: '那覇の船長に会い、港へ急げ。', reward: 12000, region: 'naha',
+    start: () => ({ x: AIRPORT_ARRIVAL.x, z: AIRPORT_ARRIVAL.z + 10 }),
+    intro: [{ who: CAPT, text: 'はいさい。話は聞いてるさ。まず' + REGION.landmark.label + 'まで来てくれ。そこで落ち合おう。' }],
+    outro: [{ who: CAPT, text: '原本は引き上げたさ。これで黒潮会の金の流れは全部わかる。東京でレイが待ってるよ。' }],
+    steps: [
+      inCar('車に乗れ'),
+      go(REGION.landmark.label + 'へ行け', () => ({ x: LANDMARK3D.x, z: LANDMARK3D.z + 48 }), 12),
+      { goal: () => `港へ急げ　残り ${Math.max(0, Math.ceil(mission.timer))} 秒`, enter: () => { mission.timer = 170; setWanted(2, '黒潮会が警察に通報した'); say([{ who: CAPT, text: 'つけられてる！ 港の倉庫に船を回した。急いで！' }]); },
+        marker: () => ({ x: PORT.x0 + 90, y: 1.2, z: PORT.z0 + 12 }), check: (dt) => { mission.timer -= dt; if (mission.timer <= 0) { mission.fail = '時間切れ…船は出てしまった'; return false; } return at(PORT.x0 + 90, PORT.z0 + 12, 10); } },
+    ],
+  },
+  {
+    title: '帳簿', blurb: '東京に戻り、原本を銀行の貸金庫へ。', reward: 20000, region: 'tokyo',
+    start: () => ({ x: GARAGE.x, z: GARAGE.z + 3 }),
+    intro: [{ who: RAY, text: 'よく戻った。原本をCENTRAL BANKの貸金庫に入れる。黒潮会は必ず邪魔してくる。気をつけろ。' }],
+    outro: [{ who: RAY, text: 'これで連中は手を出せない。…だがヴィンスが黒潮会に寝返った。最後のケリをつける時だ。' }],
+    steps: [
+      go('CENTRAL BANKへ行け', () => { const d = bank(); return { x: d.x + Math.sin(d.ang) * 3, z: d.z + Math.cos(d.ang) * 3 }; }, 6),
+      lose(3, '黒潮会が警察に手を回した', '貸金庫に入れた。警察をまけ'),
+      go('レイのガレージへ戻れ', () => ({ x: GARAGE.x, z: GARAGE.z + 3 }), 9),
+    ],
+  },
+  {
+    title: '決着', blurb: '黒潮会に寝返ったヴィンスを止めろ。', reward: 60000, region: 'tokyo',
+    start: () => ({ x: EXPORT_DOCK.x - 10, z: EXPORT_DOCK.z }),
+    intro: [{ who: RAY, text: 'ヴィンスが黒潮会の金を持って港から逃げる。黒いスーパーカーだ。今度こそ止めろ。' }],
+    outro: [{ who: RAY, text: '終わったな。黒潮会の金は消え、帳簿は金庫の中だ。' }, { who: RAY, text: 'NOVA、東京も大阪も博多も、この国の夜は全部お前のものだ。…ありがとうな。' }],
+    steps: [inCar('車に乗れ'), ...chase(VINCE, 'super', '#101010', 27, 37, '黒潮会の金'), go('レイのガレージへ戻れ', () => ({ x: GARAGE.x, z: GARAGE.z + 3 }), 9)],
+  },
 ];
+
 
 /* ------------------------------------------------------------------ runtime */
 export const storyDone = () => progress.story >= MISSIONS.length;
 export const nextMission = () => (storyDone() ? null : MISSIONS[progress.story]);
+/** The next mission is in another city: which one ('' = it is here, or anywhere). */
+export const missionElsewhere = () => { const M = nextMission(); return M && M.region && M.region !== REGION.id ? REGIONS[M.region].name : ''; };
 export function startMission() {
-  const M = nextMission(); if (!M || mission.id >= 0) return;
+  const M = nextMission(); if (!M || mission.id >= 0 || missionElsewhere()) return;
   mission.id = progress.story; mission.step = 0; mission.t = 0; mission.fail = ''; mission.data = {}; mission.target = null;
   toast('ミッション：' + M.title, 2.2); say(M.intro); M.steps[0].enter?.();
 }
@@ -134,7 +272,7 @@ function endMission(ok: boolean) {
 }
 export function updateStory(dt: number) {
   for (const l of talk.queue.slice(0, 1)) { l.t -= dt; if (l.t <= 0) talk.queue.shift(); }
-  if (mission.id < 0) { const M = nextMission(); mission.marker = null; if (M && game.where === 'out') { const s = M.start(); mission.marker = { x: s.x, y: groundAt(s.x, s.z), z: s.z }; } return; }
+  if (mission.id < 0) { const M = nextMission(); mission.marker = null; if (M && game.where === 'out' && !missionElsewhere()) { const s = M.start(); mission.marker = { x: s.x, y: groundAt(s.x, s.z), z: s.z }; } return; }
   const M = MISSIONS[mission.id], S = M.steps[mission.step];
   mission.t += dt;
   const mk = S.marker ? S.marker() : null; mission.marker = mk;
@@ -149,7 +287,7 @@ export function updateStory(dt: number) {
 }
 export function storyNear() {
   if (mission.id >= 0 || game.where !== 'out') return null;
-  const M = nextMission(); if (!M) return null;
+  const M = nextMission(); if (!M || missionElsewhere()) return null;
   const s = M.start(), me = playerCar(), p = P();
   return Math.hypot((me ? me.x : p.x) - s.x, (me ? me.z : p.z) - s.z) < 4 ? { kind: 'job' as const, id: 'story', label: `ミッション「${M.title}」を始める`, btn: '開始' } : null;
 }

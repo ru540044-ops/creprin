@@ -13,6 +13,8 @@ export type DeerState = 'graze' | 'walk' | 'beg' | 'bow' | 'eat' | 'flee' | 'res
 export interface Deer { id: number; x: number; z: number; y: number; yaw: number; s: number; buck: boolean; state: DeerState; t: number; tx: number; tz: number; head: number; phase: number; spd: number; /** this bow is for a cracker just given */ fed?: boolean }
 export const deer: Deer[] = [];
 /** The park's extent (deer stay inside it). */
+/** How many crackers have been handed over this session (the story watches it). */
+export const deerFed = { n: 0 };
 export const DEER_AREA = { x0: 0, z0: 0, x1: 0, z1: 0, on: false };
 
 let seed = 991;
@@ -51,7 +53,7 @@ export function feedDeer() {
   if (!d) { toast(REGION.id === 'nara' ? '近くに鹿がいない（公園で鹿に近づこう）' : '鹿は奈良公園にいる', 1.8); sfx('ui'); return; }
   if (game.items.senbei <= 0) { toast('鹿せんべいを持っていない（公園の屋台で買える）', 1.8); return; }
   game.items.senbei--; d.state = 'bow'; d.t = 1.6; d.fed = true; face(d, game.player.x, game.player.z); sfx('buy', 0.4);
-  progress.stats.flags.deer = 1;
+  progress.stats.flags.deer = 1; deerFed.n++;
   toast(`🦌 鹿がおじぎをして、せんべいを食べた（残り${game.items.senbei}枚）`, 2.2); save();
 }
 /** Bow to a deer without crackers: it bows back (and hopes for one). */

@@ -42,6 +42,7 @@ Run them one at a time: in parallel, taps time out.
 | `places.cjs` | map: kind chips, the nearest list, skip to each kind (the right prompt is there on arrival), guide, skip to the destination, refused while wanted |
 | `events.cjs` | street events: purse snatcher (runs, knocked down, give back / keep), lost wallet (police box / keep), lost tourist (right / wrong direction), reputation, shop discount, saved reputation, an event starting by itself |
 | `parking.cjs` | coin parking (pay in a bay, the car survives going 700 m away while an abandoned one is cleared, leaving the bay ends it, refused when broke), road-sign counts and screenshots |
+| `story2.cjs` | story chapter 2 (missions 6–13), run once per city (`tokyo` 6, 12, 13 · `osaka` 7, 8 · `nara` 9 · `fukuoka` 10 · `naha` 11): a mission of another city is not offered, each mission starts at its marker and is played to its reward (eating, getting in a car, coin parking, the three collections, feeding a deer, the chases, a time-out failure and restart). Travel between places is teleported and the wanted level is cleared by the script |
 | `line.cjs` | the real-distance line: travel-app ride Tokyo → Osaka (515 km; Fuji, tunnel, Lake Hamana, Nagoya views), clock, fast-forward, arrival; driving the bullet train out of the tunnel onto the line to Fukuoka (ATC, brakes) and arriving in the cab |
 
 ```sh
