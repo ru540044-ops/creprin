@@ -39,7 +39,7 @@ interface Step { goal: () => string; enter?: () => void; check: (dt: number) => 
 /* ---------- step builders for chapter 2 ---------- */
 const TATSU = 'タツ', MONK = '住職', TAISHO = '大将', CAPT = '船長';
 /** In front of the main station (where a chapter starts in each city). */
-const front = () => (STATION ? { x: STATION.x - 6, z: STATION.z } : { x: AIRPORT_ARRIVAL.x, z: AIRPORT_ARRIVAL.z + 10 });
+const front = () => (STATION ? { x: STATION.x - 6, z: STATION.z } : { x: AIRPORT_ARRIVAL.x, z: AIRPORT_ARRIVAL.z - 12 });
 /** Go to a place. */
 function go(text: string, pos: () => { x: number; z: number }, r = 8, lines?: Line[]): Step {
   return { goal: () => text, enter: lines ? () => say(lines) : undefined, marker: () => { const q = pos(); return { x: q.x, y: groundAt(q.x, q.z), z: q.z }; }, check: () => { const q = pos(); return at(q.x, q.z, r); } };
@@ -222,7 +222,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     title: '南の島', blurb: '那覇の船長に会い、港へ急げ。', reward: 12000, region: 'naha',
-    start: () => ({ x: AIRPORT_ARRIVAL.x, z: AIRPORT_ARRIVAL.z + 10 }),
+    start: () => ({ x: AIRPORT_ARRIVAL.x, z: AIRPORT_ARRIVAL.z - 12 }),
     intro: [{ who: CAPT, text: 'はいさい。話は聞いてるさ。まず' + REGION.landmark.label + 'まで来てくれ。そこで落ち合おう。' }],
     outro: [{ who: CAPT, text: '原本は引き上げたさ。これで黒潮会の金の流れは全部わかる。東京でレイが待ってるよ。' }],
     steps: [
@@ -261,12 +261,12 @@ export const missionElsewhere = () => { const M = nextMission(); return M && M.r
 export function startMission() {
   const M = nextMission(); if (!M || mission.id >= 0 || missionElsewhere()) return;
   mission.id = progress.story; mission.step = 0; mission.t = 0; mission.fail = ''; mission.data = {}; mission.target = null;
-  toast('ミッション：' + M.title, 2.2); say(M.intro); M.steps[0].enter?.();
+  toast('ミッション：' + M.title, 2.2); talk.queue.length = 0; say(M.intro); M.steps[0].enter?.(); // anything still being said belongs to the last job
 }
 function endMission(ok: boolean) {
   const M = MISSIONS[mission.id];
   if (mission.target && vehicles.includes(mission.target)) remove(mission.target);
-  if (ok) { progress.story++; game.money += M.reward; sfx('buy'); say(M.outro); showBanner('ok', 'MISSION COMPLETE', `「${M.title}」クリア　+$${M.reward.toLocaleString('en-US')}`, 4.5); save(); }
+  if (ok) { progress.story++; game.money += M.reward; sfx('buy'); talk.queue.length = 0; say(M.outro); showBanner('ok', 'MISSION COMPLETE', `「${M.title}」クリア　+$${M.reward.toLocaleString('en-US')}`, 4.5); save(); }
   else { showBanner('fail', 'MISSION FAILED', mission.fail + '（マーカーからやり直せる）', 4); sfx('crash', 0.3); }
   mission.id = -1; mission.marker = null; mission.target = null; game.waypoint = null;
 }
