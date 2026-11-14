@@ -18,7 +18,7 @@ for (const k of Object.keys(PROF) as (keyof typeof PROF)[]) {
   const r = (v: number) => +v.toFixed(2);
   const ok = !nan && !empty.length && box.x1 - box.x0 > def.len * 0.9 && box.x1 - box.x0 < def.len * 1.06 && box.z1 - box.z0 > def.wid * 0.95 && box.z1 - box.z0 < def.wid + 0.45 && gap > 0.05 && proud < 0;
   if (!ok) bad++;
-  out[k] = { ok, tris: Math.round(tris), ms: Math.round(ms), nan, empty, len: r(box.x1 - box.x0), wid: r(box.z1 - box.z0), top: r(box.y1), gap: r(gap), tyreProud: r(proud), lamps: [r(Q.hy), r(Q.ty)] };
+  out[k] = { ok, tris: Math.round(tris), ms: Math.round(ms), nan, empty, len: r(box.x1 - box.x0), wid: r(box.z1 - box.z0), top: r(box.y1), gap: r(gap), tyreProud: r(proud), lamps: [r(Q.hy), r(Q.ty)], bodyTris: [Q.paint.getAttribute('position').count / 3, Q.paintFar.getAttribute('position').count / 3] };
 }
 console.log(JSON.stringify({ bad }));
 for (const [k, v] of Object.entries(out)) console.log(k, JSON.stringify(v));

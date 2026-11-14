@@ -142,11 +142,11 @@ export function fuse(list: THREE.BufferGeometry[]) {
 }
 
 /** Stations along the length: even steps, closer together at the ends and through the wheel arches, and exactly at the listed places. */
-function stations(a: number, b: number, step: number, exact: number[], dense: [number, number][]) {
+function stations(a: number, b: number, step: number, exact: number[], dense: [number, number][], coarse = false) {
   const fixed = [a, b, ...exact.filter((x) => x > a + 0.02 && x < b - 0.02)], xs: number[] = [...fixed];
-  for (const d of [0.03, 0.08, 0.16, 0.28]) xs.push(a + d, b - d);
+  for (const d of coarse ? [0.06, 0.22] : [0.03, 0.08, 0.16, 0.28]) xs.push(a + d, b - d);
   for (let x = a + 0.45; x < b - 0.45; x += step) xs.push(x);
-  for (const [d0, d1] of dense) for (let k = 0; k <= 8; k++) { const x = d0 + ((d1 - d0) * k) / 8; if (x > a && x < b) xs.push(x); }
+  for (const [d0, d1] of dense) for (let k = 0, n = coarse ? 4 : 8; k <= n; k++) { const x = d0 + ((d1 - d0) * k) / n; if (x > a && x < b) xs.push(x); }
   // the fixed ones always stay; the others only where they are not crowding a neighbour
   const free = xs.filter((x) => !fixed.includes(x) && fixed.every((f) => Math.abs(f - x) > 0.025)).sort((p, q) => p - q), out: number[] = [...fixed];
   let last = -1e9; for (const x of free) if (x - last > 0.025) { out.push(x); last = x; }
@@ -154,8 +154,8 @@ function stations(a: number, b: number, step: number, exact: number[], dense: [n
 }
 
 /** The painted lower body: closed over the bonnet and boot, an open tub (walls, floor, sills) where the cabin is. */
-export function lowerBody(S: Shape) {
-  const m = new MB(), xs = stations(S.x0 + 0.004, S.x1 - 0.004, 0.3, [S.gx0, S.gx1], [[S.wx - S.R, S.wx + S.R], [-S.wx - S.R, -S.wx + S.R]]);
+export function lowerBody(S: Shape, coarse = false) {
+  const m = new MB(), xs = stations(S.x0 + 0.004, S.x1 - 0.004, coarse ? 0.8 : 0.3, [S.gx0, S.gx1], [[S.wx - S.R, S.wx + S.R], [-S.wx - S.R, -S.wx + S.R]], coarse);
   const C: number[][] = [], U: (number[] | null)[] = [], O: (number[] | null)[] = [];
   const open = (a: number, b: number) => (a + b) / 2 > S.gx0 && (a + b) / 2 < S.gx1;
   xs.forEach((x, i) => {

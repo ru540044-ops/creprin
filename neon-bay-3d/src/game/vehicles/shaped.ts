@@ -14,7 +14,7 @@ import { Prof, Shape, makeShape, lowerBody, greenhouse, endPatch, sidePatch, win
  */
 type G = THREE.BufferGeometry;
 interface Parts {
-  S: Shape; paint: G; glass: G; trim: G; chrome: G; head: G; tail: G; blinkL: G; blinkR: G; rev: G; seams: G; well: G; white?: G; dark?: G;
+  S: Shape; paint: G; /** the painted body with fewer faces, for cars a long way off */ paintFar: G; glass: G; trim: G; chrome: G; head: G; tail: G; blinkL: G; blinkR: G; rev: G; seams: G; well: G; white?: G; dark?: G;
   plateF: G; plateR: G; door: { x: number; z: number; panel: G; win: G; handle: G }; soot: G; crack: G; hy: number; ty: number;
 }
 const CACHE = new Map<VKind, Parts>();
@@ -28,7 +28,7 @@ export function carParts(def: VDef, P: Prof): Parts {
   const hy = tip(1) + (low ? 0.045 : 0.06), ty = tip(-1) + (low ? 0.13 : 0.15), lh = low ? 0.035 : 0.05;
   const xf = Math.min(S.gx1 * 0.9, L - 0.9), dl = 1.25, four = k === 'sedan' || k === 'taxi' || k === 'police' || k === 'suv' || k === 'limo' || k === 'hatch';
   const bx = xf - dl + 0.02, gh = greenhouse(S, bx);
-  const paint: G[] = [lowerBody(S), gh.paint], trim: G[] = [gh.black], chrome: G[] = [], seams: G[] = [], well: G[] = [];
+  const paint: G[] = [lowerBody(S), gh.paint], far: G[] = [lowerBody(S, true), gh.paint], trim: G[] = [gh.black], chrome: G[] = [], seams: G[] = [], well: G[] = [];
   const both = (f: (s: 1 | -1) => G | G[]) => ([1, -1] as const).flatMap((s) => f(s));
   // ---- lamps ----
   const head = fuse(both((s) => endPatch(S, 1, hy - lh, hy + lh, s * hw * 0.44, s * hw * 0.93, 0.008, 7, 2)));
@@ -65,7 +65,7 @@ export function carParts(def: VDef, P: Prof): Parts {
   // ---- per model ----
   let white: G | undefined, dark: G | undefined;
   const y5 = P.lower[5][1];
-  if (k === 'super' || k === 'sport') (k === 'super' ? trim : paint).push(box(0.35, 0.04, W * 0.9, -L + 0.25, y5 + 0.3, 0), box(0.06, 0.28, 0.06, -L + 0.3, y5 + 0.15, W * 0.3), box(0.06, 0.28, 0.06, -L + 0.3, y5 + 0.15, -W * 0.3));
+  if (k === 'super' || k === 'sport') { const wing = [box(0.35, 0.04, W * 0.9, -L + 0.25, y5 + 0.3, 0), box(0.06, 0.28, 0.06, -L + 0.3, y5 + 0.15, W * 0.3), box(0.06, 0.28, 0.06, -L + 0.3, y5 + 0.15, -W * 0.3)]; if (k === 'super') trim.push(...wing); else { paint.push(...wing); far.push(...wing.map((g) => g.clone())); } }
   if (k === 'hyper') { trim.push(box(0.45, 0.05, W * 0.98, -L + 0.2, 1.2, 0), box(0.08, 0.36, 0.08, -L + 0.3, 1.02, W * 0.32), box(0.08, 0.36, 0.08, -L + 0.3, 1.02, -W * 0.32)); trim.push(...both((s) => sidePatch(S, s, -1.05, -0.15, 0.44, 0.66, 0.006, 4, 2))); }
   if (k === 'muscle') { const sc = screenSpan(S); white = fuse([...[-1, 1].flatMap((s) => [topPatch(S, S.gx1 + 0.1, S.x1 - 0.2, s * 0.09, s * 0.27, 0.006, 8, 1), roofPatch(S, S.g0 + 0.45, sc.top - 0.05, s * 0.12, s * 0.36, 0.006, 6, 1), topPatch(S, S.x0 + 0.2, S.gx0 - 0.08, s * 0.09, s * 0.27, 0.006, 4, 1)])]); trim.push(box(0.7, 0.1, 0.5, 1.4, S.topY(1.4, 0) + 0.04, 0)); }
   if (k === 'pickup') dark = fuse([topPatch(S, S.x0 + 0.16, S.gx0 - 0.12, -hw * 0.84, hw * 0.84, 0.006, 6, 2)]);
@@ -81,7 +81,7 @@ export function carParts(def: VDef, P: Prof): Parts {
   const sc = screenSpan(S);
   const soot = keep(fuse([endPatch(S, 1, S.yb0 + 0.05, hy + lh + 0.03, -hw * 0.9, hw * 0.9, 0.013, 10, 4), topPatch(S, S.x1 - 1.0, S.x1 - 0.1, -hw * 0.62, hw * 0.62, 0.013, 5, 4)]));
   const crack = keep(roofPatch(S, sc.top + 0.03, sc.base - 0.04, -0.94, 0.94, 0.012, 5, 6, true));
-  const out: Parts = { S, paint: keep(fuse(paint)), glass: keep(gh.glass), trim: keep(fuse(trim)), chrome: keep(fuse(chrome)), head: keep(head), tail: keep(fuse(tailL)), blinkL: keep(blink(-1)), blinkR: keep(blink(1)), rev: keep(rev), seams: keep(fuse(seams)), well: keep(fuse(well)), white: white && keep(white), dark: dark && keep(dark), plateF, plateR, door, soot, crack, hy, ty };
+  const out: Parts = { S, paint: keep(fuse(paint)), paintFar: keep(fuse(far)), glass: keep(gh.glass), trim: keep(fuse(trim)), chrome: keep(fuse(chrome)), head: keep(head), tail: keep(fuse(tailL)), blinkL: keep(blink(-1)), blinkR: keep(blink(1)), rev: keep(rev), seams: keep(fuse(seams)), well: keep(fuse(well)), white: white && keep(white), dark: dark && keep(dark), plateF, plateR, door, soot, crack, hy, ty };
   CACHE.set(def.kind, out); return out;
 }
 
@@ -129,7 +129,7 @@ export function buildShaped(def: VDef, color: string, P: Prof): Omit<CarModel, '
   const amber = () => new THREE.MeshStandardMaterial({ color: '#7a4a00', emissive: new THREE.Color('#ffa21a'), emissiveIntensity: 0 });
   const blinkL = amber(), blinkR = amber(), rev = new THREE.MeshStandardMaterial({ color: '#cfcfcf', emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0 });
   const add = (g: THREE.BufferGeometry, m: THREE.Material, shadow = false, small = false, parent: THREE.Object3D = body) => { const mesh = new THREE.Mesh(g, m); mesh.castShadow = shadow; mesh.receiveShadow = shadow; if (small) mesh.userData.small = true; parent.add(mesh); return mesh; };
-  add(Q.paint, paint, true); add(Q.glass, glass); add(Q.trim, Sh.trim); add(Q.chrome, Sh.chrome); add(Q.well, X.well);
+  const skin = add(Q.paint, paint, true); add(Q.glass, glass); add(Q.trim, Sh.trim); add(Q.chrome, Sh.chrome); add(Q.well, X.well);
   add(Q.head, head); add(Q.tail, tail); add(Q.blinkL, blinkL, false, true); add(Q.blinkR, blinkR, false, true); add(Q.rev, rev, false, true); add(Q.seams, X.seam, false, true);
   if (Q.white) add(Q.white, X.white); if (Q.dark) add(Q.dark, X.dark);
   const plate = k === 'taxi' ? plates()[5] : plates()[plateN++ % 5]; add(Q.plateF, plate, false, true); add(Q.plateR, plate, false, true);
@@ -157,5 +157,5 @@ export function buildShaped(def: VDef, color: string, P: Prof): Omit<CarModel, '
   const cab = addCabin(def, P, W, body);
   const wheels: THREE.Group[] = [];
   for (const x of [S.wx, -S.wx]) for (const s of [-1, 1]) { const wg = wheel(def.wheelR, S.tw, rim, s, k === 'super' || k === 'hyper' || k === 'sport' || k === 'muscle'); wg.position.set(x, def.wheelR, s * S.wz); root.add(wg); wheels.push(wg); }
-  return { root, body, wheels, paint, glass, rim, lights: { head, tail, bar, blinkL, blinkR, rev }, door, eye: cab.eye, steering: cab.steering, sprung: true, damage: { soot, crack } };
+  return { root, body, wheels, paint, glass, rim, lights: { head, tail, bar, blinkL, blinkR, rev }, door, eye: cab.eye, steering: cab.steering, sprung: true, damage: { soot, crack }, lod: { mesh: skin, near: Q.paint, far: Q.paintFar, isFar: false } };
 }

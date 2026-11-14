@@ -25,6 +25,9 @@ await E(()=>{window.__nb3d.game.inCar=window.__cars[0]});await shot('night',[ox-
 // from the driver's seat
 await E(()=>{const G=window.__nb3d.game;G.hour=14;G.cam.carMode=2;window.__nb3dCamOverride=null;});await W(6000);await p.screenshot({path:'jp/'+tag+'_cockpit.png',timeout:180000});console.log('shot cockpit');await E(()=>{const G=window.__nb3d.game;G.cam.carMode=0;G.inCar=0;});
 await shot('rows',[ox+34,y+2.4,oz+9],[ox+40,y+0.8,oz],14);
+// ---- a long way off the painted body is swapped for a lighter one ----
+await shot('far',[ox+20,y+4,oz+112],[ox+20,y+0.7,oz]);console.log('far bodies',JSON.stringify(await E(()=>{const N=window.__nb3d;return window.__cars.map(id=>{const m=N.carModels.get(id);return m&&m.lod?(m.lod.isFar?1:0):-1})})));
+await shot('near_again',[ox-3.2,y+1.5,oz+6.2],[ox+5,y+0.7,oz]);console.log('near bodies',JSON.stringify(await E(()=>{const N=window.__nb3d;return window.__cars.map(id=>{const m=N.carModels.get(id);return m&&m.lod?(m.lod.isFar?1:0):-1})})));
 // ---- body roll and dive: the body leans, the wheels stay on the road ----
 const r=await E(()=>{const N=window.__nb3d,v=N.vehicles.find(q=>q.id===window.__cars[0]);v.roll=0.1;v.squat=0.05;return {roll:v.roll}});
 await shot('roll',[ox,y+0.9,oz+7],[ox,y+0.6,oz]);

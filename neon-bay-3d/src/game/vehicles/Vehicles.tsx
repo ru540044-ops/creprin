@@ -141,6 +141,7 @@ function VehicleView({ v }: { v: Veh }) {
     if (!m.root.visible) return;
     { const dx = v.x - camera.position.x, dz = v.z - camera.position.z, d2 = dx * dx + dz * dz, mine = v.id === game.inCar; // interior and small parts only close up
       if (m.cabin && m.cabin.length) { const show = d2 < 1225 || mine; if (m.cabin[0].visible !== show) for (const c of m.cabin) c.visible = show; }
+      if (m.lod) { const far = d2 > 8100 && !mine; if (far !== m.lod.isFar) { m.lod.isFar = far; m.lod.mesh.geometry = far ? m.lod.far : m.lod.near; } }
       if (m.small && m.small.length) { const show = d2 < 4900 || mine; if (m.small[0].visible !== show) for (const c of m.small) c.visible = show; } }
     m.root.position.set(v.x, v.y, v.z); m.root.rotation.y = v.yaw;
     // road cars ride on springs: the slope turns the whole car, braking / cornering only the body, so the wheels stay flat on the road
