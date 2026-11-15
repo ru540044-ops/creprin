@@ -40,7 +40,7 @@ export function addCabin(def: VDef, P: { lower: number[][]; glass: number[][]; r
   }
   if (!limo && gx0 < sx - 1.1) { add(box(0.5, 0.14, W * 0.74, gx0 + 0.5, floorY + 0.2, 0), leather); add(box(0.13, Math.max(0.3, headTop - floorY - 0.45), W * 0.74, gx0 + 0.22, floorY + 0.5, 0), leather); }
   if (limo) { // rear lounge: side bench, bar with glow strip, starry LED ceiling strip, partition
-    add(box(gx1 - gx0 - 2.2, 0.16, 0.52, (gx0 + sx - 0.6) / 2, floorY + 0.2, W * 0.32), leather); add(box(gx1 - gx0 - 2.2, 0.42, 0.12, (gx0 + sx - 0.6) / 2, floorY + 0.5, W * 0.43), leather);
+    add(box(gx1 - gx0 - 2.2, 0.16, 0.52, (gx0 + sx - 0.6) / 2, floorY + 0.2, W * 0.32), leather); add(box(gx1 - gx0 - 2.2, 0.42, 0.12, (gx0 + sx - 0.6) / 2, floorY + 0.5, W * 0.39), leather);
     add(box(0.55, 0.16, W * 0.7, gx0 + 0.45, floorY + 0.2, 0), leather);
     add(box(1.6, 0.55, 0.42, sx - 1.4, floorY + 0.28, -W * 0.3), ds('#3a2418', 0.3)); add(box(1.6, 0.03, 0.44, sx - 1.4, floorY + 0.56, -W * 0.3), glowM('#ff6ad5'));
     add(box(gx1 - gx0 - 1.6, 0.02, 0.06, (gx0 + sx) / 2 - 0.4, P.roofY - 0.06, 0), glowM('#7ab8ff'));
@@ -52,7 +52,7 @@ export function addCabin(def: VDef, P: { lower: number[][]; glass: number[][]; r
   const scr = new THREE.PlaneGeometry(0.24, 0.15).rotateY(-Math.PI / 2); scr.translate(gx1 - 0.43, belt - 0.03, 0); add(scr, glowM('#9fd8ff'));
   add(box(1.0, 0.24, 0.24, sx + 0.12, floorY + 0.2, 0), dark); add(box(0.06, 0.12, 0.06, sx + 0.3, floorY + 0.38, 0), shared().chrome);
   for (const s of [-1, 1]) { add(box(gx1 - gx0 + 0.2, belt - floorY + 0.02, 0.05, (gx0 + gx1) / 2, (belt + floorY) / 2, s * (W / 2 - 0.12)), dark); add(box(gx1 - gx0, 0.05, 0.06, (gx0 + gx1) / 2, belt - 0.12, s * (W / 2 - 0.15)), leather); }
-  add(box(gx1 - gx0 + 0.4, 0.04, W - 0.25, (gx0 + gx1) / 2, floorY, 0), dark);
+  add(box(gx1 - gx0 + 0.1, 0.04, W - 0.25, (gx0 + gx1) / 2, floorY, 0), dark);
   const steering = steeringWheel(0.18, gx1 - 0.58, belt + 0.0, W * 0.22, 0.42, body);
   return { eye: new THREE.Vector3(sx - 0.02, Math.min(belt + 0.27, P.roofY - 0.12), W * 0.22), steering };
 }

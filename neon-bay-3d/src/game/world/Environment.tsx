@@ -1,3 +1,4 @@
+import { drawEnv } from './envmap';
 import { admin, tdt } from '../admin';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -38,9 +39,7 @@ export default function Environment({ shadows, shadowSize }: { shadows: boolean;
       let zen = mix(mix(P.zNight, P.zDay, day), P.zDusk, dusk * 0.7), hor = mix(mix(P.hNight, P.hDay, day), P.hDusk, dusk * 0.85);
       const grey = P.cloud.clone().multiplyScalar(0.25 + day * 0.75); zen = mix(zen, grey, cloud * 0.8); hor = mix(hor, grey, cloud * 0.7);
       const gnd = mix(P.gNight, P.gDay, day);
-      const g = c.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#' + zen.getHexString()); g.addColorStop(0.47, '#' + hor.getHexString()); g.addColorStop(0.5, '#' + mix(hor, gnd, 0.5).getHexString()); g.addColorStop(1, '#' + gnd.getHexString());
-      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      drawEnv(c, W, H, '#' + zen.getHexString(), '#' + hor.getHexString(), '#' + gnd.getHexString(), day); // sky, skyline, clouds, ground
       if (night > 0.3) { const cg = c.createLinearGradient(0, H * 0.38, 0, H * 0.5); cg.addColorStop(0, 'rgba(255,140,80,0)'); cg.addColorStop(1, `rgba(255,140,90,${0.22 * night})`); c.fillStyle = cg; c.fillRect(0, H * 0.38, W, H * 0.12); } // city glow
       const d = sun.y > -0.05 ? sun : sun.clone().set(-sun.x, Math.abs(sun.y) * 0.8 + 0.2, -sun.z);
       const u = Math.atan2(d.z, d.x) / (Math.PI * 2) + 0.5, v = Math.asin(Math.max(-1, Math.min(1, d.y))) / Math.PI + 0.5, x = u * W, y = (1 - v) * H;

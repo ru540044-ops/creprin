@@ -11,9 +11,36 @@ import type { VDef, VKind } from './defs';
  *
  * Model space: x forward, y up, z to the right of the car (the driver sits at +z... see addCabin: right-hand drive).
  */
-export type Prof = { lower: number[][]; glass: number[][]; roofY: number };
+/**
+ * A car's design. lower: the side outline of the body below the windows (anticlockwise from the rear underside);
+ * glass: the side outline of the cabin; the rest shapes it in the other two directions.
+ */
+export type Prof = {
+  lower: number[][]; glass: number[][]; roofY: number;
+  /** half width along the car, [x, fraction of the full half width]: where it is waisted, where the hips are */ plan?: number[][];
+  /** the wing line, [x, y]: the height of the top edge of the flank (the wings stand above the bonnet and deck) */ shoulder?: number[][];
+  /** the cabin's half width at the belt, [x, fraction of the body's] */ gw?: number[][];
+  /** where the open cabin tub is (default: under all of the glass; a mid-engined car's is only the front part) */ cab?: [number, number];
+  /** a channel pressed into the flank leading to an air intake ahead of the rear wheel: from x1 (shallow) back to x0 (deepest), between heights y0 and y1 */ scoop?: { x0: number; x1: number; y0: number; y1: number; depth: number };
+  /** how far the flank tucks in at the sill / leans in at the shoulder / swells round the wheel arches (m) */ tuck?: number; lean?: number; flare?: number;
+  /** radius of the shoulder edge, gap between tyre and arch, height of the wing over the arch (m) */ rt?: number; gap?: number; lip?: number; /** how round the corners are in plan (m) */ corner?: number;
+  /** tyre widths, front and rear (m) */ tyres?: [number, number]; /** height of the nose's leading edge and of the tail lamps (m) */ nose?: number; tailY?: number;
+  /** which set of details: an ordinary car, or a low mid-engined exotic */ kit?: 'exotic';
+  taper?: number; tumble?: number; quarter?: number; clad?: boolean;
+};
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
+/** A smooth curve through control points [x, v] (in order of x); flat beyond the ends. */
+export function curve(pts: number[][]) {
+  const n = pts.length, m: number[] = [];
+  for (let i = 0; i < n; i++) { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)]; m.push(b[0] === a[0] ? 0 : (b[1] - a[1]) / (b[0] - a[0])); }
+  return (x: number) => {
+    if (x <= pts[0][0]) return pts[0][1]; if (x >= pts[n - 1][0]) return pts[n - 1][1];
+    let i = 0; while (x > pts[i + 1][0]) i++;
+    const A = pts[i], B = pts[i + 1], h = B[0] - A[0], t = (x - A[0]) / h, t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * A[1] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * B[1] + (t3 - t2) * h * m[i + 1];
+  };
+}
 /** Corner cutting on a closed polygon; corners for which keep() holds stay sharp. */
 function chaikin(poly: number[][], n: number, keep?: (p: number[]) => boolean) {
   for (let it = 0; it < n; it++) {
@@ -48,7 +75,7 @@ const STYLE: Partial<Record<VKind, Partial<Style>>> = {
 
 /** The surfaces of one car: where its skin is. */
 export interface Shape {
-  def: VDef; P: Prof; st: Style; W: number; x0: number; x1: number; yb0: number; belt: number; gx0: number; gx1: number; roofY: number; R: number; cy: number; wx: number; wz: number; tw: number;
+  def: VDef; P: Prof; st: Style; W: number; x0: number; x1: number; yb0: number; belt: number; gx0: number; gx1: number; /** the open cabin tub */ cab0: number; cab1: number; roofY: number; R: number; cy: number; wx: number; wz: number; tw: number; /** shoulder radius */ rt: number;
   /** half width of the lower body at x, y */ zs(x: number, y: number): number;
   /** underside at the centre / under the flank (raised over the wheels) */ ybc(x: number): number; ybs(x: number): number;
   /** top at the centre line / at the shoulder (raised over the wheels) */ ytc(x: number): number; yts(x: number): number;
@@ -56,35 +83,47 @@ export interface Shape {
   /** cabin: half width at x, y; top at x; height of roof / screens at x, z */ gz(x: number, y: number): number; gyt(x: number): number; gtop(x: number, z: number): number; beltG: number; g0: number; g1: number;
   /** the foremost / rearmost x of the skin at height y, offset z */ noseX(y: number, z: number): number; tailX(y: number, z: number): number;
 }
-const RB = 0.07, RT = 0.09, CROWN = 0.022, WELL = 0.3;
+const RB = 0.07, CROWN = 0.022, WELL = 0.3;
 
 export function makeShape(def: VDef, P: Prof): Shape {
   const st: Style = { taper: 0.1, tumble: 0.15, quarter: 0.28, clad: false, ...(STYLE[def.kind] || {}) };
+  if (P.taper != null) st.taper = P.taper; if (P.tumble != null) st.tumble = P.tumble; if (P.quarter != null) st.quarter = P.quarter; if (P.clad != null) st.clad = P.clad;
+  const RT = P.rt ?? 0.09, tuck = P.tuck ?? 0.035, lean = P.lean ?? 0, flare = P.flare ?? 0, lip = P.lip ?? 0.075, cab0 = P.cab ? P.cab[0] : Math.min(...P.glass.map((p) => p[0])), cab1 = P.cab ? P.cab[1] : Math.max(...P.glass.map((p) => p[0]));
   const W = def.wid, LP = chaikin(P.lower, 2), xs = LP.map((p) => p[0]), x0 = Math.min(...xs), x1 = Math.max(...xs), yb0 = Math.min(...LP.map((p) => p[1]));
   const beltG = Math.min(...P.glass.map((p) => p[1])), GP = chaikin(P.glass, 2, (p) => p[1] < beltG + 0.06), g0 = Math.min(...GP.map((p) => p[0])), g1 = Math.max(...GP.map((p) => p[0]));
   const gx0 = Math.min(...P.glass.map((p) => p[0])), gx1 = Math.max(...P.glass.map((p) => p[0])), belt = span(LP, (gx0 + gx1) / 2)[1];
-  const R = def.wheelR + (st.clad ? 0.1 : 0.07), cy = def.wheelR, wx = def.wheelbase / 2, tw = 0.24, wz = W / 2 - 0.165;
+  const R = def.wheelR + (P.gap ?? (st.clad ? 0.1 : 0.07)), cy = def.wheelR, wx = def.wheelbase / 2, tw = 0.24;
   const tF = Math.max(0.58 * x1, gx1 + 0.05), tR = Math.max(0.58 * -x0, -gx0 + 0.05);
+  const drawn = P.plan ? curve(P.plan) : null, cr = P.corner ?? 0.42, wing = P.shoulder ? curve(P.shoulder) : null;
   const plan = (x: number) => {
     const e = x > 0 ? x1 : -x0, t0 = Math.min(x > 0 ? tF : tR, e - 0.5), ax = Math.abs(x); let k = 1;
-    if (ax > t0) { const s = (ax - t0) / (e - t0); k *= 1 - st.taper * s * s; }
-    if (ax > e - 0.42) { const q = clamp((ax - (e - 0.42)) / 0.42, 0, 1); k *= Math.sqrt(1 - 0.5 * q * q); }
+    if (drawn) k = drawn(x); else if (ax > t0) { const s = (ax - t0) / (e - t0); k *= 1 - st.taper * s * s; }
+    if (ax > e - cr) { const q = clamp((ax - (e - cr)) / cr, 0, 1); k *= Math.sqrt(1 - 0.5 * q * q); }
     return k;
   };
-  const zs = (x: number, y: number) => { const u = clamp((y - yb0) / (belt - yb0), 0, 1); return (W / 2) * plan(x) * (1 - 0.035 * (1 - u) * (1 - u)); };
   const arch = (x: number) => { let a = -1; for (const c of [wx, -wx]) { const d = Math.abs(x - c); if (d < R) a = Math.max(a, cy + Math.sqrt(R * R - d * d)); } return a; };
   const cx = (x: number) => clamp(x, x0 + 1e-4, x1 - 1e-4);
   const ybc = (x: number) => span(LP, cx(x))[0], ytc = (x: number) => span(LP, cx(x))[1];
   const ybs = (x: number) => Math.max(ybc(x), Math.min(arch(x), ytc(x) + 0.2));
-  const yts = (x: number) => Math.max(ytc(x), arch(x) + 0.075);
+  const yts = (x: number) => Math.max(ytc(x), wing ? wing(x) : -1, arch(x) + lip);
+  const sc = P.scoop, sstep = (a: number, b: number, v: number) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const zs = (x: number, y: number) => {
+    const u = clamp((y - yb0) / Math.max(0.05, yts(x) - yb0), 0, 1); let z = (W / 2) * plan(x) * (1 - tuck * (1 - u) * (1 - u) - lean * u * u);
+    if (flare) { let g = 0; for (const c of [wx, -wx]) { const r = Math.hypot(x - c, y - cy); g = Math.max(g, r < R ? 1 : (1 - sstep(R, R + 0.32, r))); } z += flare * g; }
+    if (sc) z -= sc.depth * sstep(sc.x1, sc.x0 + 0.12, x) * sstep(sc.x0 - 0.1, sc.x0, x) * Math.sin(Math.PI * clamp((y - sc.y0) / (sc.y1 - sc.y0), 0, 1)) ** 0.7;
+    return z;
+  };
+  const wz = Math.min(zs(wx, cy + R * 0.9), zs(-wx, cy + R * 0.9)) - (P.tyres ? Math.max(...P.tyres) : tw) / 2 - 0.035;
   const topY = (x: number, z: number) => {
     const c = ytc(x), s = yts(x), zt = Math.max(0.05, zs(x, s) - RT), f = clamp(Math.abs(z) / zt, 0, 1);
     // flat and slightly crowned in the middle, rising to the wing tops over the wheels at the edges
-    const rise = f < 0.4 ? 0.04 * (f / 0.4) : f < 0.72 ? 0.04 + 0.31 * ((f - 0.4) / 0.32) : 0.35 + 0.65 * ((f - 0.72) / 0.28);
+    // with a drawn wing line the top is dished evenly from wing to wing; otherwise the wings only stand up near the edges
+    const rise = wing ? Math.pow(f, 1.8) : f < 0.4 ? 0.04 * (f / 0.4) : f < 0.72 ? 0.04 + 0.31 * ((f - 0.4) / 0.32) : 0.35 + 0.65 * ((f - 0.72) / 0.28);
     return c + (s - c) * rise + CROWN * (1 - f * f);
   };
   const gc = (g0 + g1) / 2, gh = (g1 - g0) / 2;
-  const gz = (x: number, y: number) => zs(x, belt) * 0.955 * (1 - 0.05 * ((x - gc) / gh) ** 2) * (1 - st.tumble * clamp((y - beltG) / (P.roofY - beltG), 0, 1));
+  const gwc = P.gw ? curve(P.gw) : null;
+  const gz = (x: number, y: number) => (W / 2) * plan(x) * (gwc ? gwc(x) : 0.955 * (1 - 0.05 * ((x - gc) / gh) ** 2)) * (1 - st.tumble * clamp((y - beltG) / (P.roofY - beltG), 0, 1));
   const gyt = (x: number) => Math.max(beltG, span(GP, clamp(x, g0 + 1e-4, g1 - 1e-4))[1]);
   const gtop = (x: number, z: number) => { const t = gyt(x), zt = Math.max(0.05, gz(x, t) - 0.06); return t + 0.02 * (1 - clamp(Math.abs(z) / zt, 0, 1) ** 2); };
   const inside = (x: number, y: number, z: number) => x > x0 && x < x1 && y >= ybs(x) - 0.01 && y <= yts(x) + 0.01 && zs(x, y) >= Math.abs(z);
@@ -94,7 +133,7 @@ export function makeShape(def: VDef, P: Prof): Shape {
     return inn;
   };
   const noseX = (y: number, z: number) => edge(x1 - 0.002, 1, y, z), tailX = (y: number, z: number) => edge(x0 + 0.002, -1, y, z);
-  return { def, P, st, W, x0, x1, yb0, belt, gx0, gx1, roofY: P.roofY, R, cy, wx, wz, tw, zs, ybc, ybs, ytc, yts, topY, gz, gyt, gtop, beltG, g0, g1, noseX, tailX };
+  return { def, P, st, W, x0, x1, yb0, belt, gx0, gx1, cab0, cab1, roofY: P.roofY, R, cy, wx, wz, tw, rt: RT, zs, ybc, ybs, ytc, yts, topY, gz, gyt, gtop, beltG, g0, g1, noseX, tailX };
 }
 
 /* ------------------------------------------------------------------ mesh helpers */
@@ -119,10 +158,10 @@ class MB {
     return this.tris.map((t) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', all.getAttribute('position')); g.setAttribute('normal', all.getAttribute('normal')); g.setIndex(t || []); return g.toNonIndexed(); });
   }
 }
-/** Do the normals point away from the car's spine (the line along its length at seat height)? */
+/** Do the normals point away from the car's spine (the line along its length, low enough to be inside any car's body)? */
 function outward(g: THREE.BufferGeometry) {
   const p = g.getAttribute('position'), n = g.getAttribute('normal'); let s = 0;
-  for (let i = 0; i < p.count; i++) s += n.getX(i) * p.getX(i) * 0.15 + n.getY(i) * (p.getY(i) - 0.7) + n.getZ(i) * p.getZ(i);
+  for (let i = 0; i < p.count; i++) s += n.getX(i) * p.getX(i) * 0.15 + n.getY(i) * (p.getY(i) - 0.4) + n.getZ(i) * p.getZ(i);
   return s >= 0;
 }
 /** A grid of points f(u, v), u and v in 0..1, as a surface with smooth normals facing outwards (and uv for textures). */
@@ -155,15 +194,15 @@ function stations(a: number, b: number, step: number, exact: number[], dense: [n
 
 /** The painted lower body: closed over the bonnet and boot, an open tub (walls, floor, sills) where the cabin is. */
 export function lowerBody(S: Shape, coarse = false) {
-  const m = new MB(), xs = stations(S.x0 + 0.004, S.x1 - 0.004, coarse ? 0.8 : 0.3, [S.gx0, S.gx1], [[S.wx - S.R, S.wx + S.R], [-S.wx - S.R, -S.wx + S.R]], coarse);
+  const m = new MB(), xs = stations(S.x0 + 0.004, S.x1 - 0.004, coarse ? 0.8 : 0.3, [S.cab0, S.cab1], [[S.wx - S.R, S.wx + S.R], [-S.wx - S.R, -S.wx + S.R]], coarse);
   const C: number[][] = [], U: (number[] | null)[] = [], O: (number[] | null)[] = [];
-  const open = (a: number, b: number) => (a + b) / 2 > S.gx0 && (a + b) / 2 < S.gx1;
+  const open = (a: number, b: number) => (a + b) / 2 > S.cab0 && (a + b) / 2 < S.cab1, RT = S.rt, rowsF = S.P.scoop && !coarse ? [0.2, 0.4, 0.6, 0.8, 1] : [0.5, 1];
   xs.forEach((x, i) => {
     const bc = S.ybc(x), bs = S.ybs(x), tc = S.ytc(x), ts = S.yts(x), h = Math.max(0.004, ts - bs), k = Math.min(1, h / (RB + RT + 0.03)), rb = RB * k, rt = RT * k;
     const zb = S.zs(x, bs + rb), zw = Math.max(0.02, zb - WELL), c: number[] = [];
     c.push(m.v(x, bc, 0), m.v(x, bc, zw * 0.6), m.v(x, bc, zw - 0.004), m.v(x, Math.max(bc, bs), zw), m.v(x, bs, Math.max(zw, zb - rb)));
     for (const a of [Math.PI / 4, Math.PI / 2]) c.push(m.v(x, bs + rb * (1 - Math.cos(a)), zb - rb + rb * Math.sin(a)));
-    for (const f of [0.5, 1]) { const y = bs + rb + (ts - rt - bs - rb) * f; c.push(m.v(x, y, S.zs(x, y))); }
+    for (const f of rowsF) { const y = bs + rb + (ts - rt - bs - rb) * f; c.push(m.v(x, y, S.zs(x, y))); }
     C.push(c);
     const last = c[c.length - 1], zt = S.zs(x, ts - rt), isO = (i > 0 && open(xs[i - 1], x)) || (i < xs.length - 1 && open(x, xs[i + 1])), isC = (i > 0 && !open(xs[i - 1], x)) || (i < xs.length - 1 && !open(x, xs[i + 1]));
     if (isC) { const u = [last]; u.push(m.v(x, ts - rt + rt * Math.sin(Math.PI / 4), zt - rt + rt * Math.cos(Math.PI / 4))); for (const f of [1, 0.72, 0.4, 0]) { const z = (zt - rt) * f; u.push(m.v(x, S.topY(x, z), z)); } void tc; U.push(u); } else U.push(null);
@@ -177,7 +216,7 @@ export function lowerBody(S: Shape, coarse = false) {
   m.mirror();
   const parts = m.build();
   // the ends, and the walls between the bonnet / boot and the cabin
-  for (const [i, kind] of [[0, 'cap'], [xs.length - 1, 'cap'], [xs.indexOf(S.gx0), 'wall'], [xs.indexOf(S.gx1), 'wall']] as const) {
+  for (const [i, kind] of [[0, 'cap'], [xs.length - 1, 'cap'], [xs.indexOf(S.cab0), 'wall'], [xs.indexOf(S.cab1), 'wall']] as const) {
     if (i < 0) continue; const x = xs[i], ring = [...C[i], ...(U[i] || []).slice(1)], pts: number[][] = ring.map((q) => [m.p[q * 3], m.p[q * 3 + 1], m.p[q * 3 + 2]]);
     const mid = (S.ybc(x) + S.ytc(x)) / 2, tri: number[] = [];
     for (let j = 0; j < pts.length - 1; j++) for (const s of [1, -1]) { const a = pts[j], b = pts[j + 1]; if (kind === 'wall' && (a[1] > S.belt + 0.02 || b[1] > S.belt + 0.02)) continue; tri.push(x, mid, 0, a[0], a[1], a[2] * s, b[0], b[1], b[2] * s); }
@@ -187,7 +226,7 @@ export function lowerBody(S: Shape, coarse = false) {
 }
 
 /** The cabin above the belt line: [glass, paint (pillars, roof rails, roof, rear quarters), black (centre pillar)]. */
-export function greenhouse(S: Shape, bx: number) {
+export function greenhouse(S: Shape, bx: number, visor = false) {
   const m = new MB(), cq = S.g0 + S.st.quarter, xs = stations(S.g0, S.g1, 0.16, [bx - 0.05, bx + 0.05, cq], []), yb = S.beltG;
   const rows = xs.map((x) => {
     const yt = S.gyt(x), rt = Math.min(0.065, (yt - yb) * 0.45), zt = S.gz(x, yt - rt), r: number[] = [];
@@ -198,7 +237,8 @@ export function greenhouse(S: Shape, bx: number) {
   const GLASS = 0, PAINT = 1, BLACK = 2, roof = (x: number) => S.gyt(x) > S.roofY - 0.035;
   for (let i = 0; i < xs.length - 1; i++) {
     const A = rows[i], B = rows[i + 1], xm = (xs[i] + xs[i + 1]) / 2, side = Math.abs(xm - bx) < 0.05 ? BLACK : xm < cq ? PAINT : GLASS, top = roof(xs[i]) && roof(xs[i + 1]) ? PAINT : GLASS;
-    for (let j = 0; j < 7; j++) m.quad(A[j], B[j], B[j + 1], A[j + 1], j < 3 ? side : j < 5 ? PAINT : top);
+    const pillar = visor && top === GLASS && xm > (S.g0 + S.g1) / 2 ? BLACK : PAINT; // a wrap-round screen: the front pillars are blacked out
+    for (let j = 0; j < 7; j++) m.quad(A[j], B[j], B[j + 1], A[j + 1], j < 3 ? side : j < 5 ? pillar : top);
   }
   // an upright tail (hatchbacks, off-roaders, pickup cabs) is closed with a rear window
   const back: THREE.BufferGeometry[] = [];

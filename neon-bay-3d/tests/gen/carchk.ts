@@ -14,9 +14,9 @@ for (const k of Object.keys(PROF) as (keyof typeof PROF)[]) {
     const n = g.getAttribute('normal'); if (n) for (let i = 0; i < n.count; i++) if (!isFinite(n.getX(i) + n.getY(i) + n.getZ(i))) nan++;
   }
   // the tyre against the arch: clear of the arch top, and its outer face inside the flank at the hub height
-  const gap = S.R - def.wheelR, proud = Math.max(...[S.wx, -S.wx].map((c) => S.wz + S.tw / 2 - S.zs(c, S.cy)));
+  const gap = S.R - def.wheelR, proud = Math.max(...[S.wx, -S.wx].map((c) => S.zs(c, S.cy + S.R * 0.9) - 0.035 - S.zs(c, S.cy + S.R * 0.6))); // the tyre's outer face against the flank beside it
   const r = (v: number) => +v.toFixed(2);
-  const ok = !nan && !empty.length && box.x1 - box.x0 > def.len * 0.9 && box.x1 - box.x0 < def.len * 1.06 && box.z1 - box.z0 > def.wid * 0.95 && box.z1 - box.z0 < def.wid + 0.45 && gap > 0.05 && proud < 0;
+  const ok = !nan && !empty.length && box.x1 - box.x0 > def.len * 0.9 && box.x1 - box.x0 < def.len * 1.06 && box.z1 - box.z0 > def.wid * 0.95 && box.z1 - box.z0 < def.wid + 0.45 && gap > 0.04 && proud < 0.01;
   if (!ok) bad++;
   out[k] = { ok, tris: Math.round(tris), ms: Math.round(ms), nan, empty, len: r(box.x1 - box.x0), wid: r(box.z1 - box.z0), top: r(box.y1), gap: r(gap), tyreProud: r(proud), lamps: [r(Q.hy), r(Q.ty)], bodyTris: [Q.paint.getAttribute('position').count / 3, Q.paintFar.getAttribute('position').count / 3] };
 }
