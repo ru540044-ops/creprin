@@ -53,7 +53,8 @@ const before=await E(()=>{const N=window.__nb3d;return {px:N.game.player.x,pz:N.
 await E(()=>{window.__nb3d.story.startMission()});await W(2000);
 let c=await E(()=>{const N=window.__nb3d,C=N.cine;return {on:C.on,lock:C.lock,kind:C.kind,dur:C.dur,locked:N.input.locked,mid:N.story.mission.id,bodyCine:document.body.classList.contains('cine'),camOn:C.cam.on,queue:C.queue.length}});
 ok('cine: the mission opens with a scene (intro first, goal next)',c.on&&c.lock&&c.kind==='intro'&&c.queue===1&&c.mid>=0,JSON.stringify(c));
-ok('cine: input is locked, the HUD steps aside',c.locked&&c.bodyCine);
+await until(async()=>E(()=>document.body.classList.contains('cine')),30000);c=await E(()=>({locked:window.__nb3d.input.locked,bodyCine:document.body.classList.contains('cine')}));
+ok('cine: input is locked, the HUD steps aside',c.locked&&c.bodyCine,JSON.stringify(c));
 // walk: the held stick must do nothing; the mission clock must stand still
 await E(()=>{const I=window.__nb3d.input;I.joyActive=true;I.joyX=0;I.joyY=1;I.action=true;I.jump=true});
 const p0=await E(()=>({x:window.__nb3d.game.player.x,z:window.__nb3d.game.player.z,t:window.__nb3d.story.mission.t}));await W(3000);

@@ -36,7 +36,8 @@ export function startCine(scenes: { kind: CineKind; dur: number }[], goal?: () =
   if (!scenes.length || !cineSafe()) return false;
   cine.queue = scenes.slice(1); cine.goal = goal || null; begin(scenes[0]); return true;
 }
-function begin(s: { kind: CineKind; dur: number }) { pickSide(s.kind); cine.on = true; cine.lock = true; cine.kind = s.kind; cine.t = 0; cine.dur = s.dur; cine.skippable = true; cine.cam.on = true; cine.played++; }
+function begin(s: { kind: CineKind; dur: number }) { pickSide(s.kind); cine.on = true; cine.lock = true; input.locked = true; // the controls are taken this instant, not on the next frame
+  cine.kind = s.kind; cine.t = 0; cine.dur = s.dur; cine.skippable = true; cine.cam.on = true; cine.played++; }
 /** Skip: straight to the end of the whole sequence. */
 export function skipCine() { cine.queue = []; if (cine.on) cine.t = cine.dur; }
 

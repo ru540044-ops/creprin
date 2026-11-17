@@ -22,7 +22,9 @@ async function playCollection(pick){
   for(let k=0;k<3;k++){const s=await step();await toMarker();await until(async()=>(await step())!==s,40000);}
   const shown=await until(async()=>E(()=>!!window.__nb3d.eventsMod.ev.choice),15000);
   const info=await E(()=>{const c=window.__nb3d.eventsMod.ev.choice;return c&&{title:c.title,story:c.story,n:c.options.length,labels:c.options.map(o=>o.label),goal:window.__nb3d.story.storyStatus().text}});
-  await W(800);const dom=await E(()=>({box:!!document.querySelector('.choiceBox'),btns:document.querySelectorAll('.choiceBox button').length}));
+  await until(async()=>E(()=>document.querySelectorAll('.choiceBox button').length>=2),30000); // the panel redraws every 150 ms: on a slow page it can be a while
+  const dom=await E(()=>({box:!!document.querySelector('.choiceBox'),btns:document.querySelectorAll('.choiceBox button').length}));
+  if(dom.btns<2)console.log('  DEBUG no panel:',JSON.stringify(await E(()=>{const N=window.__nb3d,c=N.eventsMod.ev.choice;return {choice:c&&c.title,where:N.game.where,overlay:[...document.querySelectorAll('.overlay')].map(o=>o.className+':'+o.innerText.slice(0,40)),studio:N.game.styling,phone:N.game.phone,ui:N.game.ui,cine:N.cine.on,fps:N.game.fps,paused:N.game.paused}})));
   await E((k)=>{document.querySelectorAll('.choiceBox button')[k].click()},pick);
   await until(async()=>E(()=>!window.__nb3d.eventsMod.ev.choice),10000);
   const after=await E(()=>{const N=window.__nb3d;return {ch:N.progress.stats.flags.ch_collect,rep:N.progress.stats.flags.rep,bonus:N.story.mission.data.bonus,step:N.story.mission.step}});
