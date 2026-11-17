@@ -27,6 +27,7 @@ export const models = new Map<number, CarModel>();
 
 /** Driving controls: keyboard WASD/arrows + Space, or the touch pedal/steer buttons, or the stick x-axis. */
 export function driveInput(kind = '') {
+  if (input.locked) return { thr: 0, brake: 0, steer: 0, hb: true, lift: 0, nitro: false }; // a scene is playing: the car holds still
   const k = input.keys, [jx] = input.joyActive ? [input.joyX] : [0];
   const thr = Math.max(k.has('w') || k.has('arrowup') || input.gas ? 1 : 0, 0);
   const brake = k.has('s') || k.has('arrowdown') || input.brake ? 1 : 0;

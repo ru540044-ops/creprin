@@ -1,3 +1,4 @@
+import { cine, skipCine } from '../cine';
 import { trainInfo } from '../crime/japan';
 import { REGION } from '../world/region';
 import StyleStudio from './StyleStudio';
@@ -285,6 +286,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
           </div>
         </div>
       </div>
+      {cine.k > 0.01 && <><div className="cineBar top" style={{ transform: `translateY(${(cine.k - 1) * 100}%)` }} /><div className="cineBar bot" style={{ transform: `translateY(${(1 - cine.k) * 100}%)` }} />{cine.skippable && cine.on && <button type="button" className="cineSkip" onClick={() => skipCine()}>スキップ ▶▶</button>}</>}
       {game.fadeT > 0 && <div className="fade" style={{ opacity: Math.min(1, game.fadeT) }} />}
       {game.hurtT > 0 && <div className="hurt" style={{ opacity: Math.min(1, game.hurtT * 1.6) }} />}
       {admin.is && (() => { const n = (['god', 'noWanted', 'infAmmo', 'carGod', 'carBoost', 'fastRun', 'superJump', 'freezeTime'] as const).filter((k) => admin[k]).length + (admin.timeScale !== 1 ? 1 : 0); return <div className="adBadge">ADMIN{n ? ' ●' + n : ''}</div>; })()}

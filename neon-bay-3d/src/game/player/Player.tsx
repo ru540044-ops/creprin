@@ -1,3 +1,4 @@
+import { cine } from '../cine';
 import { exitTrain } from '../crime/japan';
 import { lookState } from './appearance';
 import { progress } from '../state/store';
@@ -102,6 +103,7 @@ export default function Player() {
     if (line.on) return; // riding between the cities: LineView has the camera
     if (lookState.ver !== lookVer.current) { lookVer.current = lookState.ver; setC(makeCharacter(progress.look)); }
     const dt = tdt(Math.min(rawDt, 0.05)), p = game.player, inside = game.where !== 'out', def = INTERIORS[game.where];
+    if (cine.lock) { input.action = input.jump = input.fire = input.crouchToggle = input.wcycle = input.radio = input.aim = input.aimHold = input.camCycle = false; input.lookDX = input.lookDY = 0; } // a scene is playing
     const me = playerCar();
     if (game.inCar && !me) game.inCar = 0;
     if (!game.started) { st.phase += dt; }
@@ -321,6 +323,10 @@ export default function Player() {
       camera.up.set(0, 1, 0);
       camera.position.set(P.x + Math.sin(a) * dist + rx * side, ty + (zoom ? 0.0 : 0.15), P.z + Math.cos(a) * dist + rz * side);
       camera.lookAt(P.x + rx * side, ty, P.z + rz * side); return;
+    }
+    if (cine.cam.on && game.started) { // a cinematic scene: its own camera
+      const cc = camera as THREE.PerspectiveCamera; camera.up.copy(WUP); camera.position.copy(cine.cam.pos); camera.lookAt(cine.cam.look);
+      if (Math.abs(cc.fov - cine.cam.fov) > 0.05) { cc.fov += (cine.cam.fov - cc.fov) * Math.min(1, dt * 6); cc.updateProjectionMatrix(); st.fov = cc.fov; } return;
     }
     if (!game.started) { // attract orbit over the city
       const t = performance.now() / 1000 * 0.035, r = 560 + Math.sin(t * 0.7) * 80; camera.up.set(0, 1, 0); camera.position.set(Math.sin(t) * r, 215 + Math.sin(t * 0.5) * 40, Math.cos(t) * r); camera.lookAt(Math.sin(t * 0.3) * 60, 45, 0); return;

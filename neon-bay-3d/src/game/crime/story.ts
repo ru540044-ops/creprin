@@ -1,3 +1,5 @@
+import { cine, startCine } from '../cine';
+import { scoreSting } from '../score';
 import { REGION, RegionId, REGIONS } from '../world/region';
 import { eatFx } from '../ui/eat';
 import { deerFed } from '../ai/deer';
@@ -262,21 +264,24 @@ export function startMission() {
   const M = nextMission(); if (!M || mission.id >= 0 || missionElsewhere()) return;
   mission.id = progress.story; mission.step = 0; mission.t = 0; mission.fail = ''; mission.data = {}; mission.target = null;
   toast('ミッション：' + M.title, 2.2); talk.queue.length = 0; say(M.intro); M.steps[0].enter?.(); // anything still being said belongs to the last job
+  scoreSting('start');
+  { const len = M.intro.reduce((a, l) => a + 2.2 + l.text.length * 0.075, 0); startCine([{ kind: 'intro', dur: Math.min(9, Math.max(3.5, len)) }, { kind: 'goal', dur: 4 }], () => mission.marker); } // the opening scene, then a look at where the job is
 }
 function endMission(ok: boolean) {
   const M = MISSIONS[mission.id];
   if (mission.target && vehicles.includes(mission.target)) remove(mission.target);
-  if (ok) { progress.story++; game.money += M.reward; sfx('buy'); talk.queue.length = 0; say(M.outro); showBanner('ok', 'MISSION COMPLETE', `「${M.title}」クリア　+$${M.reward.toLocaleString('en-US')}`, 4.5); save(); }
-  else { showBanner('fail', 'MISSION FAILED', mission.fail + '（マーカーからやり直せる）', 4); sfx('crash', 0.3); }
+  if (ok) { progress.story++; game.money += M.reward; sfx('buy'); scoreSting('win'); talk.queue.length = 0; say(M.outro); startCine([{ kind: 'win', dur: 4.2 }]); showBanner('ok', 'MISSION COMPLETE', `「${M.title}」クリア　+$${M.reward.toLocaleString('en-US')}`, 4.5); save(); }
+  else { showBanner('fail', 'MISSION FAILED', mission.fail + '（マーカーからやり直せる）', 4); sfx('crash', 0.3); scoreSting('fail'); }
   mission.id = -1; mission.marker = null; mission.target = null; game.waypoint = null;
 }
 export function updateStory(dt: number) {
   for (const l of talk.queue.slice(0, 1)) { l.t -= dt; if (l.t <= 0) talk.queue.shift(); }
   if (mission.id < 0) { const M = nextMission(); mission.marker = null; if (M && game.where === 'out' && !missionElsewhere()) { const s = M.start(); mission.marker = { x: s.x, y: groundAt(s.x, s.z), z: s.z }; } return; }
   const M = MISSIONS[mission.id], S = M.steps[mission.step];
-  mission.t += dt;
   const mk = S.marker ? S.marker() : null; mission.marker = mk;
   if (mk && mk.y > -40) game.waypoint = { x: mk.x, z: mk.z };
+  if (cine.lock) return; // a scene is playing: the mission clock stands still
+  mission.t += dt;
   if (law.over) { mission.fail = law.over.kind === 'busted' ? '逮捕された' : '倒れてしまった'; endMission(false); return; }
   if (mission.fail === '' && S.check(dt)) {
     mission.step++;

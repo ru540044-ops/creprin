@@ -377,3 +377,10 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .choiceOpts button{border:0;border-left:3px solid #ffd23a;border-radius:4px;background:rgba(14,11,32,.88);color:#fff;text-align:left;padding:9px 12px;font:inherit;font-weight:800;font-size:13px;min-height:46px}
 .choiceOpts button small{display:block;font-weight:600;font-size:11px;color:#aab;margin-top:2px}
 .choiceOpts button:active{background:#ffd23a;color:#1a1400}.choiceOpts button:active small{color:#3a3000}
+
+/* cinematic scenes: black bars, the HUD steps aside, subtitles sit on the lower bar */
+.cineBar{position:fixed;left:0;right:0;height:13vh;background:#000;z-index:40;pointer-events:none}
+.cineBar.top{top:0}.cineBar.bot{bottom:0}
+.cineSkip{position:fixed;right:calc(14px + var(--sar,0px));top:calc(13vh + 10px);z-index:41;background:rgba(10,8,20,.6);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;letter-spacing:.04em}
+body.cine .hud,body.cine .joyZone,body.cine .lookZone,body.cine .prompt,body.cine .pedals,body.cine .steer,body.cine .toast,body.cine .tb,body.cine .tut,body.cine .banner.ach,body.cine .keys,body.cine .district,body.cine .speedo{opacity:0;pointer-events:none}
+body.cine .subs{bottom:calc(13vh + 12px)}
