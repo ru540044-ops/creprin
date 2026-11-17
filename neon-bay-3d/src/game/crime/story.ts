@@ -1,4 +1,5 @@
 import { cine, startCine } from '../cine';
+import { ev, addRep } from './events';
 import { scoreSting } from '../score';
 import { REGION, RegionId, REGIONS } from '../world/region';
 import { eatFx } from '../ui/eat';
@@ -52,6 +53,25 @@ const inCar = (text: string, lines?: Line[]): Step => ({ goal: () => text, enter
 const ate = (text: string, re: RegExp): Step => ({ goal: () => text, enter: () => { mission.data.eat = eatFx.ver; }, check: () => eatFx.ver !== mission.data.eat && eatFx.on && re.test(eatFx.name) });
 /** The police are called: lose them. */
 const lose = (stars: number, why: string, text: string): Step => ({ goal: () => `${text}（手配 ${'★'.repeat(game.wanted)}）`, enter: () => { setWanted(stars, why); }, check: () => game.wanted === 0 });
+/**
+ * A decision put to the player, remembered for later: the choice is stored under `flag` (what the later missions read),
+ * and may move the reputation and add to (or take from) the mission's reward. The step is done when one is picked.
+ */
+interface Pick { label: string; sub?: string; value: number; rep?: number; bonus?: number; say?: Line[] }
+const decide = (flag: string, title: string, who: string, text: string, options: Pick[]): Step => ({
+  goal: () => `選べ：${title}`,
+  enter: () => {
+    delete mission.data['pick_' + flag];
+    ev.choice = { title, who, text, story: true, options: options.map((o) => ({ label: o.label, sub: o.sub, pick: () => {
+      ev.choice = null; progress.stats.flags[flag] = o.value; mission.data['pick_' + flag] = o.value; mission.data.bonus = (mission.data.bonus || 0) + (o.bonus || 0);
+      if (o.rep) addRep(o.rep, o.rep > 0 ? '情に厚い' : '冷たい'); if (o.say) say(o.say); sfx('ui', 0.6); save();
+    } })) };
+  },
+  check: () => mission.data['pick_' + flag] !== undefined,
+});
+/** What was chosen earlier (0: nothing yet). */
+const chose = (flag: string) => progress.stats.flags[flag] || 0;
+const lines = (l: Line[] | (() => Line[])) => (typeof l === 'function' ? l() : l);
 /** The nearest coin-parking lot. */
 const lot = () => { const p = P(); let b: typeof blocks[number] | null = null, bd = 1e9; for (const k of blocks) { if (k.zone !== 'parking') continue; const d = Math.hypot((k.x0 + k.x1) / 2 - p.x, (k.z0 + k.z1) / 2 - p.z); if (d < bd) { bd = d; b = k; } } return b; };
 /** The n nearest convenience stores (the pavement in front of their doors), each at least 60 m from the others. */
@@ -84,7 +104,7 @@ function chase(who: string, kind: 'sedan' | 'sport' | 'super', color: string, cr
       marker: () => ({ x: mission.data.book.x, y: groundAt(mission.data.book.x, mission.data.book.z), z: mission.data.book.z }), check: () => at(mission.data.book.x, mission.data.book.z, 3.5) },
   ];
 }
-interface Mission { title: string; blurb: string; reward: number; /** the city it takes place in (none: wherever you are) */ region?: RegionId; start: () => { x: number; z: number }; intro: Line[]; outro: Line[]; steps: Step[] }
+interface Mission { title: string; blurb: string; reward: number; /** the city it takes place in (none: wherever you are) */ region?: RegionId; start: () => { x: number; z: number }; /** what is said at the start / end: a function when it depends on what the player chose earlier */ intro: Line[] | (() => Line[]); outro: Line[] | (() => Line[]); steps: Step[] }
 
 export const MISSIONS: Mission[] = [
   {
@@ -192,11 +212,15 @@ export const MISSIONS: Mission[] = [
     title: '取り立て', blurb: 'タツの縄張りの店を3軒まわって、みかじめを集めろ。', reward: 9000, region: 'osaka',
     start: () => front(),
     intro: [{ who: TATSU, text: '黒潮会がうちの縄張りの店を脅しとる。先にうちが回って、今月分を預かってきてくれ。3軒や。' }],
-    outro: [{ who: TATSU, text: 'ようやった。これで連中に渡る金はない。…奈良の住職が帳簿の写しの在りかを知っとるらしい。行ってみ。' }],
+    outro: () => [{ who: TATSU, text: chose('ch_collect') === 1 ? 'お前、甘いなあ。…けど、そういうのは嫌いやない。' : 'さすがや。ええ取り立てやった。' }, { who: TATSU, text: 'これで連中に渡る金はない。…奈良の住職が帳簿の写しの在りかを知っとるらしい。行ってみ。' }],
     steps: [
       ...[0, 1, 2].map((k): Step => ({ goal: () => `コンビニを回って集金しろ（${k + 1}/3）　残り ${Math.max(0, Math.ceil(mission.timer))} 秒`, enter: () => { if (k === 0) { mission.timer = 240; mission.data.shops = konbini(3); } else { sfx('buy'); toast(`集金した（${k}/3）`, 1.4); } },
         marker: () => { const d = mission.data.shops[k]; return { x: d.x, y: 0, z: d.z }; },
         check: (dt) => { mission.timer -= dt; if (mission.timer <= 0) { mission.fail = '時間切れ…黒潮会に先を越された'; return false; } const d = mission.data.shops[k]; return at(d.x, d.z, 5); } })),
+      decide('ch_collect', '震える店主', TATSU, '最後の店の主人が青い顔で頭を下げた。「今月は客がさっぱりで…どうか来月まで」。タツの縄張りの掟は、取れるだけ取ることだ。', [
+        { label: '今月は見逃す', sub: '評判 +2・報酬 -$2,000', value: 1, rep: 2, bonus: -2000, say: [{ who: '店主', text: 'ありがとうございます…！ このご恩は忘れません。' }] },
+        { label: 'きっちり取る', sub: '評判 -2・報酬 +$2,000', value: 2, rep: -2, bonus: 2000, say: [{ who: '店主', text: '……わかりました。払います。' }] },
+      ]),
       lose(2, '店主のひとりが通報した', '集金は終わった。警察をまけ'),
     ],
   },
@@ -204,11 +228,15 @@ export const MISSIONS: Mission[] = [
     title: '古都の密会', blurb: '奈良の住職に会え。まずは礼儀から。', reward: 7000, region: 'nara',
     start: () => front(),
     intro: [{ who: MONK, text: 'ようお越し。話の前に、鹿に挨拶をしていきなさい。この町では鹿が先輩じゃ。' }],
-    outro: [{ who: MONK, text: '帳簿の写しは博多の屋台の大将が預かっておる。ラーメン屋で「替え玉、硬め」と言いなさい。それが合言葉じゃ。' }],
+    outro: () => [{ who: MONK, text: chose('ch_monk') === 1 ? '御仏はお見通しじゃ。お主、よい顔をしておる。' : '縁があればまた会おう。' }, { who: MONK, text: '帳簿の写しは博多の屋台の大将が預かっておる。ラーメン屋で「替え玉、硬め」と言いなさい。それが合言葉じゃ。' }],
     steps: [
       { goal: () => '鹿せんべいを買って、鹿にあげろ（公園の屋台で買える）', enter: () => { mission.data.n = deerFed.n; }, marker: () => { const y = SIG.yatai.find((q) => q.senbei); return y ? { x: y.x, y: 0, z: y.z + 2.2 } : null; }, check: () => deerFed.n > mission.data.n },
       go('大仏殿に入って、大仏の前へ', () => ({ x: LANDMARK3D.x, z: LANDMARK3D.z + DAIBUTSU.bz + 9 }), 4, [{ who: MONK, text: 'よろしい。では大仏殿の中へ。大仏さまの前で待っておる。' }]),
       go('五重塔の下へ行け', () => ({ x: SIG.pagoda!.x, z: SIG.pagoda!.z + 12 }), 6, [{ who: MONK, text: '黒潮会の者が境内をうろついておる。話の続きは五重塔の下で。' }]),
+      decide('ch_monk', 'お布施', MONK, '住職は手を合わせて言う。「寺は黒潮会に荒らされての。些少で構わぬ、お布施をいただけぬか」', [
+        { label: '$1,000 納める', sub: '評判 +2・報酬 -$1,000', value: 1, rep: 2, bonus: -1000, say: [{ who: MONK, text: 'ありがたや。仏のご加護があるように。' }] },
+        { label: '今は持ち合わせがない', sub: '何も変わらない', value: 2, say: [{ who: MONK, text: 'ほほ、無理にとは言わぬよ。' }] },
+      ]),
     ],
   },
   {
@@ -242,14 +270,23 @@ export const MISSIONS: Mission[] = [
     steps: [
       go('CENTRAL BANKへ行け', () => { const d = bank(); return { x: d.x + Math.sin(d.ang) * 3, z: d.z + Math.cos(d.ang) * 3 }; }, 6),
       lose(3, '黒潮会が警察に手を回した', '貸金庫に入れた。警察をまけ'),
+      decide('ch_vince', 'ヴィンスのこと', RAY, '携帯が鳴る。レイの声は低い。「ヴィンスが黒潮会に寝返った。…昔は一緒に飯を食った仲だ。奴に最後の連絡を取るか、黙って先回りするか。お前が決めろ」', [
+        { label: 'ヴィンスに連絡する', sub: '評判 +2', value: 1, rep: 2, say: [{ who: VINCE, text: '…NOVAか。悪いが、もう引き返せない。港で待ってる。' }] },
+        { label: '黙って先回りする', sub: '評判 -1・報酬 +$8,000（奴の口座を押さえる）', value: 2, rep: -1, bonus: 8000, say: [{ who: RAY, text: 'わかった。口座は押さえた。…恨むなよ、ヴィンス。' }] },
+      ]),
       go('レイのガレージへ戻れ', () => ({ x: GARAGE.x, z: GARAGE.z + 3 }), 9),
     ],
   },
   {
     title: '決着', blurb: '黒潮会に寝返ったヴィンスを止めろ。', reward: 60000, region: 'tokyo',
     start: () => ({ x: EXPORT_DOCK.x - 10, z: EXPORT_DOCK.z }),
-    intro: [{ who: RAY, text: 'ヴィンスが黒潮会の金を持って港から逃げる。黒いスーパーカーだ。今度こそ止めろ。' }],
-    outro: [{ who: RAY, text: '終わったな。黒潮会の金は消え、帳簿は金庫の中だ。' }, { who: RAY, text: 'NOVA、東京も大阪も博多も、この国の夜は全部お前のものだ。…ありがとうな。' }],
+    intro: () => chose('ch_vince') === 1
+      ? [{ who: RAY, text: 'ヴィンスは迷っている声だった。それでも黒潮会の金を持って港から逃げる気だ。黒いスーパーカーだ。止めてくれ。' }]
+      : [{ who: RAY, text: 'ヴィンスの口座は押さえた。慌てた奴は金を抱えて港から逃げるはずだ。黒いスーパーカーだ。今度こそ止めろ。' }],
+    outro: () => [
+      ...(chose('ch_vince') === 1 ? [{ who: VINCE, text: '…ありがとな、NOVA。止めてくれて。一からやり直すよ。' }] : [{ who: VINCE, text: 'くそっ…口座を押さえたのはお前らか。覚えてろよ。' }]),
+      { who: RAY, text: '終わったな。黒潮会の金は消え、帳簿は金庫の中だ。' }, { who: RAY, text: 'NOVA、東京も大阪も博多も、この国の夜は全部お前のものだ。…ありがとうな。' },
+    ],
     steps: [inCar('車に乗れ'), ...chase(VINCE, 'super', '#101010', 27, 37, '黒潮会の金'), go('レイのガレージへ戻れ', () => ({ x: GARAGE.x, z: GARAGE.z + 3 }), 9)],
   },
 ];
@@ -263,14 +300,16 @@ export const missionElsewhere = () => { const M = nextMission(); return M && M.r
 export function startMission() {
   const M = nextMission(); if (!M || mission.id >= 0 || missionElsewhere()) return;
   mission.id = progress.story; mission.step = 0; mission.t = 0; mission.fail = ''; mission.data = {}; mission.target = null;
-  toast('ミッション：' + M.title, 2.2); talk.queue.length = 0; say(M.intro); M.steps[0].enter?.(); // anything still being said belongs to the last job
+  const intro = lines(M.intro);
+  toast('ミッション：' + M.title, 2.2); talk.queue.length = 0; say(intro); M.steps[0].enter?.(); // anything still being said belongs to the last job
   scoreSting('start');
-  { const len = M.intro.reduce((a, l) => a + 2.2 + l.text.length * 0.075, 0); startCine([{ kind: 'intro', dur: Math.min(9, Math.max(3.5, len)) }, { kind: 'goal', dur: 4 }], () => mission.marker); } // the opening scene, then a look at where the job is
+  { const len = intro.reduce((a, l) => a + 2.2 + l.text.length * 0.075, 0); startCine([{ kind: 'intro', dur: Math.min(9, Math.max(3.5, len)) }, { kind: 'goal', dur: 4 }], () => mission.marker); } // the opening scene, then a look at where the job is
 }
 function endMission(ok: boolean) {
   const M = MISSIONS[mission.id];
   if (mission.target && vehicles.includes(mission.target)) remove(mission.target);
-  if (ok) { progress.story++; game.money += M.reward; sfx('buy'); scoreSting('win'); talk.queue.length = 0; say(M.outro); startCine([{ kind: 'win', dur: 4.2 }]); showBanner('ok', 'MISSION COMPLETE', `「${M.title}」クリア　+$${M.reward.toLocaleString('en-US')}`, 4.5); save(); }
+  if (ev.choice?.story) ev.choice = null; // a decision left hanging when the job ends
+  if (ok) { const pay = Math.max(0, M.reward + (mission.data.bonus || 0)); progress.story++; game.money += pay; sfx('buy'); scoreSting('win'); talk.queue.length = 0; say(lines(M.outro)); startCine([{ kind: 'win', dur: 4.2 }]); showBanner('ok', 'MISSION COMPLETE', `「${M.title}」クリア　+$${pay.toLocaleString('en-US')}${mission.data.bonus ? `（選択で ${mission.data.bonus > 0 ? '+' : '-'}$${Math.abs(mission.data.bonus).toLocaleString('en-US')}）` : ''}`, 4.5); save(); }
   else { showBanner('fail', 'MISSION FAILED', mission.fail + '（マーカーからやり直せる）', 4); sfx('crash', 0.3); scoreSting('fail'); }
   mission.id = -1; mission.marker = null; mission.target = null; game.waypoint = null;
 }

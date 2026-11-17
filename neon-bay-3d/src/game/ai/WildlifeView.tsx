@@ -70,10 +70,14 @@ function place(c: Critter, i: number, body: THREE.InstancedMesh, wL: THREE.Insta
   const pal = COL[c.kind]; C.set(pal[c.col % pal.length]); body.setColorAt(i, C);
   if (wL && wR) {
     // wings: out and flapping in flight, folded against the body on the ground
-    const a = flying ? Math.sin(c.phase) * (c.vy > 0.5 || c.state === 'land' ? 0.85 : 0.55) + 0.1 : -1.35;
-    const sc = flying ? 1 : 0.55;
-    T.makeTranslation(0.045, 0.1, 0.01); R.makeRotationZ(a); M.copy(B).multiply(T).multiply(R); S.set(sc, 1, flying ? 1 : 1.1); R.makeScale(S.x, S.y, S.z); M.multiply(R); wR.setMatrixAt(i, M);
-    T.makeTranslation(-0.045, 0.1, 0.01); R.makeRotationZ(-a); M.copy(B).multiply(T).multiply(R); R.makeScale(sc, 1, flying ? 1 : 1.1); M.multiply(R); wL.setMatrixAt(i, M);
+    if (flying) {
+      const a = Math.sin(c.phase) * (c.vy > 0.5 || c.state === 'land' ? 0.85 : 0.55) + 0.1;
+      T.makeTranslation(0.045, 0.1, 0.01); R.makeRotationZ(a); M.copy(B).multiply(T).multiply(R); wR.setMatrixAt(i, M);
+      T.makeTranslation(-0.045, 0.1, 0.01); R.makeRotationZ(-a); M.copy(B).multiply(T).multiply(R); wL.setMatrixAt(i, M);
+    } else { // folded: lying along the sides, tips towards the tail
+      T.makeTranslation(0.047, 0.088, 0.075); R.makeRotationY(Math.PI / 2); M.copy(B).multiply(T).multiply(R); R.makeScale(0.8, 1, 1.25); M.multiply(R); wR.setMatrixAt(i, M);
+      T.makeTranslation(-0.047, 0.088, 0.075); R.makeRotationY(-Math.PI / 2); M.copy(B).multiply(T).multiply(R); R.makeScale(0.8, 1, 1.25); M.multiply(R); wL.setMatrixAt(i, M);
+    }
     wL.setColorAt(i, C); wR.setColorAt(i, C);
   }
 }

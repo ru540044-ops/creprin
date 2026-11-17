@@ -1,5 +1,5 @@
 import { game } from '../state/store';
-import { blocks, pointBlocked, groundAt, isWater, BEACH_X, HALF } from '../world/cityGen';
+import { blocks, pointBlocked, groundAt, heightAt, isWater, BEACH_X, HALF } from '../world/cityGen';
 import { vehicles } from '../vehicles/sim';
 import { mulberry } from '../world/rng';
 
@@ -35,7 +35,7 @@ function build() {
   for (const b of blocks) {
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2; if (Math.abs(cx) > HALF || Math.abs(cz) > HALF) continue;
     const r = rnd();
-    if ((b.zone === 'park' || b.zone === 'commercial' || b.zone === 'station') && r < 0.34) { // a flock of pigeons
+    if ((b.zone === 'park' || b.zone === 'commercial' || b.zone === 'station') && r < 0.16) { // a flock of pigeons
       const c = pick(b, 5); if (!c) continue; const m = 4 + Math.floor(rnd() * 5);
       for (let k = 0; k < m; k++) { const x = c[0] + (rnd() - 0.5) * 6, z = c[1] + (rnd() - 0.5) * 6; if (free(x, z)) { add('pigeon', x, z, Math.floor(rnd() * 3)); n++; } }
     } else if ((b.zone === 'downtown' || b.zone === 'industrial') && r < 0.22) { // crows
@@ -45,7 +45,7 @@ function build() {
     }
   }
   // gulls on the sand
-  for (let k = 0; k < 26; k++) { const x = BEACH_X + 6 + rnd() * 40, z = (rnd() - 0.5) * 2 * HALF * 0.8; if (free(x, z)) add('gull', x, z, Math.floor(rnd() * 2)); }
+  for (let k = 0, g = 0; k < 400 && g < 30; k++) { const x = BEACH_X + 1 + rnd() * 12, z = (rnd() - 0.5) * 2 * HALF * 0.9; if (free(x, z) && heightAt(x, z) > -0.3) { add('gull', x, z, Math.floor(rnd() * 2)); g++; } } // on the dry sand, not in the shallows
   void n;
 }
 
@@ -99,7 +99,11 @@ export function updateWildlife(dt: number) {
       }
       case 'land': {
         c.spd = 3; c.x += Math.sin(c.yaw) * c.spd * dt; c.z += Math.cos(c.yaw) * c.spd * dt; c.vy = -2.2; c.y += c.vy * dt; c.phase += dt * 20;
-        if (c.y <= groundAt(c.x, c.z) + 0.02) { c.y = groundAt(c.x, c.z); c.vy = 0; c.state = free(c.x, c.z) ? 'idle' : 'idle'; c.t = 2 + Math.random() * 4; stats.landed++; }
+        if (c.y <= groundAt(c.x, c.z) + 0.02) {
+          c.vy = 0; c.state = 'idle'; c.t = 2 + Math.random() * 4; stats.landed++;
+          if (!free(c.x, c.z) || Math.hypot(c.x - c.hx, c.z - c.hz) > 7) { c.x = c.hx + (Math.random() - 0.5) * 3; c.z = c.hz + (Math.random() - 0.5) * 3; if (!free(c.x, c.z)) { c.x = c.hx; c.z = c.hz; } } // it came down on a roof or a long way off: it settles at its spot instead
+          c.y = groundAt(c.x, c.z);
+        }
         break;
       }
       case 'flee': { // a cat: run, then sit and watch, then drift home

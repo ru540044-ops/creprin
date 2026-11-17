@@ -14,7 +14,7 @@ import { sfx, sfxAt } from '../audio';
  * and keeping other people's money in front of a witness gets you wanted.
  */
 export type EventKind = '' | 'snatch' | 'wallet' | 'tourist';
-export interface Choice { title: string; text: string; who: string; options: { label: string; sub?: string; pick: () => void }[] }
+export interface Choice { title: string; text: string; who: string; /** put by a story mission (cleared if the mission ends) */ story?: boolean; options: { label: string; sub?: string; pick: () => void }[] }
 export const ev = {
   kind: '' as EventKind, stage: 0, t: 0, /** game clock time of the next event */ next: 75,
   ped: null as Ped | null, x: 0, z: 0, cash: 0, target: '', dir: 0,
@@ -26,7 +26,7 @@ export const rep = () => progress.stats.flags.rep || 0;
 export const repName = () => { const r = rep(); return r >= 10 ? '街の人気者' : r >= 5 ? '頼れる人' : r >= 1 ? 'いい人' : r <= -10 ? '札付きの悪' : r <= -5 ? 'ならず者' : r <= -1 ? '怪しい人' : 'ふつう'; };
 /** Shop prices: 10 % off for someone the neighbourhood trusts. */
 export const discount = () => (rep() >= 5 ? 0.9 : 1);
-function addRep(n: number, why: string) { progress.stats.flags.rep = Math.max(-20, Math.min(20, rep() + n)); if (n) toast(`${why}（評判 ${n > 0 ? '+' : ''}${n} → ${repName()}）`, 3); }
+export function addRep(n: number, why: string) { progress.stats.flags.rep = Math.max(-20, Math.min(20, rep() + n)); if (n) toast(`${why}（評判 ${n > 0 ? '+' : ''}${n} → ${repName()}）`, 3); }
 const pay = (n: number) => { game.money += n; progress.stats.earned += n; sfx('buy', 0.7); };
 const done = (gap = 110) => { ev.kind = ''; ev.stage = 0; ev.ped = null; ev.mark = null; ev.choice = null; ev.next = game.clock + gap + Math.random() * 70; save(); };
 
