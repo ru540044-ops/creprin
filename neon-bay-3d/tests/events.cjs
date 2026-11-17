@@ -40,7 +40,9 @@ console.log('wallet 2',await E(()=>window.__nb3d.eventsMod.forceEvent('wallet'))
 // ---- 3. lost tourist: the right direction, then a wrong one ----
 for(const right of [true,false]){
   console.log('tourist debug',JSON.stringify(await E(()=>{const N=window.__nb3d,C=N.cityMod,G=N.game,P=G.player;let n=0,b=0;for(const B of C.blocks){if(B.zone==='water'||B.zone==='canal'||P.x<B.x0-18||P.x>B.x1+18||P.z<B.z0-18||P.z>B.z1+18)continue;const ring=[];for(let x=B.x0+2.6;x<=B.x1-2.6;x+=3)ring.push([x,B.z0+2.6],[x,B.z1-2.6]);for(let z=B.z0+5.6;z<=B.z1-5.6;z+=3)ring.push([B.x0+2.6,z],[B.x1-2.6,z]);for(const [x,z] of ring){const L=Math.hypot(x-P.x,z-P.z);if(L<8.4||L>16.8)continue;if(C.pointBlocked(x,0.9,z)||C.pointBlocked(x,1.6,z))b++;else n++;}}const sp=[[C.LANDMARK3D.x,C.LANDMARK3D.z],...C.SIG.shrines.slice(0,3).map(q=>[q.x,q.z])];if(C.STATION)sp.push([C.STATION.x,C.STATION.z]);return {p:[Math.round(P.x),Math.round(P.z)],free:n,blocked:b,far:sp.filter(q=>Math.hypot(q[0]-P.x,q[1]-P.z)>180).length,kind:N.eventsMod.ev.kind,where:G.where,wanted:G.wanted,mission:N.story.mission.id}})));
-  console.log('tourist start',await E(()=>window.__nb3d.eventsMod.forceEvent('tourist')));
+  // a tourist needs a free bit of pavement 8-17 m away; where the wallet test left the player is random, so try a few spots
+  let started=false;for(let k=0;k<8&&!started;k++){started=await E((k)=>{const N=window.__nb3d,G=N.game;if(k>0){G.player.x+=(k%2?1:-1)*11*k;G.player.z+=7*k;G.player.y=N.cityMod.groundAt(G.player.x,G.player.z)+0.1;}return N.eventsMod.forceEvent('tourist')},k);}
+  console.log('tourist start',started);
   const T=await E(()=>{const N=window.__nb3d,e=N.eventsMod.ev,G=N.game;G.player.x=e.ped.x+1.6;G.player.z=e.ped.z;return {target:e.target,dir:e.dir}});
   console.log('tourist near',await waitNear('ev:tourist'),JSON.stringify(T));await act();console.log('choice',await waitChoice());
   const names=['北','東','南','西'];console.log('pick',right?'right':'wrong',await pick(names[right?T.dir:(T.dir+2)%4]+'のほう'));await W(600);console.log(' ->',JSON.stringify(await S()));}

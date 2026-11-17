@@ -19,12 +19,13 @@ async function playCollection(pick){
   await E(()=>{const N=window.__nb3d,G=N.game;G.wanted=0;N.progress.stats.flags.rep=0;delete N.progress.stats.flags.ch_collect;N.progress.story=7;const q=N.story.MISSIONS[7].start();G.player.x=q.x;G.player.z=q.z;G.player.y=N.groundAt(q.x,q.z)+0.3;G.inCar=0;N.eventsMod.ev.choice=null;});
   await W(1500);const m0=await E(()=>window.__nb3d.game.money);
   await E(()=>window.__nb3d.story.startMission());await skipScene();
-  for(let k=0;k<3;k++){const s=await step();await toMarker();await until(async()=>(await step())!==s,40000);}
+  // the marker moves on a frame after a step is done: keep putting the player on whatever the marker is now until the step changes
+  for(let k=0;k<3;k++){const s=await step(),t0=Date.now();while(Date.now()-t0<60000&&(await step())===s){await toMarker();await W(800);}}
   const shown=await until(async()=>E(()=>!!window.__nb3d.eventsMod.ev.choice),15000);
   const info=await E(()=>{const c=window.__nb3d.eventsMod.ev.choice;return c&&{title:c.title,story:c.story,n:c.options.length,labels:c.options.map(o=>o.label),goal:window.__nb3d.story.storyStatus().text}});
   await until(async()=>E(()=>document.querySelectorAll('.choiceBox button').length>=2),30000); // the panel redraws every 150 ms: on a slow page it can be a while
   const dom=await E(()=>({box:!!document.querySelector('.choiceBox'),btns:document.querySelectorAll('.choiceBox button').length}));
-  if(dom.btns<2)console.log('  DEBUG no panel:',JSON.stringify(await E(()=>{const N=window.__nb3d,c=N.eventsMod.ev.choice;return {choice:c&&c.title,where:N.game.where,overlay:[...document.querySelectorAll('.overlay')].map(o=>o.className+':'+o.innerText.slice(0,40)),studio:N.game.styling,phone:N.game.phone,ui:N.game.ui,cine:N.cine.on,fps:N.game.fps,paused:N.game.paused}})));
+  if(dom.btns<2)console.log('  DEBUG no panel:',JSON.stringify(await E(()=>{const N=window.__nb3d,c=N.eventsMod.ev.choice;return {choice:c&&c.title,mission:[N.story.mission.id,N.story.mission.step,N.story.mission.fail,N.story.mission.data.bonus],story:N.progress.story,evkind:N.eventsMod.ev.kind,wanted:N.game.wanted,health:N.game.health,where:N.game.where,overlay:[...document.querySelectorAll('.overlay')].map(o=>o.className+':'+o.innerText.slice(0,40)),studio:N.game.styling,phone:N.game.phone,ui:N.game.ui,cine:N.cine.on,fps:N.game.fps,paused:N.game.paused}})));
   await E((k)=>{document.querySelectorAll('.choiceBox button')[k].click()},pick);
   await until(async()=>E(()=>!window.__nb3d.eventsMod.ev.choice),10000);
   const after=await E(()=>{const N=window.__nb3d;return {ch:N.progress.stats.flags.ch_collect,rep:N.progress.stats.flags.rep,bonus:N.story.mission.data.bonus,step:N.story.mission.step}});
