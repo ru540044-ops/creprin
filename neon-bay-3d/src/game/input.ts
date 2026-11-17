@@ -15,10 +15,12 @@ export const input = {
   wcycle: false, radio: false, // edges
   up: false, down: false, nitro: false, // helicopter collective, nitro (held)
   locked: false, // a cinematic scene is playing: movement and actions are ignored
+  reel: false, // held: reel in the fish
+  noMove: false, // standing still (fishing)
 };
 
 export function moveVector(): [number, number] {
-  if (input.locked) return [0, 0];
+  if (input.locked || input.noMove) return [0, 0];
   if (input.joyActive) return [input.joyX, input.joyY];
   const k = input.keys;
   const x = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0);

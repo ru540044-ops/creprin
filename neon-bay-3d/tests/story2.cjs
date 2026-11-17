@@ -15,8 +15,9 @@ const waitNear=async(pre,ms=40000)=>{const t=Date.now();while(Date.now()-t<ms){c
 const act=async()=>{await E(()=>{window.__nb3d.input.action=true});for(let k=0;k<30&&(await E(()=>window.__nb3d.input.action));k++)await W(300);await W(600);};
 const st=()=>E(()=>{const N=window.__nb3d,m=N.story.mission,s=N.story.storyStatus();return {id:m.id,step:m.step,fail:m.fail,goal:s?s.text:'',story:N.progress.story,money:N.game.money,wanted:N.game.wanted,marker:m.marker&&{x:Math.round(m.marker.x),z:Math.round(m.marker.z)}}});
 /** wait until the mission's step number changes (or the mission ends) */
-const tick=async()=>{const t0=await E(()=>window.__nb3d.story.mission.t);for(let k=0;k<60;k++){await W(250);const m=await E(()=>({t:window.__nb3d.story.mission.t,id:window.__nb3d.story.mission.id}));if(m.id<0||m.t>t0+0.06)return;}};
-const stepOn=async(from,ms=60000)=>{const t=Date.now();while(Date.now()-t<ms){const s=await st();if(s.id<0||s.step!==from){await tick();return await st();}await W(400);}return {...(await st()),STUCK:true};};
+const tick=async()=>{const t0=await E(()=>window.__nb3d.story.mission.t);for(let k=0;k<60;k++){await auto();await W(250);const m=await E(()=>({t:window.__nb3d.story.mission.t,id:window.__nb3d.story.mission.id}));if(m.id<0||m.t>t0+0.06)return;}};
+const auto=()=>E(()=>{const N=window.__nb3d;if(N.cine.lock)N.cineMod.skipCine();const c=N.eventsMod.ev.choice;if(c&&c.story)c.options[c.options.length-1].pick();});
+const stepOn=async(from,ms=60000)=>{const t=Date.now();while(Date.now()-t<ms){await auto();const s=await st();if(s.id<0||s.step!==from){await tick();return await st();}await W(400);}return {...(await st()),STUCK:true};};
 /** put the player (or the car they are in) on the current marker */
 const toMarker=()=>E(()=>{const N=window.__nb3d,G=N.game,m=N.story.mission.marker;if(!m)return 'no marker';const v=N.playerCar();if(v){v.x=m.x;v.z=m.z;v.vx=v.vz=0;v.y=N.groundAt(m.x,m.z)+0.4;}G.player.x=m.x;G.player.z=m.z;if(!v)G.player.y=Math.max(G.player.y,N.groundAt(m.x,m.z))+0.3;return 'ok'});
 const car=()=>E(()=>{const N=window.__nb3d,G=N.game;if(N.playerCar())return;const v=N.spawn('sedan',G.player.x,G.player.z,0);v.touched=true;G.inCar=v.id;});
@@ -30,9 +31,10 @@ const other=region==='tokyo'?6:5;
 log('gate',JSON.stringify(await E((i)=>{const N=window.__nb3d;N.progress.story=i;const M=N.story.MISSIONS[i],s=M.start();N.game.player.x=s.x;N.game.player.z=s.z;N.story.updateStory(0.05);return {elsewhere:N.story.missionElsewhere(),near:N.story.storyNear(),marker:N.story.mission.marker}},other)));
 
 async function begin(i){
+  await E(()=>{const N=window.__nb3d;N.cineMod.skipCine()});for(let k=0;k<80&&(await E(()=>window.__nb3d.cine.lock));k++)await W(500);
   await outCar();
   const s=await E((i)=>{const N=window.__nb3d,G=N.game;N.progress.story=i;G.wanted=0;const M=N.story.MISSIONS[i],s=M.start();G.player.x=s.x;G.player.z=s.z;G.player.y=N.groundAt(s.x,s.z)+0.3;return {title:M.title,reward:M.reward,steps:M.steps.length,elsewhere:N.story.missionElsewhere()}},i);
-  const n=await waitNear('story|ミッション「'+s.title);await act();await tick();const a=await st();
+  const n=await waitNear('story|ミッション「'+s.title);await act();await auto();await tick();const a=await st();
   log(`\n== ${i+1}「${s.title}」 steps ${s.steps} reward ${s.reward} elsewhere '${s.elsewhere}' near ${n.slice(0,40)} -> started ${a.id===i} goal: ${a.goal}`);
   return {...s,money:a.money};
 }

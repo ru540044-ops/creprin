@@ -1,4 +1,5 @@
 import { japanNear, japanAction, shinNear } from './japan';
+import { fish, fishNear, fishAction } from './fishing';
 import { hoursText } from '../world/hours';
 import { eventNear, eventAction } from './events';
 import { parkNear, parkAction } from './parking';
@@ -246,6 +247,7 @@ export const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).p
 export type Near = { kind: 'job'; id: string; label: string; btn: string };
 export function jobNear(): Near | null {
   if (law.over) return null;
+  if (fish.on) return fishNear();
   { const s = storyNear(); if (s) return s; }
   const me = playerCar();
   if (robbable() && !me) {
@@ -274,7 +276,8 @@ export function jobNear(): Near | null {
   if (!me) {
     if (armored.v && (armored.state === 'stopped') && nearArmoredRear()) return { kind: 'job', id: 'pry', label: armored.pry > 0 ? 'こじ開け中…' : '後部ドアをこじ開ける', btn: 'こじ開け' };
     { const e = eventNear(); if (e) return e; }
-    return japanNear();
+    { const j = japanNear(); if (j) return j; }
+    return fishNear();
   }
   // in a car
   if (me.def.kind === 'shinkansen') return shinNear(me);
@@ -312,6 +315,7 @@ export function jobAction(id: string) {
   } else if (id.startsWith('ev:')) { eventAction(id);
   } else if (id.startsWith('shut:')) { toast(`シャッターが下りている。営業時間は ${hoursText(id.slice(5))}`, 2.2); sfx('ui');
   } else if (id === 'shopclosed') { toast('強盗の直後で店員が怯えている。時間をおこう', 2);
+  } else if (id.startsWith('fish:')) { fishAction(id);
   } else if (id.startsWith('jp:') || id.startsWith('nara:')) { japanAction(id);
   } else if (id === 'style') { game.openStyle = true;
   } else if (id === 'story') { startMission();

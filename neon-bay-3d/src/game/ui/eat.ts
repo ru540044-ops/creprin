@@ -75,6 +75,7 @@ const D: Record<string, Dish> = {
 /** The dish for a name (exact, else by keyword). */
 export function dishFor(name: string): Dish {
   if (D[name]) return D[name];
+  if (/^焼き/.test(name)) return { kind: 'plate', icon: '🐟' };
   if (/ラーメン|そば|うどん|そうめん/.test(name)) return BOWL('#c89a5a', '#f3e6a6', ['negi', 'chashu']);
   if (/コーヒー|ラテ|紅茶|ミルクティー|おしるこ|コーンスープ/.test(name)) return { kind: 'drink', cup: 'paper', c: '#6a3a1c' };
   if (/茶|水|サイダー|コーラ|ドリンク/.test(name)) return { kind: 'drink', cup: 'bottle', c: name.includes('コーラ') ? '#3a1a0a' : '#a8c4ff' };

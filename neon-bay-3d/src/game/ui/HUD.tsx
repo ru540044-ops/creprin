@@ -1,4 +1,5 @@
 import { cine, skipCine } from '../cine';
+import { fish } from '../crime/fishing';
 import { trainInfo } from '../crime/japan';
 import { REGION } from '../world/region';
 import StyleStudio from './StyleStudio';
@@ -286,6 +287,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
           </div>
         </div>
       </div>
+      {fish.on && fish.phase !== 'caught' && fish.phase !== 'lost' && fish.phase !== 'cast' && <div className={'fishHud ' + fish.phase}><b>{fish.phase === 'wait' ? '🎣 アタリを待つ…' : fish.phase === 'bite' ? '❗ 今だ！ 引け！' : (fish.run ? '暴れてる！ 離せ！' : '巻け！') + `（${fish.kind?.name || ''}）`}</b>{fish.phase === 'reel' && <><div className="fbar t"><i className={fish.tension > 0.75 ? 'hot' : ''} style={{ width: Math.min(100, fish.tension * 100) + '%' }} /><u style={{ left: '75%' }} /></div><div className="fbar d"><i style={{ width: Math.max(0, Math.min(100, (1 - fish.dist / fish.dist0) * 100)) + '%' }} /></div></>}</div>}
       {cine.k > 0.01 && <><div className="cineBar top" style={{ transform: `translateY(${(cine.k - 1) * 100}%)` }} /><div className="cineBar bot" style={{ transform: `translateY(${(1 - cine.k) * 100}%)` }} />{cine.skippable && cine.on && <button type="button" className="cineSkip" onClick={() => skipCine()}>スキップ ▶▶</button>}</>}
       {game.fadeT > 0 && <div className="fade" style={{ opacity: Math.min(1, game.fadeT) }} />}
       {game.hurtT > 0 && <div className="hurt" style={{ opacity: Math.min(1, game.hurtT * 1.6) }} />}
@@ -339,7 +341,7 @@ export default function HUD({ quality, mode, setMode, onPause }: { quality: Qual
           <div className="btns">
             <HoldBtn label={({ fist: '素手', pistol: 'ピストル', smg: 'SMG' } as Record<string, string>)[game.arms.cur]} cls="wpn" onDown={() => { input.wcycle = true; }} />
             <HoldBtn label="狙う" cls="aim" active={input.aim} onDown={() => { if (game.arms.cur === 'fist') { toast('銃がない（BAY ARMSで購入）', 1.4); return; } input.aim = !input.aim; }} />
-            <HoldBtn label={game.arms.cur === 'fist' ? 'パンチ' : '撃つ'} cls="fire" active={input.fire} onDown={() => { input.fire = true; }} onUp={() => { input.fire = false; }} />
+            {fish.on && fish.phase === 'reel' ? <HoldBtn label="巻く" cls="fire" active={input.reel} onDown={() => { input.reel = true; }} onUp={() => { input.reel = false; }} /> : <HoldBtn label={game.arms.cur === 'fist' ? 'パンチ' : '撃つ'} cls="fire" active={input.fire} onDown={() => { input.fire = true; }} onUp={() => { input.fire = false; }} />}
             <HoldBtn label={near ? (near.kind === 'exit' ? '出る' : near.kind === 'car' ? near.btn || '乗る' : near.kind === 'job' ? near.btn || '決定' : '入る') : 'アクション'} cls="act" disabled={!near} onDown={() => { input.action = true; }} />
             <HoldBtn label="視点" onDown={() => { input.camCycle = true; }} />
             <HoldBtn label={p.crouch ? '立つ' : 'しゃがむ'} active={p.crouch} onDown={() => { input.crouchToggle = true; }} />

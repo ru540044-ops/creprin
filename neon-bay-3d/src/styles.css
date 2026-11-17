@@ -384,3 +384,10 @@ button.armed{background:#ff4b4b !important;color:#fff}
 .cineSkip{position:fixed;right:calc(14px + var(--sar,0px));top:calc(13vh + 10px);z-index:41;background:rgba(10,8,20,.6);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;letter-spacing:.04em}
 body.cine .hud,body.cine .joyZone,body.cine .lookZone,body.cine .prompt,body.cine .pedals,body.cine .steer,body.cine .toast,body.cine .tb,body.cine .tut,body.cine .banner.ach,body.cine .keys,body.cine .district,body.cine .speedo{opacity:0;pointer-events:none}
 body.cine .subs{bottom:calc(13vh + 12px)}
+
+/* fishing */
+.fishHud{position:fixed;left:50%;top:calc(76px + var(--sat,0px));transform:translateX(-50%);z-index:6;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:6px;background:rgba(8,6,18,.72);box-shadow:inset 0 0 0 1px var(--edge);border-radius:14px;padding:8px 14px;min-width:200px}
+.fishHud b{font-size:14px;letter-spacing:.02em}.fishHud.bite{animation:fishflash .3s steps(2) infinite}
+.fbar{position:relative;width:190px;height:9px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden}.fbar i{display:block;height:100%;background:#3dffb0;border-radius:5px}.fbar i.hot{background:#ff6a3d}.fbar.d i{background:#5ac8ff}.fbar u{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.6)}
+@keyframes fishflash{50%{box-shadow:inset 0 0 0 2px #ff6a3d}}
+@media (max-height:500px){.fishHud{top:calc(8px + var(--sat,0px));min-width:170px}}
