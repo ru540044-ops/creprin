@@ -10,7 +10,7 @@ import { input } from './input';
  * usual place. Used for a mission's opening (the camera comes round to the player's face while they are briefed, then
  * turns to look at where the job is) and for its close (a slow circle round the player). Always skippable.
  *
- * A scene only plays when it is safe: out of doors, on foot or in a car that has stopped, not on the train line.
+ * A scene only plays when it is safe: out of doors, nobody after you, on foot or in a car that has stopped, not on the train line.
  * While one plays `cine.lock` is on: movement and actions are ignored (input.ts, Player.tsx, Vehicles.tsx) and the
  * mission clock stands still (story.ts).
  */
@@ -29,7 +29,7 @@ const ease = (t: number) => { t = Math.min(1, Math.max(0, t)); return t * t * (3
 const V = new THREE.Vector3();
 
 /** Is it fine to take the camera and the controls away right now? */
-export const cineSafe = () => game.started && game.where === 'out' && !line.on && !cine.on && (() => { const c = playerCar(); return !c || (Math.hypot(c.vx, c.vz) < 2 && c.def.kind !== 'heli' && c.def.kind !== 'jet' && c.def.kind !== 'shinkansen'); })();
+export const cineSafe = () => game.started && game.where === 'out' && game.wanted === 0 && game.health > 30 && !line.on && !cine.on && (() => { const c = playerCar(); return !c || (Math.hypot(c.vx, c.vz) < 2 && c.def.kind !== 'heli' && c.def.kind !== 'jet' && c.def.kind !== 'shinkansen'); })();
 
 /** Play one scene (or several in a row). Returns false when it is not safe to. */
 export function startCine(scenes: { kind: CineKind; dur: number }[], goal?: () => { x: number; y: number; z: number } | null): boolean {
