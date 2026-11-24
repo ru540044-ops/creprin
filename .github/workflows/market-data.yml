@@ -1,0 +1,60 @@
+# 相場データ・ニュースを定期取得し、Claude が仮想ポートフォリオを運用して、結果を market-data ブランチに保存する。
+# アプリ（trade/index.html）は raw.githubusercontent.com 経由でこの JSON を読む。
+# 履歴を増やさないよう、market-data ブランチは毎回 1 コミットで上書きする。
+name: Market data
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"   # 30分ごと（混雑する毎時0分を避ける）
+  workflow_dispatch:
+    inputs:
+      force_ai:
+        description: "間隔に関係なく今すぐ Claude に売買判断させる"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/market_data.py --out out/market.json
+      - name: Load previous AI portfolio
+        run: |
+          git fetch --depth=1 origin market-data 2>/dev/null && git show FETCH_HEAD:ai.json > out/ai_prev.json 2>/dev/null \
+            || echo "no previous ai.json"
+      - name: AI trader (paper portfolio)
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_INTERVAL_HOURS: ${{ vars.AI_INTERVAL_HOURS || '6' }}
+          AI_MODEL: ${{ vars.AI_MODEL || 'claude-opus-5-5' }}
+          FORCE_AI: ${{ inputs.force_ai }}
+        run: python scripts/ai_trader.py --market out/market.json --prev out/ai_prev.json --out out/ai.json
+      - name: Publish to market-data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          git init -q -b market-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -f ai.json ] || { [ -f ai_prev.json ] && mv ai_prev.json ai.json; }
+          rm -f ai_prev.json
+          git add market.json $( [ -f ai.json ] && echo ai.json )
+          git commit -q -m "Update market data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -f -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" market-data
