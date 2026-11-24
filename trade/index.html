@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>デモトレード PRO</title>
-<meta name="description" content="最大100倍レバレッジに対応したトレード練習シミュレーター（価格はすべて模擬データ）">
+<title>トレード PRO</title>
+<meta name="description" content="日本株・米国株・暗号資産の値動き、上昇候補のスクリーニング、ニュース、デモトレード">
 <style>
 :root{
   --bg:#07080f;--panel:#0e1020;--panel2:#161a30;--line:#22274a;
@@ -99,6 +99,92 @@ canvas{display:block;width:100%;height:100%;touch-action:pan-y;cursor:crosshair}
 .gbar i{position:absolute;top:-5px;width:4px;height:18px;border-radius:2px;background:#fff;box-shadow:0 0 10px #fff;transform:translateX(-50%);transition:left .4s}
 .gl{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:6px}
 .gc{display:flex;justify-content:space-between;font-size:12px;margin-top:8px}
+
+
+/* ===== 実データ画面 ===== */
+body.real .demo-only{display:none!important}
+.nav{display:flex;gap:4px;flex-wrap:wrap}
+.nav button{background:none;border:1px solid transparent;border-radius:8px;padding:6px 12px;color:var(--muted);font-weight:700;cursor:pointer;white-space:nowrap}
+.nav button:hover{color:var(--text)}
+.nav button.on{color:#fff;background:linear-gradient(135deg,rgba(155,92,255,.38),rgba(255,47,179,.25));border-color:rgba(155,92,255,.6)}
+#realView{padding:14px 16px 48px;max-width:1440px;margin:0 auto}
+.databar{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--muted);margin-bottom:12px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;background:var(--muted);vertical-align:1px}
+.dot.live{background:var(--up);box-shadow:0 0 8px var(--up)}.dot.err{background:var(--down)}.dot.warn{background:var(--warn)}
+.setup{background:var(--panel);border:1px solid var(--violet);border-radius:12px;padding:16px 18px;margin:10px 0;line-height:1.8}
+.setup h3{font-size:15px;margin-bottom:6px}.setup ol{margin:6px 0 8px 20px}.setup a{color:var(--blue)}
+.setup code{font-size:11px;word-break:break-all}
+.idx{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px}
+.icard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px 4px;cursor:pointer;min-width:0}
+.icard:hover{border-color:var(--violet)}
+.icard small{color:var(--muted);font-size:11px;display:block}.icard b{font-size:15px}.icard span{font-size:12px}
+.icard .spk{display:block;width:100%;margin-top:2px}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.ctrl select,.ctrl input{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:0}
+.ctrl input{flex:1 1 160px;max-width:260px}
+.trend{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;font-size:12px}
+.trend .chip{cursor:pointer;display:inline-flex;align-items:center;gap:4px}.trend img{width:14px;height:14px;border-radius:50%}
+.heat{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:4px}
+.tile{border-radius:6px;padding:8px;min-height:78px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;transition:transform .1s;min-width:0;overflow:hidden}
+.tile:hover{transform:scale(1.04);outline:1px solid rgba(255,255,255,.5);z-index:1}
+.tile b{font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tile span{font-size:17px;font-weight:900}.tile small{font-size:10px;opacity:.85}
+.mt{max-height:none!important;border:1px solid var(--line);border-radius:10px}
+.mtbl tr[data-tk]{cursor:pointer}.mtbl tr[data-tk]:hover td{background:rgba(155,92,255,.08)}
+.nm{display:flex;align-items:center;gap:8px}.nm img{width:20px;height:20px;border-radius:50%}
+.nm small{display:block;color:var(--muted);font-size:10px}
+.score{display:inline-block;min-width:34px;text-align:center;border-radius:999px;padding:1px 7px;font-weight:800;font-size:12px}
+.score.hi{background:rgba(0,229,160,.18);color:var(--up)}.score.mid{background:rgba(155,92,255,.2);color:#c9a8ff}.score.lo{background:#1b1f3a;color:var(--muted)}
+.star{background:none;border:0;cursor:pointer;font-size:16px;color:#3a3f63}.star:hover{color:var(--muted)}.star.on{color:#ffd84d}
+.spk{vertical-align:middle}
+.rv h3{font-size:16px;margin:18px 0 10px}.rv h3 small{font-size:12px;font-weight:400}
+.disc{font-size:12px;color:var(--muted);border:1px solid rgba(255,176,32,.35);border-radius:8px;padding:8px 12px;background:rgba(255,176,32,.06)}
+.picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:8px;min-width:0;transition:border-color .15s,transform .15s}
+.pcard:hover{border-color:var(--violet);transform:translateY(-2px)}
+.pcard .spk{width:100%}
+.pc-top{display:flex;align-items:center;gap:10px}.rank{font-weight:900;color:var(--violet);font-size:13px}
+.pc-name{flex:1;min-width:0}.pc-name b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pc-name small{color:var(--muted);font-size:11px}
+.pc-mid{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.pc-mid b{font-size:18px}
+.pc-foot{font-size:11px}
+.ring{width:46px;height:46px;flex:none;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p)*1%),#22274a 0);display:grid;place-items:center;font-weight:900;position:relative}
+.ring::before{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel)}.ring span{position:relative}
+.chips2{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11px;border-radius:4px;padding:2px 7px;background:rgba(155,92,255,.15);color:#d9c8ff}
+.chip.g{background:rgba(0,229,160,.12);color:#7ff5cf}.chip.r{background:rgba(255,59,107,.15);color:#ff9fb5}
+.tkc{cursor:pointer}.tkc:hover{outline:1px solid var(--violet)}
+.lists{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+.mini-list{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+.mini-list h4{font-size:12px;color:var(--muted);margin-bottom:6px}
+.ml-row{display:grid;grid-template-columns:18px 1fr auto;gap:8px;padding:4px 2px;cursor:pointer;font-size:13px;border-radius:4px}
+.ml-row:hover{background:var(--panel2)}.ml-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.winp{width:110px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:3px 6px}.winp.note{width:150px}
+.news{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.nitem{display:grid;grid-template-columns:96px 1fr;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(14,16,32,.6)}
+.nitem:last-child{border-bottom:0}
+.nitem a{color:var(--text);text-decoration:none;font-weight:600;line-height:1.5}.nitem a:hover{color:var(--blue);text-decoration:underline}
+.nmeta small{font-size:10px;line-height:1.5;display:block;margin-top:3px}
+.src{display:inline-block;font-size:10px;font-weight:800;border-radius:3px;padding:1px 6px;background:#22274a}
+.src.jp{background:rgba(255,59,107,.2);color:#ff9fb5}.src.us{background:rgba(58,214,255,.18);color:#8fe6ff}.src.crypto{background:rgba(255,176,32,.18);color:#ffd27a}
+#detail{position:fixed;inset:0;z-index:25;background:rgba(3,4,10,.72);overflow:auto;padding:24px 16px}
+.dbox{position:relative;max-width:980px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 20px 60px rgba(155,92,255,.25)}
+#dClose{position:absolute;top:12px;right:12px}
+.d-head{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:flex-end;margin-bottom:12px;padding-right:40px}
+.d-head h2{font-size:20px;display:inline;margin-right:8px}.d-img{width:26px;height:26px;border-radius:50%;vertical-align:-5px;margin-right:6px}
+.d-price b{font-size:26px;font-weight:900;margin-right:8px}
+.d-act{display:flex;gap:8px;margin-left:auto}.d-act a{color:var(--text);text-decoration:none}.d-act .btn.on{border-color:#ffd84d;color:#ffd84d}
+.d-chart{position:relative}.d-chart canvas{width:100%;display:block}
+#dLeg{font-size:11px;padding:4px 2px 8px}
+.mt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:6px}
+.mt-i{background:var(--panel2);border-radius:8px;padding:8px 10px}.mt-i small{display:block;font-size:10px;color:var(--muted)}.mt-i b{font-size:14px}
+.d-h4{font-size:13px;color:var(--muted);margin:14px 0 8px}
+@media (max-width:700px){
+  .nav{width:100%;overflow-x:auto;flex-wrap:nowrap}
+  .nitem{grid-template-columns:1fr}
+  .idx{display:flex;overflow-x:auto;padding-bottom:4px}
+  .icard{min-width:140px}
+  .d-act{margin-left:0}
+  #detail{padding:8px}
+}
 
 /* book */
 #book{grid-row:1/3;grid-column:3;display:flex;flex-direction:column;min-width:0}
@@ -211,15 +297,18 @@ th:first-child,td:first-child{text-align:left}
 </head>
 <body>
 <header>
-  <div class="logo"><span class="g">DEMO TRADE PRO</span><span class="badge">最大100x</span></div>
-  <div class="stats">
+  <div class="logo"><span class="g">TRADE PRO</span><span class="badge demo-only">最大100x</span></div>
+  <nav class="nav" id="nav">
+    <button data-v="mkt">📊 マーケット</button><button data-v="pick">🚀 上昇候補</button><button data-v="watch">⭐ ウォッチ</button><button data-v="news">📰 ニュース</button><button data-v="demo">🎮 デモトレード</button>
+  </nav>
+  <div class="stats demo-only">
     <div class="stat"><small>総資産（評価額）</small><b id="sEquity" class="num">-</b></div>
     <div class="stat"><small>ウォレット残高</small><b id="sWallet" class="num">-</b></div>
     <div class="stat"><small>未実現損益</small><b id="sUnreal" class="num">-</b></div>
     <div class="stat"><small>確定損益</small><b id="sReal" class="num">-</b></div>
     <div class="stat"><small>利用可能証拠金</small><b id="sAvail" class="num">-</b></div>
   </div>
-  <div class="hdr-right">
+  <div class="hdr-right demo-only">
     <span class="muted" style="font-size:12px">速度</span>
     <div class="seg" id="speed">
       <button data-v="0" title="一時停止">❚❚</button><button data-v="1" class="on">1x</button><button data-v="10">10x</button><button data-v="60">60x</button>
@@ -228,7 +317,16 @@ th:first-child,td:first-child{text-align:left}
   </div>
 </header>
 
-<main>
+<div id="realView" hidden>
+  <div class="databar" id="dataBar"></div>
+  <section id="vMkt" class="rv"></section>
+  <section id="vPick" class="rv" hidden></section>
+  <section id="vWatch" class="rv" hidden></section>
+  <section id="vNews" class="rv" hidden></section>
+</div>
+<div id="detail" hidden><div class="dbox"><button class="btn" id="dClose" aria-label="閉じる">✕</button><div id="dBody"></div></div></div>
+
+<main id="demoMain" hidden>
   <section id="watch"><h2>マーケット</h2><div id="symList" style="display:contents"></div></section>
 
   <section id="chartBox">
@@ -1705,5 +1803,6 @@ syncPriceField(false); renderAll();
 requestAnimationFrame(frame);
 })();
 </script>
+<script src="market.js"></script>
 </body>
 </html>
