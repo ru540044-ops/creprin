@@ -2,3 +2,4 @@ yfinance>=0.2.60
 pandas>=2.0
 numpy
 feedparser>=6.0
+anthropic>=2.14

@@ -14,7 +14,7 @@ const CG = 'https://api.coingecko.com/api/v3';
 const WKEY = 'market-watch-v1', VKEY = 'market-view-v1';
 
 const S = {
-  data:null, dataErr:null, dataAt:0, cg:null, cgErr:null, cgAt:0, trend:[],
+  data:null, dataErr:null, ai:null, aiErr:null, dataAt:0, cg:null, cgErr:null, cgAt:0, trend:[],
   view:'mkt', mk:'jp', mode:'heat', per:'c1', sort:'score', q:'', pickMk:'all', newsCat:'all',
   watch: load(WKEY, []),
 };
@@ -402,6 +402,124 @@ function drawDetail(bars, mk, daily){
   cv.onpointerleave = () => draw(null);
 }
 
+
+// ---------------------------------------------------------------- AI運用（Claude）
+const AI_URL = DATA_URL.replace(/market\.json$/, 'ai.json');
+const CAP_KEY = 'ai-real-capital-v1';
+async function loadAI(){
+  try {
+    const r = await fetch(AI_URL + '?t=' + Math.floor(Date.now()/60000), { cache:'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    S.ai = await r.json(); S.aiErr = null;
+  } catch (e) { S.aiErr = String(e.message || e); }
+  if (S.view === 'ai') render();
+}
+const yen = v => v == null || !isFinite(v) ? '-' : (v < 0 ? '-' : '') + '¥' + Math.round(Math.abs(v)).toLocaleString('ja-JP');
+const RISK = { low:['低め','up'], medium:['中程度','warn'], high:['高め','down'] };
+const CONF = { low:'低', medium:'中', high:'高' };
+function aiSetup(){
+  return `<div class="setup"><h3>🤖 Claude の運用を始めるには</h3>
+  <p>Claude（Opus 5.5）が GitHub Actions 上で6時間ごとに相場データとニュースを読み、仮想資金 1,000万円で売買します。実際のお金は動きません。</p>
+  <ol><li>先に「株価・ニュース」のデータ取得を有効にする（マーケット画面の案内どおり main にマージ）</li>
+  <li><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> で API キーを作成する（従量課金。1回の判断で約20〜40円、6時間ごとなら月 3,000〜5,000円程度が目安）</li>
+  <li>GitHub の <a href="https://github.com/${esc(REPO)}/settings/secrets/actions" target="_blank" rel="noopener">Settings → Secrets and variables → Actions</a> で、名前 <code>ANTHROPIC_API_KEY</code> のシークレットとして登録する</li>
+  <li><a href="https://github.com/${esc(REPO)}/actions/workflows/market-data.yml" target="_blank" rel="noopener">Actions の「Market data」</a> で <b>Run workflow</b> を押し、「今すぐ Claude に売買判断させる」にチェックして実行</li></ol>
+  <p class="muted">判断の間隔は Actions の変数 <code>AI_INTERVAL_HOURS</code>（既定 6）で変えられます。取得先: <code>${esc(AI_URL)}</code>（${esc(S.aiErr || '')}）</p></div>`;
+}
+function eqChart(hist, start){
+  if (!hist || hist.length < 2) return '<div class="empty" style="padding:30px">記録が2点以上たまるとグラフが表示されます</div>';
+  const W = 900, H = 220, P = 8, xs = hist.map(h => new Date(h.t).getTime()), ys = hist.map(h => h.eq);
+  let lo = Math.min(...ys, start), hi = Math.max(...ys, start); const pd = (hi-lo)*0.1 || hi*0.01; lo -= pd; hi += pd;
+  const x = t => P + (t - xs[0])/((xs[xs.length-1] - xs[0]) || 1)*(W - 2*P), y = v => P + (hi - v)/(hi - lo)*(H - 2*P);
+  const pts = hist.map((h,i) => `${x(xs[i]).toFixed(1)},${y(h.eq).toFixed(1)}`).join(' ');
+  const up = ys[ys.length-1] >= start, col = up ? '#00e5a0' : '#ff3b6b';
+  return `<svg viewBox="0 0 ${W} ${H}" class="eqsvg" preserveAspectRatio="none">
+    <defs><linearGradient id="eqg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <line x1="0" x2="${W}" y1="${y(start)}" y2="${y(start)}" stroke="#8389b3" stroke-dasharray="4 4" stroke-width="1"/>
+    <polygon fill="url(#eqg)" points="${x(xs[0])},${H} ${pts} ${x(xs[xs.length-1])},${H}"/>
+    <polyline fill="none" stroke="${col}" stroke-width="2" points="${pts}"/></svg>
+    <div class="eqlbl muted"><span>${new Date(xs[0]).toLocaleDateString('ja-JP')}</span><span>点線 = 元本 ${yen(start)}</span><span>${new Date(xs[xs.length-1]).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span></div>`;
+}
+function realQty(tk, jpy){
+  const r = findRow(tk); if (!r || !r.price) return null;
+  const mk = mkOf(tk), fx = mk === 'us' ? (S.ai?.usdjpy || 150) : 1, unit = r.price*fx;
+  if (mk === 'jp'){ const q = Math.floor(jpy/unit/100)*100; return { q, txt: q ? `${q.toLocaleString()}株` : `100株＝${yen(unit*100)}が必要`, px:r.price, mk }; }
+  if (mk === 'us'){ const q = Math.floor(jpy/unit); return { q, txt: q ? `${q}株` : `1株＝${yen(unit)}が必要`, px:r.price, mk }; }
+  const q = Math.floor(jpy/unit*1e4)/1e4; return { q, txt: `${q}`, px:r.price, mk };
+}
+function renderAI(){
+  const box = $('vAi'), A = S.ai;
+  if (!A){ box.innerHTML = aiSetup(); return; }
+  const eq = A.equity, start = A.start, target = A.target, ret = eq/start - 1;
+  const prog = Math.max(0, Math.min(100, Math.log(Math.max(eq, 1)/start)/Math.log(target/start)*100));
+  const days = Math.max(1, (Date.now() - new Date(A.startedAt).getTime())/864e5);
+  const D = A.decisions?.[0];
+  const cap = +(load(CAP_KEY, 10_000_000)) || 10_000_000;
+  const posRows = Object.entries(A.positions || {}).map(([tk,p]) => {
+    const mk = mkOf(tk), fx = mk === 'us' ? A.usdjpy : 1, val = (p.last || p.avg)*p.qty*fx, pnl = (p.last || p.avg)/p.avg - 1;
+    return { tk, p, mk, val, pnl, w: val/eq };
+  });
+  const err = A.lastError ? `<div class="setup" style="border-color:var(--down)">⚠ 直近の Claude 実行でエラー（${ago(A.lastError.t)}）: ${esc(A.lastError.msg)}</div>` : '';
+  const orders = (D?.orders || []).map(o => {
+    const r = findRow(o.ticker), buy = o.action === 'buy';
+    return `<div class="ord"><span class="src ${buy ? 'us' : 'jp'}">${buy ? '買い' : '売り'}</span>
+      <div><b class="tkc" data-tk="${esc(r?.tk || o.ticker)}">${esc(r?.name || o.ticker)}</b> <small class="muted">${esc(o.ticker)}</small>
+      <span class="muted"> · ${buy ? `目標比率 ${o.target_weight_pct}% · 損切り -${o.stop_loss_pct}% · 利確 +${o.take_profit_pct}%` : `保有の${Math.round(o.sell_fraction*100)}%を売却`} · 確信度 ${CONF[o.confidence] || '-'}</span>
+      <p>${esc(o.reason)}</p></div></div>`;
+  }).join('') || '<p class="muted">今回は売買なし（様子見）</p>';
+  const realBuys = (D?.orders || []).filter(o => o.action === 'buy').map(o => {
+    const jpy = cap*o.target_weight_pct/100, rq = realQty(o.ticker, jpy), r = findRow(o.ticker);
+    return `<tr><td><b>${esc(r?.name || o.ticker)}</b><small class="muted" style="display:block">${esc(o.ticker)}</small></td><td class="num">${o.target_weight_pct}%</td><td class="num">${yen(jpy)}</td>
+      <td class="num">${rq ? rq.txt : '-'}</td><td class="num">${rq ? fp(rq.px, rq.mk) : '-'}</td>
+      <td class="num down">${rq ? fp(rq.px*(1 - o.stop_loss_pct/100), rq.mk) : '-'}</td><td class="num up">${rq ? fp(rq.px*(1 + o.take_profit_pct/100), rq.mk) : '-'}</td></tr>`;
+  }).join('');
+  const realSells = (D?.orders || []).filter(o => o.action === 'sell').map(o => `<li>${esc(findRow(o.ticker)?.name || o.ticker)}：保有している場合は ${Math.round(o.sell_fraction*100)}% を売却</li>`).join('');
+  const mirror = posRows.map(({tk,p,mk,w}) => { const rq = realQty(tk, cap*w); return `<tr><td>${esc(p.name || tk)}</td><td class="num">${(w*100).toFixed(1)}%</td><td class="num">${yen(cap*w)}</td><td class="num">${rq ? rq.txt : '-'}</td><td class="num down">${fp(p.sl, mk)}</td><td class="num up">${fp(p.tp, mk)}</td></tr>`; }).join('');
+  box.innerHTML = `${err}
+  <div class="ai-top">
+    <div class="card ai-eq"><h4>Claude の仮想ポートフォリオ（元本 ${yen(start)}）</h4>
+      <div class="big num ${cl(ret)}">${yen(eq)}</div><div class="num ${cl(ret)}">${pc(ret)}（${yen(eq - start)}）</div>
+      <div class="goal"><div class="goal-bar"><i style="width:${prog.toFixed(1)}%"></i></div>
+        <div class="gl"><span>1,000万</span><span>目標 1億円まで あと ${(target/eq).toFixed(2)}倍</span><span>1億</span></div></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">運用 ${Math.floor(days)}日目 · 現金 ${yen(A.cash)} · 確定損益 <span class="${cl(A.realized)}">${yen(A.realized)}</span> · 手数料 ${yen(A.fees)} · 更新 ${ago(A.updated)}</div></div>
+    <div class="card ai-chart"><h4>資産推移</h4>${eqChart(A.history, start)}</div>
+  </div>
+  <p class="disc">⚠ これは Claude による仮想運用の記録です。AI は相場を予測できず、過去の成績は将来を保証しません。1,000万円を1億円にする目標は大きな損失リスクを伴います。実資金での取引は、必ずご自身の判断と責任で、余裕資金の範囲で行ってください。</p>
+  <div class="ai-grid">
+    <div class="card"><h4>最新の判断 ${D ? `<span class="muted">· ${new Date(D.t).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}（${ago(D.t)}）· ${esc(D.usage?.model || '')}</span>` : ''}</h4>
+      ${D ? `<p><b>相場観</b> <span class="${RISK[D.risk_level]?.[1] || ''}">リスク${RISK[D.risk_level]?.[0] || ''}</span></p><p class="mv">${esc(D.market_view)}</p>
+        <h5>注文（執行 ${D.executed}件 · 取引時間待ち ${D.pending}件）</h5>${orders}
+        ${(D.notes || []).length ? `<p class="muted" style="font-size:12px">リスク制限による調整: ${D.notes.map(esc).join(' / ')}</p>` : ''}
+        ${(D.watchlist || []).length ? `<h5>注目銘柄</h5><div class="chips2">${D.watchlist.map(w => `<span class="chip tkc" data-tk="${esc(findRow(w.ticker)?.tk || w.ticker)}" title="${esc(w.note)}">${esc(findRow(w.ticker)?.name || w.ticker)}：${esc(w.note)}</span>`).join('')}</div>` : ''}
+        ${D.lessons ? `<h5>振り返り</h5><p class="mv">${esc(D.lessons)}</p>` : ''}` : '<p class="muted">まだ判断がありません。次の実行をお待ちください。</p>'}
+      ${(A.pending || []).length ? `<h5>取引時間待ちの注文</h5><ul class="pl">${A.pending.map(o => `<li>${o.action === 'buy' ? '買い' : '売り'} ${esc(findRow(o.ticker)?.name || o.ticker)}（${ago(o.at)}に発注）</li>`).join('')}</ul>` : ''}
+    </div>
+    <div class="card"><h4>💴 実資金で使う場合の目安</h4>
+      <label class="capl">あなたの運用資金 <input type="number" id="realCap" min="0" step="100000" value="${cap}"> 円</label>
+      <h5>最新の買い提案をこの資金に当てはめると</h5>
+      ${realBuys ? `<div class="tbl-wrap mt"><table class="mtbl"><tr><th>銘柄</th><th>比率</th><th>金額</th><th>数量</th><th>現在値</th><th>損切り</th><th>利確</th></tr>${realBuys}</table></div>` : '<p class="muted">今回の買い提案はありません</p>'}
+      ${realSells ? `<ul class="pl">${realSells}</ul>` : ''}
+      <h5>AI ポートフォリオ全体を同じ比率で持つ場合</h5>
+      ${mirror ? `<div class="tbl-wrap mt"><table class="mtbl"><tr><th>銘柄</th><th>比率</th><th>金額</th><th>数量</th><th>損切り</th><th>利確</th></tr>${mirror}</table></div>` : '<p class="muted">現在ポジションなし</p>'}
+      <p class="muted" style="font-size:11px;margin-top:8px">数量は日本株100株・米国株1株単位に切り捨て、ドル円 ${A.usdjpy} で換算。価格は取得時点のもので、注文はご自身の証券口座で行ってください。このアプリが自動で発注することはありません。</p>
+    </div>
+  </div>
+  <h3>保有銘柄</h3>
+  ${posRows.length ? `<div class="tbl-wrap mt"><table class="mtbl"><tr><th>銘柄</th><th>数量</th><th>取得単価</th><th>現在値</th><th>評価額</th><th>比率</th><th>損益</th><th>損切り</th><th>利確</th><th>理由</th></tr>
+    ${posRows.map(({tk,p,mk,val,pnl,w}) => `<tr data-tk="${esc(findRow(tk)?.tk || tk)}"><td><b>${esc(p.name || tk)}</b><small class="muted" style="display:block">${esc(tk)}</small></td><td class="num">${p.qty.toLocaleString()}</td>
+      <td class="num">${fp(p.avg, mk)}</td><td class="num">${fp(p.last, mk)}</td><td class="num">${yen(val)}</td><td class="num">${(w*100).toFixed(1)}%</td>
+      <td class="num ${cl(pnl)}">${pc(pnl)}</td><td class="num down">${fp(p.sl, mk)}</td><td class="num up">${fp(p.tp, mk)}</td><td class="wrap">${esc(p.thesis || '')}</td></tr>`).join('')}</table></div>` : '<div class="empty">ポジションなし（全額現金）</div>'}
+  <h3>売買履歴</h3>
+  ${(A.trades || []).length ? `<div class="tbl-wrap mt"><table class="mtbl"><tr><th>日時</th><th>銘柄</th><th>売買</th><th>数量</th><th>価格</th><th>金額</th><th>確定損益</th><th>きっかけ</th><th>理由</th></tr>
+    ${A.trades.slice(0,100).map(t => `<tr><td class="muted">${new Date(t.t).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td><td>${esc(findRow(t.tk)?.name || t.tk)}</td>
+      <td class="${t.side === 'buy' ? 'up' : 'down'}">${t.side === 'buy' ? '買い' : '売り'}</td><td class="num">${t.qty.toLocaleString()}</td><td class="num">${fp(t.px, mkOf(t.tk))}</td><td class="num">${yen(t.jpy)}</td>
+      <td class="num ${cl(t.realized)}">${t.side === 'sell' ? yen(t.realized) : '-'}</td><td>${t.src === 'rule' ? '自動（損切り/利確）' : 'Claude'}</td><td class="wrap">${esc(t.reason)}</td></tr>`).join('')}</table></div>` : '<div class="empty">まだ売買はありません</div>'}
+  ${(A.decisions || []).length > 1 ? `<h3>過去の判断</h3>${A.decisions.slice(1, 20).map(d => `<details class="card past"><summary>${new Date(d.t).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })} · 注文${(d.orders || []).length}件 · 総資産 ${yen(d.equity)}</summary><p class="mv">${esc(d.market_view)}</p>${(d.orders || []).map(o => `<p>・${o.action === 'buy' ? '買い' : '売り'} ${esc(findRow(o.ticker)?.name || o.ticker)}：${esc(o.reason)}</p>`).join('')}</details>`).join('')}` : ''}`;
+}
+$('realView').addEventListener('change', e => {
+  if (e.target.id === 'realCap'){ save(CAP_KEY, Math.max(0, +e.target.value || 0)); renderAI(); }
+});
+
 // ---------------------------------------------------------------- ナビゲーション・イベント
 function setView(v){
   S.view = v; saveView();
@@ -409,7 +527,7 @@ function setView(v){
   const demo = v === 'demo';
   document.body.classList.toggle('real', !demo);
   $('realView').hidden = demo; $('demoMain').hidden = !demo;
-  for (const k of ['mkt','pick','watch','news']) $('v' + k[0].toUpperCase() + k.slice(1)).hidden = v !== k;
+  for (const k of ['mkt','pick','watch','news','ai']) $('v' + k[0].toUpperCase() + k.slice(1)).hidden = v !== k;
   if (demo) window.dispatchEvent(new Event('resize'));
   render();
 }
@@ -419,6 +537,7 @@ function render(){
   else if (S.view === 'pick') renderPick();
   else if (S.view === 'watch') renderWatch();
   else if (S.view === 'news') renderNews();
+  else if (S.view === 'ai') renderAI();
 }
 function afterUpdate(){ checkAlerts(); render(); }
 
@@ -451,8 +570,9 @@ $('realView').addEventListener('input', e => {
 addEventListener('resize', () => { if (!$('detail').hidden && curDetail) openDetail(curDetail, true); });
 
 setView(S.view || 'mkt');
-loadData(); loadCG(); loadTrending();
+loadData(); loadCG(); loadTrending(); loadAI();
 setInterval(loadData, 5*60e3);
+setInterval(loadAI, 5*60e3);
 setInterval(loadCG, 60e3);
 setInterval(loadTrending, 10*60e3);
 setInterval(renderBar, 30e3);

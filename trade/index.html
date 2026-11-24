@@ -177,6 +177,22 @@ body.real .demo-only{display:none!important}
 .mt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:6px}
 .mt-i{background:var(--panel2);border-radius:8px;padding:8px 10px}.mt-i small{display:block;font-size:10px;color:var(--muted)}.mt-i b{font-size:14px}
 .d-h4{font-size:13px;color:var(--muted);margin:14px 0 8px}
+.ai-top{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:10px;margin-bottom:10px}
+.ai-eq .big{font-size:30px;font-weight:900;line-height:1.2}
+.goal{margin-top:12px}.goal-bar{height:12px;border-radius:6px;background:#22274a;overflow:hidden}
+.goal-bar i{display:block;height:100%;background:var(--grad);border-radius:6px;box-shadow:0 0 12px rgba(255,47,179,.5)}
+.eqsvg{width:100%;height:220px;display:block}.eqlbl{display:flex;justify-content:space-between;font-size:11px;margin-top:4px}
+.ai-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:10px;margin-top:10px}
+.ai-grid h5,.rv h5{font-size:12px;color:var(--muted);margin:12px 0 6px}
+.mv{line-height:1.7;font-size:13px}
+.ord{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.ord p{margin-top:3px;line-height:1.6}
+.pl{margin-left:18px;font-size:13px;line-height:1.8}
+.capl{display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+.capl input{width:160px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+td.wrap{white-space:normal;min-width:200px;text-align:left;font-size:12px}
+.past{margin-bottom:6px}.past summary{cursor:pointer;font-size:13px}.past p{margin-top:6px;font-size:13px}
+@media (max-width:800px){.ai-top{grid-template-columns:1fr}.ai-grid{grid-template-columns:1fr}}
 @media (max-width:700px){
   .nav{width:100%;overflow-x:auto;flex-wrap:nowrap}
   .nitem{grid-template-columns:1fr}
@@ -299,7 +315,7 @@ th:first-child,td:first-child{text-align:left}
 <header>
   <div class="logo"><span class="g">TRADE PRO</span><span class="badge demo-only">最大100x</span></div>
   <nav class="nav" id="nav">
-    <button data-v="mkt">📊 マーケット</button><button data-v="pick">🚀 上昇候補</button><button data-v="watch">⭐ ウォッチ</button><button data-v="news">📰 ニュース</button><button data-v="demo">🎮 デモトレード</button>
+    <button data-v="mkt">📊 マーケット</button><button data-v="pick">🚀 上昇候補</button><button data-v="watch">⭐ ウォッチ</button><button data-v="news">📰 ニュース</button><button data-v="ai">🤖 AI運用</button><button data-v="demo">🎮 デモトレード</button>
   </nav>
   <div class="stats demo-only">
     <div class="stat"><small>総資産（評価額）</small><b id="sEquity" class="num">-</b></div>
@@ -323,6 +339,7 @@ th:first-child,td:first-child{text-align:left}
   <section id="vPick" class="rv" hidden></section>
   <section id="vWatch" class="rv" hidden></section>
   <section id="vNews" class="rv" hidden></section>
+  <section id="vAi" class="rv" hidden></section>
 </div>
 <div id="detail" hidden><div class="dbox"><button class="btn" id="dClose" aria-label="閉じる">✕</button><div id="dBody"></div></div></div>
 
