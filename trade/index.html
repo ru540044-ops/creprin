@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>デモトレード</title>
+<meta name="description" content="仮想資金100万円で売買を練習できるトレードシミュレーター（価格はすべて模擬データ）">
+<style>
+:root{
+  --bg:#0d1117;--panel:#161b22;--panel2:#1c232c;--line:#2a323d;
+  --text:#e6edf3;--muted:#8b949e;
+  --up:#26a69a;--down:#ef5350;--accent:#f0b90b;--blue:#58a6ff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:14px}
+button,input,select{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--muted)}
+
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+header h1 .badge{font-size:11px;font-weight:600;background:var(--accent);color:#000;border-radius:4px;padding:1px 6px}
+.stats{display:flex;flex-wrap:wrap;gap:6px 20px}
+.stat small{display:block;font-size:11px;color:var(--muted)}
+.stat b{font-size:15px}
+.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{background:none;border:0;padding:5px 9px;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--panel2);color:var(--text)}
+
+main{display:grid;grid-template-columns:220px 1fr 300px;grid-template-rows:auto auto;gap:1px;background:var(--line);min-height:calc(100vh - 58px)}
+main>section{background:var(--bg)}
+h2{font-size:12px;font-weight:600;color:var(--muted);padding:10px 12px 6px;text-transform:uppercase;letter-spacing:.04em}
+
+/* watchlist */
+#watch{grid-row:1/3;grid-column:1}
+#chartBox{grid-row:1;grid-column:2}
+.sym{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:9px 12px;cursor:pointer;border-left:3px solid transparent}
+.sym:hover{background:var(--panel)}
+.sym.on{background:var(--panel);border-left-color:var(--accent)}
+.sym .n{font-weight:600}.sym .p{text-align:right}
+.sym .d{grid-column:1/3;font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+
+/* chart */
+#chartBox{display:flex;flex-direction:column;min-width:0}
+.chart-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding:10px 14px}
+.chart-head .big{font-size:24px;font-weight:700}
+.chart-head .name{font-size:16px;font-weight:700}
+.ohlc{font-size:12px;color:var(--muted)}
+#chartWrap{position:relative;height:420px;min-height:260px}
+canvas{display:block;width:100%;height:100%}
+#tip{position:absolute;top:6px;left:12px;font-size:12px;color:var(--muted);pointer-events:none}
+
+/* order panel */
+#order{grid-row:1/3;grid-column:3;padding-bottom:16px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;margin:4px 12px 12px;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.tabs button{border:0;background:var(--panel);padding:9px;cursor:pointer;font-weight:700;color:var(--muted)}
+.tabs button.buy.on{background:var(--up);color:#fff}
+.tabs button.sell.on{background:var(--down);color:#fff}
+.field{margin:0 12px 10px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.field input,.field select{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--blue)}
+.pct{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 12px 12px}
+.pct button{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:4px 0;font-size:12px;cursor:pointer;color:var(--muted)}
+.pct button:hover{color:var(--text)}
+.kv{display:flex;justify-content:space-between;margin:0 12px 6px;font-size:12px;color:var(--muted)}
+.kv b{color:var(--text);font-weight:500}
+#submit{display:block;width:calc(100% - 24px);margin:12px 12px 6px;padding:11px;border:0;border-radius:6px;font-weight:700;font-size:15px;color:#fff;cursor:pointer}
+#submit.buy{background:var(--up)}#submit.sell{background:var(--down)}
+#submit:disabled{opacity:.45;cursor:not-allowed}
+#msg{margin:0 12px;font-size:12px;min-height:18px}
+.note{margin:14px 12px 0;font-size:11px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:12px}
+
+/* bottom tables */
+#bottom{grid-row:2;grid-column:2;min-width:0}
+.btabs{display:flex;gap:2px;padding:0 8px;border-bottom:1px solid var(--line)}
+.btabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 10px;cursor:pointer;color:var(--muted);font-weight:600}
+.btabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+.tbl-wrap{overflow-x:auto;max-height:260px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th{position:sticky;top:0;background:var(--bg);text-align:right;font-weight:500;color:var(--muted);font-size:12px;padding:8px 12px;border-bottom:1px solid var(--line)}
+td{text-align:right;padding:7px 12px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+td .x{background:none;border:1px solid var(--line);border-radius:4px;padding:2px 8px;cursor:pointer;color:var(--muted);font-size:12px}
+td .x:hover{color:var(--text);border-color:var(--muted)}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 16px;transition:transform .25s;z-index:10;max-width:calc(100% - 32px)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+@media (max-width:1000px){
+  main{grid-template-columns:1fr 300px}
+  #watch{grid-row:1;grid-column:1/3;display:flex;overflow-x:auto}
+  #chartBox{grid-row:2;grid-column:1}
+  #watch h2{display:none}
+  .sym{min-width:150px;border-left:0;border-bottom:3px solid transparent}
+  .sym.on{border-bottom-color:var(--accent)}
+  #order{grid-row:2/4;grid-column:2}
+  #bottom{grid-row:3;grid-column:1}
+}
+@media (max-width:700px){
+  main{grid-template-columns:1fr}
+  #watch,#chartBox,#order,#bottom{grid-row:auto;grid-column:1}
+  #chartWrap{height:300px}
+  .hdr-right{margin-left:0}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 デモトレード <span class="badge">模擬</span></h1>
+  <div class="stats">
+    <div class="stat"><small>総資産</small><b id="sEquity" class="num">-</b></div>
+    <div class="stat"><small>現金</small><b id="sCash" class="num">-</b></div>
+    <div class="stat"><small>評価損益</small><b id="sUnreal" class="num">-</b></div>
+    <div class="stat"><small>確定損益</small><b id="sReal" class="num">-</b></div>
+    <div class="stat"><small>買付余力</small><b id="sBP" class="num">-</b></div>
+  </div>
+  <div class="hdr-right">
+    <span class="muted" style="font-size:12px">速度</span>
+    <div class="seg" id="speed">
+      <button data-v="0">⏸</button><button data-v="1" class="on">1x</button><button data-v="5">5x</button><button data-v="20">20x</button>
+    </div>
+    <button class="btn" id="reset">リセット</button>
+  </div>
+</header>
+
+<main>
+  <section id="watch"><h2>銘柄</h2><div id="symList" style="display:contents"></div></section>
+
+  <section id="chartBox">
+    <div class="chart-head">
+      <span class="name" id="cName">-</span>
+      <span class="big num" id="cPrice">-</span>
+      <span class="num" id="cChg">-</span>
+      <span class="ohlc num" id="cOhlc"></span>
+    </div>
+    <div id="chartWrap"><canvas id="chart"></canvas><div id="tip" class="num"></div></div>
+  </section>
+
+  <section id="order">
+    <h2>注文</h2>
+    <div class="tabs"><button class="buy on" data-side="buy">買い</button><button class="sell" data-side="sell">売り</button></div>
+    <div class="field">
+      <label>注文タイプ</label>
+      <select id="oType">
+        <option value="market">成行</option>
+        <option value="limit">指値</option>
+        <option value="stop">逆指値</option>
+      </select>
+    </div>
+    <div class="field" id="priceField" hidden>
+      <label id="priceLabel">価格</label>
+      <input id="oPrice" type="number" step="any" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label>数量 <span id="unitLbl" class="muted"></span></label>
+      <input id="oQty" type="number" step="any" min="0" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="pct"><button data-p=".25">25%</button><button data-p=".5">50%</button><button data-p=".75">75%</button><button data-p="1">100%</button></div>
+    <div class="kv"><span>概算金額</span><b id="oCost" class="num">-</b></div>
+    <div class="kv"><span>保有数量</span><b id="oHold" class="num">-</b></div>
+    <button id="submit" class="buy">買い注文</button>
+    <div id="msg"></div>
+    <p class="note">価格はブラウザ内で生成した模擬データで、実際の相場とは関係ありません。仮想資金 ¥1,000,000 で売買の練習ができます。信用取引のように売りから入る（空売り）こともできます。データはこのブラウザに保存されます。</p>
+  </section>
+
+  <section id="bottom">
+    <div class="btabs">
+      <button data-t="pos" class="on">ポジション</button>
+      <button data-t="ord">未約定注文</button>
+      <button data-t="hist">約定履歴</button>
+    </div>
+    <div class="tbl-wrap" id="tbl"></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const START_CASH = 1_000_000;
+const CANDLE_TICKS = 10;      // 1本 = 10ティック
+const MAX_CANDLES = 200;
+const STORE_KEY = 'demo-trade-v1';
+
+const SYMBOLS = [
+  { id:'BTCJPY', name:'BTC/JPY',  unit:'BTC', price:14_500_000, vol:0.0004, dec:0, qStep:0.0001 },
+  { id:'ETHJPY', name:'ETH/JPY',  unit:'ETH', price:520_000,    vol:0.0016, dec:0, qStep:0.001 },
+  { id:'USDJPY', name:'USD/JPY',  unit:'USD', price:154.20,     vol:0.00018, dec:3, qStep:1 },
+  { id:'EURJPY', name:'EUR/JPY',  unit:'EUR', price:163.80,     vol:0.0002, dec:3, qStep:1 },
+  { id:'GOLD',   name:'GOLD/JPY', unit:'g',   price:19_800,     vol:0.0005, dec:0, qStep:0.1 },
+  { id:'IDX225', name:'模擬225指数', unit:'口', price:38_900,   vol:0.0004, dec:0, qStep:1 },
+];
+const symById = Object.fromEntries(SYMBOLS.map(s => [s.id, s]));
+
+// ---------- state ----------
+let st = load() || fresh();
+function fresh(){
+  return { cash:START_CASH, realized:0, pos:{}, orders:[], hist:[], seq:1, sel:'BTCJPY',
+           last:Object.fromEntries(SYMBOLS.map(s => [s.id, s.price])) };
+}
+function load(){
+  try { const j = JSON.parse(localStorage.getItem(STORE_KEY)); return j && j.pos ? j : null; } catch { return null; }
+}
+let saveT = 0;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(st)); } catch {} }, 300);
+}
+
+// ---------- price engine ----------
+const mkt = {};
+let simT = Date.now() - 150*CANDLE_TICKS*1000;   // 模擬時刻（1ティック=1秒）   // id -> {price, open24, candles:[{o,h,l,c,t}], ticks, drift}
+function gauss(){ let u=0,v=0; while(!u) u=Math.random(); while(!v) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function step(m, s){
+  // 平均回帰＋ゆらぐトレンド付きの対数ランダムウォーク
+  m.drift = m.drift*0.99 + gauss()*s.vol*0.01;
+  m.drift = Math.max(-s.vol*0.12, Math.min(s.vol*0.12, m.drift));
+  const r = m.drift + gauss()*s.vol*(Math.random()<0.02 ? 3 : 1);
+  m.price = Math.max(m.price*Math.exp(r), s.price*0.05);
+  return m.price;
+}
+function pushTick(m, p){
+  let c = m.candles[m.candles.length-1];
+  if (!c || m.ticks >= CANDLE_TICKS){
+    c = { o: c ? c.c : p, h:p, l:p, c:p, t: simT };
+    if (c.o > c.h) c.h = c.o; if (c.o < c.l) c.l = c.o;
+    m.candles.push(c); m.ticks = 0;
+    if (m.candles.length > MAX_CANDLES) m.candles.shift();
+  }
+  c.c = p; if (p > c.h) c.h = p; if (p < c.l) c.l = p;
+  m.ticks++;
+}
+for (const s of SYMBOLS){
+  // 過去データを生成し、最後の価格が保存値に一致するようスケール
+  const m = { price:s.price, candles:[], ticks:0, drift:0 };
+  const t0 = simT;
+  for (let i=0; i<150*CANDLE_TICKS; i++){ pushTick(m, step(m, s)); simT += 1000; }
+  if (s !== SYMBOLS[SYMBOLS.length-1]) simT = t0;
+  const k = (st.last[s.id] || s.price) / m.price;
+  for (const c of m.candles){ c.o*=k; c.h*=k; c.l*=k; c.c*=k; }
+  m.price *= k;
+  m.open24 = m.candles[0].o;
+  mkt[s.id] = m;
+}
+
+// ---------- formatting ----------
+const fmtJ = (v, d=0) => (v<0?'-':'') + '¥' + Math.abs(v).toLocaleString('ja-JP',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtP = (id, v) => v.toLocaleString('ja-JP',{minimumFractionDigits:symById[id].dec,maximumFractionDigits:symById[id].dec});
+const fmtQ = (id, q) => { const d = Math.max(0, -Math.floor(Math.log10(symById[id].qStep))); return q.toLocaleString('ja-JP',{minimumFractionDigits:0,maximumFractionDigits:d}); };
+const sign = v => v>0 ? 'up' : v<0 ? 'down' : '';
+const pctStr = v => (v>=0?'+':'') + (v*100).toFixed(2) + '%';
+const $ = id => document.getElementById(id);
+
+// ---------- account ----------
+function unrealized(){
+  let u = 0;
+  for (const [id,p] of Object.entries(st.pos)) u += p.qty*(mkt[id].price - p.avg);
+  return u;
+}
+function equity(){
+  let e = st.cash;
+  for (const [id,p] of Object.entries(st.pos)) e += p.qty*mkt[id].price;
+  return e;
+}
+function gross(){
+  let g = 0;
+  for (const [id,p] of Object.entries(st.pos)) g += Math.abs(p.qty*mkt[id].price);
+  return g;
+}
+const buyingPower = () => Math.max(0, equity() - gross());   // レバレッジ1倍
+
+// 新たにリスクを増やす部分の数量
+function increasingQty(id, side, qty){
+  const cur = st.pos[id]?.qty || 0;
+  const d = side==='buy' ? qty : -qty;
+  if (cur === 0 || Math.sign(cur) === Math.sign(d)) return qty;
+  return Math.max(0, qty - Math.abs(cur));
+}
+function canAfford(id, side, qty, price){
+  return increasingQty(id, side, qty)*price <= buyingPower() + 1e-6;
+}
+
+function fill(id, side, qty, price, kind){
+  const d = side==='buy' ? qty : -qty;
+  const p = st.pos[id] || { qty:0, avg:0 };
+  let realized = 0;
+  if (p.qty === 0 || Math.sign(p.qty) === Math.sign(d)){
+    p.avg = (p.avg*Math.abs(p.qty) + price*qty) / (Math.abs(p.qty)+qty);
+    p.qty += d;
+  } else {
+    const close = Math.min(Math.abs(p.qty), qty);
+    realized = close*(price - p.avg)*Math.sign(p.qty);
+    p.qty += d;
+    if (Math.abs(p.qty) < 1e-12) p.qty = 0;
+    else if (Math.sign(p.qty) === Math.sign(d)) p.avg = price; // ドテン
+  }
+  st.cash -= d*price;
+  st.realized += realized;
+  if (p.qty === 0) delete st.pos[id]; else st.pos[id] = p;
+  st.hist.unshift({ t:Date.now(), id, side, qty, price, kind, realized });
+  if (st.hist.length > 300) st.hist.pop();
+  marks.push({ id, side, price, candle: mkt[id].candles.length-1 });
+  toast(`${side==='buy'?'買い':'売り'}約定 ${symById[id].name} ${fmtQ(id,qty)} @ ${fmtP(id,price)}` + (realized ? `（損益 ${fmtJ(realized)}）` : ''));
+  save();
+}
+const marks = [];
+
+function placeOrder(){
+  const id = st.sel, s = symById[id];
+  const type = $('oType').value;
+  const qty = roundQ(id, parseFloat($('oQty').value));
+  const px = parseFloat($('oPrice').value);
+  const cur = mkt[id].price;
+  if (!(qty > 0)) return msg('数量を入力してください', true);
+  if (type === 'market'){
+    if (!canAfford(id, side, qty, cur)) return msg('買付余力が足りません', true);
+    fill(id, side, qty, cur, '成行');
+  } else {
+    if (!(px > 0)) return msg('価格を入力してください', true);
+    if (type==='limit' && ((side==='buy' && px >= cur) || (side==='sell' && px <= cur)))
+      return msg(side==='buy' ? '買い指値は現在値より下に設定してください' : '売り指値は現在値より上に設定してください', true);
+    if (type==='stop' && ((side==='buy' && px <= cur) || (side==='sell' && px >= cur)))
+      return msg(side==='buy' ? '買い逆指値は現在値より上に設定してください' : '売り逆指値は現在値より下に設定してください', true);
+    if (!canAfford(id, side, qty, px)) return msg('買付余力が足りません', true);
+    st.orders.push({ n:st.seq++, id, side, type, qty, price:px, t:Date.now() });
+    toast(`注文受付 ${s.name} ${type==='limit'?'指値':'逆指値'} ${fmtP(id,px)}`);
+    save();
+  }
+  $('oQty').value = '';
+  msg('');
+  renderAll();
+}
+function checkOrders(){
+  let changed = false;
+  for (const o of [...st.orders]){
+    const p = mkt[o.id].price;
+    const hit = o.type==='limit'
+      ? (o.side==='buy' ? p <= o.price : p >= o.price)
+      : (o.side==='buy' ? p >= o.price : p <= o.price);
+    if (!hit) continue;
+    st.orders = st.orders.filter(x => x !== o);
+    const fillPx = o.type==='limit' ? o.price : p;
+    if (!canAfford(o.id, o.side, o.qty, fillPx)) { toast(`余力不足のため注文 #${o.n} を取り消しました`); changed = true; continue; }
+    fill(o.id, o.side, o.qty, fillPx, o.type==='limit'?'指値':'逆指値');
+    changed = true;
+  }
+  return changed;
+}
+const roundQ = (id, q) => { const s = symById[id].qStep; return Math.floor(q/s + 1e-9)*s; };
+
+// ---------- UI: watchlist ----------
+function renderWatch(){
+  $('symList').innerHTML = SYMBOLS.map(s => {
+    const m = mkt[s.id], ch = m.price/m.open24 - 1;
+    return `<div class="sym ${s.id===st.sel?'on':''}" data-id="${s.id}">
+      <span class="n">${s.name}</span><span class="p num ${sign(ch)}">${fmtP(s.id,m.price)}</span>
+      <span class="d"><span>${st.pos[s.id] ? '保有 '+fmtQ(s.id,st.pos[s.id].qty) : ''}</span><span class="num ${sign(ch)}">${pctStr(ch)}</span></span></div>`;
+  }).join('');
+}
+$('symList').addEventListener('click', e => {
+  const el = e.target.closest('.sym'); if (!el) return;
+  st.sel = el.dataset.id; hover = -1; save(); renderAll(); updatePriceField(true);
+});
+
+// ---------- UI: header & order panel ----------
+function renderHeader(){
+  const eq = equity(), u = unrealized();
+  $('sEquity').textContent = fmtJ(eq);
+  $('sEquity').className = 'num ' + sign(eq - START_CASH);
+  $('sCash').textContent = fmtJ(st.cash);
+  $('sUnreal').textContent = fmtJ(u); $('sUnreal').className = 'num ' + sign(u);
+  $('sReal').textContent = fmtJ(st.realized); $('sReal').className = 'num ' + sign(st.realized);
+  $('sBP').textContent = fmtJ(buyingPower());
+
+  const id = st.sel, s = symById[id], m = mkt[id], ch = m.price/m.open24 - 1;
+  $('cName').textContent = s.name;
+  $('cPrice').textContent = fmtP(id, m.price); $('cPrice').className = 'big num ' + sign(ch);
+  $('cChg').textContent = `${ch>=0?'+':''}${fmtP(id, m.price-m.open24)} (${pctStr(ch)})`;
+  $('cChg').className = 'num ' + sign(ch);
+  $('unitLbl').textContent = `(${s.unit} / 最小 ${s.qStep})`;
+  renderOrderInfo();
+}
+let side = 'buy';
+document.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  side = b.dataset.side;
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x===b));
+  $('submit').className = side; updatePriceField(true); renderOrderInfo();
+});
+$('oType').addEventListener('change', () => updatePriceField(true));
+function updatePriceField(reset){
+  const t = $('oType').value;
+  $('priceField').hidden = t === 'market';
+  $('priceLabel').textContent = t==='limit' ? '指値価格' : '逆指値価格（トリガー）';
+  if (reset && t !== 'market'){
+    const p = mkt[st.sel].price, off = t==='limit' ? (side==='buy'?-1:1) : (side==='buy'?1:-1);
+    const dec = symById[st.sel].dec;
+    $('oPrice').value = (p*(1+off*0.005)).toFixed(dec);
+    $('oPrice').step = dec ? (1/10**dec) : 1;
+  }
+  renderOrderInfo();
+}
+function orderPx(){
+  return $('oType').value === 'market' ? mkt[st.sel].price : (parseFloat($('oPrice').value) || mkt[st.sel].price);
+}
+function renderOrderInfo(){
+  const id = st.sel, qty = parseFloat($('oQty').value) || 0, px = orderPx();
+  $('oCost').textContent = qty ? fmtJ(qty*px) : '-';
+  const h = st.pos[id]?.qty || 0;
+  $('oHold').textContent = h ? `${fmtQ(id,h)} ${symById[id].unit}` : '0';
+  $('oHold').className = 'num ' + sign(h);
+  $('submit').textContent = `${symById[id].name} を${side==='buy'?'買う':'売る'}`;
+  $('submit').disabled = !(qty > 0);
+}
+['input','change'].forEach(ev => { $('oQty').addEventListener(ev, renderOrderInfo); $('oPrice').addEventListener(ev, renderOrderInfo); });
+document.querySelector('.pct').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const id = st.sel, px = orderPx(), f = +b.dataset.p;
+  const cur = st.pos[id]?.qty || 0;
+  const closable = (side==='buy' && cur<0) || (side==='sell' && cur>0) ? Math.abs(cur) : 0;
+  const q = roundQ(id, (closable + buyingPower()/px) * f);
+  $('oQty').value = q > 0 ? +q.toFixed(8) : '';
+  renderOrderInfo();
+});
+$('submit').addEventListener('click', placeOrder);
+$('oQty').addEventListener('keydown', e => { if (e.key==='Enter') placeOrder(); });
+function msg(t, err){ $('msg').textContent = t; $('msg').className = err ? 'down' : 'muted'; }
+
+// ---------- UI: tables ----------
+let tab = 'pos';
+document.querySelector('.btabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  tab = b.dataset.t;
+  document.querySelectorAll('.btabs button').forEach(x => x.classList.toggle('on', x===b));
+  renderTable();
+});
+function renderTable(){
+  const box = $('tbl');
+  const nOrd = st.orders.length;
+  document.querySelector('.btabs [data-t=ord]').textContent = `未約定注文${nOrd?` (${nOrd})`:''}`;
+  const nPos = Object.keys(st.pos).length;
+  document.querySelector('.btabs [data-t=pos]').textContent = `ポジション${nPos?` (${nPos})`:''}`;
+  if (tab === 'pos'){
+    const rows = Object.entries(st.pos);
+    if (!rows.length) return box.innerHTML = '<div class="empty">ポジションはありません</div>';
+    box.innerHTML = `<table><tr><th>銘柄</th><th>方向</th><th>数量</th><th>平均取得</th><th>現在値</th><th>評価額</th><th>評価損益</th><th></th></tr>` +
+      rows.map(([id,p]) => {
+        const cur = mkt[id].price, pl = p.qty*(cur-p.avg), r = (cur/p.avg-1)*Math.sign(p.qty);
+        return `<tr><td>${symById[id].name}</td><td class="${p.qty>0?'up':'down'}">${p.qty>0?'ロング':'ショート'}</td>
+          <td class="num">${fmtQ(id,Math.abs(p.qty))}</td><td class="num">${fmtP(id,p.avg)}</td><td class="num">${fmtP(id,cur)}</td>
+          <td class="num">${fmtJ(Math.abs(p.qty*cur))}</td><td class="num ${sign(pl)}">${fmtJ(pl)} (${pctStr(r)})</td>
+          <td><button class="x" data-close="${id}">決済</button></td></tr>`;
+      }).join('') + '</table>';
+  } else if (tab === 'ord'){
+    if (!nOrd) return box.innerHTML = '<div class="empty">未約定の注文はありません</div>';
+    box.innerHTML = `<table><tr><th>銘柄</th><th>売買</th><th>種類</th><th>数量</th><th>価格</th><th>現在値</th><th></th></tr>` +
+      st.orders.map(o => `<tr><td>${symById[o.id].name}</td><td class="${o.side==='buy'?'up':'down'}">${o.side==='buy'?'買い':'売り'}</td>
+        <td>${o.type==='limit'?'指値':'逆指値'}</td><td class="num">${fmtQ(o.id,o.qty)}</td><td class="num">${fmtP(o.id,o.price)}</td>
+        <td class="num">${fmtP(o.id,mkt[o.id].price)}</td><td><button class="x" data-cancel="${o.n}">取消</button></td></tr>`).join('') + '</table>';
+  } else {
+    if (!st.hist.length) return box.innerHTML = '<div class="empty">約定履歴はありません</div>';
+    box.innerHTML = `<table><tr><th>時刻</th><th>銘柄</th><th>売買</th><th>種類</th><th>数量</th><th>約定価格</th><th>確定損益</th></tr>` +
+      st.hist.map(h => `<tr><td class="muted">${new Date(h.t).toLocaleTimeString('ja-JP')}</td><td>${symById[h.id].name}</td>
+        <td class="${h.side==='buy'?'up':'down'}">${h.side==='buy'?'買い':'売り'}</td><td>${h.kind}</td>
+        <td class="num">${fmtQ(h.id,h.qty)}</td><td class="num">${fmtP(h.id,h.price)}</td>
+        <td class="num ${sign(h.realized)}">${h.realized ? fmtJ(h.realized) : '-'}</td></tr>`).join('') + '</table>';
+  }
+}
+$('tbl').addEventListener('click', e => {
+  const c = e.target.closest('[data-close]'), x = e.target.closest('[data-cancel]');
+  if (c){
+    const id = c.dataset.close, p = st.pos[id]; if (!p) return;
+    fill(id, p.qty>0?'sell':'buy', Math.abs(p.qty), mkt[id].price, '決済');
+    renderAll();
+  } else if (x){
+    st.orders = st.orders.filter(o => o.n !== +x.dataset.cancel);
+    save(); renderAll(); toast('注文を取り消しました');
+  }
+});
+
+// ---------- chart ----------
+const cv = $('chart'), ctx = cv.getContext('2d');
+let W=0, H=0, hover=-1;
+function resize(){
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  drawChart();
+}
+new ResizeObserver(resize).observe($('chartWrap'));
+cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(); hover = idxAt(e.clientX - r.left); drawChart(); });
+cv.addEventListener('mouseleave', () => { hover = -1; drawChart(); });
+let layout = null;
+function idxAt(x){
+  if (!layout) return -1;
+  const i = Math.floor((x - layout.x0) / layout.cw);
+  return i >= 0 && i < layout.n ? layout.start + i : -1;
+}
+function drawChart(){
+  if (!W) return;
+  const id = st.sel, m = mkt[id], css = getComputedStyle(document.documentElement);
+  const C = k => css.getPropertyValue(k).trim();
+  const axisW = 78, padT = 24, padB = 22, volH = 50;
+  const plotW = W - axisW, plotH = H - padT - padB - volH;
+  const cw = Math.max(5, Math.min(14, plotW / 90));
+  const n = Math.min(m.candles.length, Math.floor(plotW / cw));
+  const start = m.candles.length - n, cs = m.candles.slice(start);
+  const x0 = plotW - n*cw;
+  layout = { x0, cw, n, start };
+  let hi = -Infinity, lo = Infinity;
+  for (const c of cs){ hi = Math.max(hi, c.h); lo = Math.min(lo, c.l); }
+  for (const o of st.orders) if (o.id===id){ hi = Math.max(hi,o.price); lo = Math.min(lo,o.price); }
+  if (st.pos[id]){ hi = Math.max(hi, st.pos[id].avg); lo = Math.min(lo, st.pos[id].avg); }
+  const pad = (hi-lo)*0.08 || hi*0.001; hi += pad; lo -= pad;
+  const y = v => padT + (hi - v)/(hi - lo)*plotH;
+
+  ctx.clearRect(0,0,W,H);
+  // grid + axis
+  ctx.font = '11px system-ui,sans-serif'; ctx.textBaseline = 'middle';
+  const stepRaw = (hi-lo)/6, mag = 10**Math.floor(Math.log10(stepRaw));
+  const gstep = [1,2,2.5,5,10].map(k=>k*mag).find(k => k >= stepRaw);
+  ctx.strokeStyle = C('--line'); ctx.fillStyle = C('--muted'); ctx.lineWidth = 1;
+  for (let v = Math.ceil(lo/gstep)*gstep; v <= hi; v += gstep){
+    const yy = Math.round(y(v))+.5;
+    ctx.beginPath(); ctx.moveTo(0,yy); ctx.lineTo(plotW,yy); ctx.stroke();
+    ctx.fillText(fmtP(id,v), plotW+6, yy);
+  }
+  // volume-ish (range bars)
+  const rng = cs.map(c => c.h - c.l), maxR = Math.max(...rng) || 1;
+  cs.forEach((c,i) => {
+    const h = rng[i]/maxR*(volH-6), x = x0 + i*cw;
+    ctx.fillStyle = (c.c>=c.o ? C('--up') : C('--down')) + '55';
+    ctx.fillRect(x+1, H - padB - h, cw-2, h);
+  });
+  // candles
+  cs.forEach((c,i) => {
+    const x = x0 + i*cw, cx = Math.round(x + cw/2)+.5, col = c.c>=c.o ? C('--up') : C('--down');
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(cx, y(c.h)); ctx.lineTo(cx, y(c.l)); ctx.stroke();
+    const yt = y(Math.max(c.o,c.c)), yb = y(Math.min(c.o,c.c));
+    ctx.fillRect(x+1, yt, cw-2, Math.max(1, yb-yt));
+  });
+  // MA20
+  ctx.strokeStyle = C('--blue'); ctx.lineWidth = 1.3; ctx.beginPath();
+  let started = false;
+  for (let i=0;i<cs.length;i++){
+    const gi = start+i; if (gi < 19) continue;
+    let sum=0; for (let k=gi-19;k<=gi;k++) sum += m.candles[k].c;
+    const xx = x0 + i*cw + cw/2, yy = y(sum/20);
+    started ? ctx.lineTo(xx,yy) : (ctx.moveTo(xx,yy), started=true);
+  }
+  ctx.stroke(); ctx.lineWidth = 1;
+  // fill markers
+  for (const mk of marks){
+    if (mk.id !== id) continue;
+    const i = mk.candle - start;
+    if (i < 0 || i >= n) continue;
+    const xx = x0 + i*cw + cw/2, yy = y(mk.price), up = mk.side==='buy';
+    ctx.fillStyle = up ? C('--up') : C('--down');
+    ctx.beginPath();
+    if (up){ ctx.moveTo(xx, yy+4); ctx.lineTo(xx-5, yy+12); ctx.lineTo(xx+5, yy+12); }
+    else   { ctx.moveTo(xx, yy-4); ctx.lineTo(xx-5, yy-12); ctx.lineTo(xx+5, yy-12); }
+    ctx.fill();
+  }
+  // horizontal lines: avg price, orders, current
+  const hline = (v, col, label, dash) => {
+    const yy = Math.round(y(v))+.5;
+    ctx.strokeStyle = col; ctx.setLineDash(dash||[]);
+    ctx.beginPath(); ctx.moveTo(0,yy); ctx.lineTo(plotW,yy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = col; ctx.fillRect(plotW, yy-9, axisW, 18);
+    ctx.fillStyle = '#fff'; ctx.fillText(fmtP(id,v), plotW+6, yy);
+    if (label){ ctx.fillStyle = col; ctx.textAlign='left'; ctx.fillText(label, 6, yy-9); }
+  };
+  if (st.pos[id]) hline(st.pos[id].avg, C('--accent'), `平均取得 ${st.pos[id].qty>0?'L':'S'} ${fmtQ(id,Math.abs(st.pos[id].qty))}`, [6,4]);
+  for (const o of st.orders) if (o.id===id) hline(o.price, '#8957e5', `${o.side==='buy'?'買':'売'}${o.type==='limit'?'指値':'逆指値'} ${fmtQ(id,o.qty)}`, [2,3]);
+  const last = cs[cs.length-1];
+  hline(m.price, last.c>=last.o ? C('--up') : C('--down'), '', [1,2]);
+  // crosshair / tooltip
+  const show = hover >= 0 ? m.candles[hover] : last;
+  if (hover >= 0){
+    const xx = x0 + (hover-start)*cw + cw/2;
+    ctx.strokeStyle = C('--muted'); ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(xx, padT); ctx.lineTo(xx, H-padB); ctx.stroke(); ctx.setLineDash([]);
+  }
+  $('tip').innerHTML = `始 ${fmtP(id,show.o)}　高 ${fmtP(id,show.h)}　安 ${fmtP(id,show.l)}　終 <span class="${show.c>=show.o?'up':'down'}">${fmtP(id,show.c)}</span>　<span style="color:var(--blue)">MA20</span>`;
+  // time axis
+  ctx.fillStyle = C('--muted'); ctx.textAlign = 'center';
+  for (let i = n-1; i >= 0; i -= Math.ceil(70/cw)){
+    const c = cs[i]; ctx.fillText(new Date(c.t).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'}), x0+i*cw+cw/2, H-padB/2);
+  }
+  ctx.textAlign = 'left';
+}
+
+// ---------- loop ----------
+let speed = 1, acc = 0, lastT = performance.now();
+$('speed').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  speed = +b.dataset.v;
+  document.querySelectorAll('#speed button').forEach(x => x.classList.toggle('on', x===b));
+});
+function tick(){
+  simT += 1000;
+  for (const s of SYMBOLS){
+    const m = mkt[s.id];
+    pushTick(m, step(m, s));
+    st.last[s.id] = m.price;
+  }
+  checkOrders();
+}
+// ローソク足が押し出されたらマーカー位置をずらす
+const _push = pushTick;
+pushTick = function(m, p){ const full = m.candles.length===MAX_CANDLES, willNew = m.ticks>=CANDLE_TICKS; _push(m,p); if (full && willNew) for (const mk of marks) if (mkt[mk.id]===m) mk.candle--; };
+
+function frame(now){
+  const dt = now - lastT; lastT = now;
+  if (speed){
+    acc += dt*speed;
+    let k = 0;
+    while (acc >= 1000 && k < 50){ tick(); acc -= 1000; k++; }
+    if (k){ renderAll(); save(); }
+    if (acc > 5000) acc = 0;
+  }
+  requestAnimationFrame(frame);
+}
+function renderAll(){ renderWatch(); renderHeader(); renderTable(); drawChart(); }
+
+$('reset').addEventListener('click', () => {
+  if (!confirm('口座・ポジション・注文履歴をすべてリセットしますか？')) return;
+  const sel = st.sel; st = fresh(); st.sel = sel; marks.length = 0;
+  for (const s of SYMBOLS) st.last[s.id] = mkt[s.id].price;
+  save(); renderAll(); toast('口座をリセットしました');
+});
+
+let toastT = 0;
+function toast(t){
+  const el = $('toast'); el.textContent = t; el.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+updatePriceField(false);
+renderAll();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
